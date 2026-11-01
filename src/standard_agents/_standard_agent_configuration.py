@@ -24,6 +24,15 @@ def apply_document(agent: StandardAgent, document_json: str) -> None:
 
 def _apply(agent: StandardAgent, key: str, value: Any) -> None:
     match key:
+        # Identity rides in the document, so the file IS the agent: a registry reads the name a
+        # handoff calls and the description that advertises it from the same JSON that composes
+        # it. Each key preserves the other, so their order cannot matter.
+        case "name":
+            agent.identity(value, description=agent.description)
+
+        case "description":
+            agent.identity(agent.name, description=value)
+
         case "ruleGate":
             agent.rule_gate(*value)
 

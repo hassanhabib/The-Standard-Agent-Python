@@ -230,6 +230,8 @@ class StandardAgent(Agent):
         self._session_broker: SessionBroker | None = None
         self._max_history_turns = 20
         self._max_turns = 7
+        self._name = ""
+        self._description = ""
         self._identical_call_limit = 8
         self._cite_knowledge: bool | None = None
         self._knowledge_citation_prefix = "Source: "
@@ -254,6 +256,20 @@ class StandardAgent(Agent):
         apply_document(agent, json)
 
         return agent
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def description(self) -> str:
+        return self._description
+
+    def identity(self, name: str, *, description: str = "") -> StandardAgent:
+        self._name = name
+        self._description = description
+
+        return self
 
     def max_turns(self, turns: int) -> StandardAgent:
         self._max_turns = 1 if turns < 1 else turns
