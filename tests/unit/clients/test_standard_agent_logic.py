@@ -3,8 +3,11 @@
 # Licensed under the The Standard Software License (TSSL)
 # ---------------------------------------------------------------
 
+import asyncio
+
 import pytest
 
+from standard_agents.models.clients.agents.agent_stream_event_type import AgentStreamEventType
 from standard_agents.models.clients.agents.exceptions import InvalidAgentCompositionException
 from standard_agents.models.foundations.skills.skill import Skill
 from standard_agents.models.loggings.trace_verbosity import TraceVerbosity
@@ -198,3 +201,37 @@ async def test_should_recover_from_unknown_tool_without_mcp_configured(
 
     # then
     assert actual_result == "could not get weather"
+
+
+async def test_should_stream_response_on_stream_prompt(
+        create_skill_broker,
+        empty_memory_broker,
+        create_generator_broker):
+
+    # given
+    async def to_async_stream(*tokens):
+        for token in tokens:
+            await asyncio.sleep(0)
+
+            yield token
+
+    generator_broker = create_generator_broker("")
+
+    generator_broker.generate_stream.side_effect = (
+        lambda system_prompt, user_prompt, inference=None: to_async_stream("Hi ", "there."))
+
+    agent = (StandardAgent()
+        .use_skills(create_skill_broker())
+        .use_memory(empty_memory_broker)
+        .use_generator(generator_broker))
+
+    # when
+    actual_events = [
+        stream_event async for stream_event in agent.process_prompt_stream(prompt="Hi there!")]
+
+    # then
+    streamed_response = "".join(
+        stream_event.content for stream_event in actual_events
+        if stream_event.type is AgentStreamEventType.RESPONSE)
+
+    assert streamed_response == "Hi there."
