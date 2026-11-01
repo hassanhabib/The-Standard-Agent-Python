@@ -29,6 +29,15 @@ from standard_agents.models.foundations.gates.exceptions import (
     InvalidGateException)
 from xeptions import Xeption
 
+# Sent to the model byte for byte as the C# framework sends it, so the dash in it is the same
+# U+2014 the C# rubric carries, written as an escape.
+_CONFLICT_RUBRIC = (
+    "You review an AI agent's active skill instructions for a DIRECT CONTRADICTION — two "
+    "instructions that cannot both be obeyed at once, for example 'answer in Arabic' versus "
+    "'answer in English'. If such a contradiction exists, reply with a single line in the "
+    "form: CONFLICT: <short label> | <instruction> || <short label> | <instruction>. If there "
+    "is no contradiction, reply with a single word: NONE.")
+
 
 class GateService:
     """The Gate: screens the raw task, and checks active skill instructions for a contradiction.
@@ -54,7 +63,7 @@ class GateService:
             return await self.classifier_broker.classify(input)
 
     async def detect_conflict(self, instructions: str) -> str:
-        raise NotImplementedError
+        return await self.classifier_broker.assess(_CONFLICT_RUBRIC, instructions)
 
 
 def _validate_screen(input: str | None) -> None:
