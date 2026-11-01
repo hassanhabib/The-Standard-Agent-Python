@@ -5,6 +5,8 @@
 
 from unittest.mock import call
 
+from standard_agents.models.brokers.mcps.mcp_tool import McpTool
+
 
 async def test_should_call(
         external_tool_service,
@@ -78,4 +80,30 @@ async def test_should_call_with_the_arguments_as_given_on_call_if_input_is_a_jso
     # then
     assert actual_output == expected_output
     assert mcp_broker.mock_calls == [call.call(input_name, structured_input)]
+    assert logging_broker.mock_calls == []
+
+
+async def test_should_retrieve_tools(
+        external_tool_service, mcp_broker, logging_broker, create_random_string):
+    """Discovery is a foundation routine like any other.
+
+    Found in the 2026-09-04 principal review (F-15): discovery lived in a model carrying a
+    delegate, so it evaded the tier a dependency is reviewed at, and an outage came back as "no
+    tools". The broker's answer comes back in business language, and its failures are localized
+    and categorized rather than swallowed.
+    """
+    # given
+    random_tools = [
+        McpTool(create_random_string(), create_random_string()),
+        McpTool(create_random_string(), create_random_string())]
+
+    expected_tools = list(random_tools)
+    mcp_broker.list_tools.return_value = random_tools
+
+    # when
+    actual_tools = await external_tool_service.retrieve_tools()
+
+    # then
+    assert list(actual_tools) == expected_tools
+    assert mcp_broker.mock_calls == [call.list_tools()]
     assert logging_broker.mock_calls == []
