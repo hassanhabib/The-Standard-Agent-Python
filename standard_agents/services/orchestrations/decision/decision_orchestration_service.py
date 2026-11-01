@@ -1,0 +1,29 @@
+# ---------------------------------------------------------------
+# Copyright (c) Hassan Habib All rights reserved.
+# Licensed under the The Standard Software License (TSSL)
+# ---------------------------------------------------------------
+
+from standard_agents.brokers.loggings.ilogging_broker import ILoggingBroker
+from standard_agents.models.orchestrations.agents.agent_context import AgentContext
+from standard_agents.services.foundations.brains.ibrain_service import IBrainService
+from standard_agents.services.foundations.gates.igate_service import IGateService
+from standard_agents.services.foundations.judges.ijudge_service import IJudgeService
+from standard_agents.services.orchestrations.decision.idecision_orchestration_service import (
+    IDecisionOrchestrationService)
+
+
+class DecisionOrchestrationService(IDecisionOrchestrationService):
+    def __init__(
+        self,
+        brain_service: IBrainService,
+        gate_service: IGateService,
+        judge_service: IJudgeService,
+        logging_broker: ILoggingBroker) -> None:
+
+        self.brain_service = brain_service
+        self.gate_service = gate_service
+        self.judge_service = judge_service
+        self.logging_broker = logging_broker
+
+    async def think(self, context: AgentContext) -> AgentContext:
+        raise NotImplementedError
