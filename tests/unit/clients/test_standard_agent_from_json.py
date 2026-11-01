@@ -135,3 +135,16 @@ async def test_should_cite_knowledge_from_json(
 
     # then
     assert actual_result == f"90 days.\n\n{expected_prefix}Refund Policy"
+
+
+# Identity is what makes an agent document registrable: the name a handoff calls, the description
+# that advertises it. They ride in the document itself, so the file IS the agent: a registry
+# needs nothing beside it.
+def test_should_compose_agent_identity_from_json():
+    # given . when
+    agent = StandardAgent.from_json(
+        '{ "name": "billing", "description": "Handles refunds and invoices." }')
+
+    # then
+    assert agent.name == "billing"
+    assert agent.description == "Handles refunds and invoices."
