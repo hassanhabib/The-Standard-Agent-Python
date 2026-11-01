@@ -43,7 +43,8 @@ class ExternalToolService:
         answer. A server that cannot be asked is a dependency failure this service names, never
         an empty catalog.
         """
-        return await self.mcp_broker.list_tools()
+        async with _handling_exceptions(self.logging_broker):
+            return await self.mcp_broker.list_tools()
 
 
 def _to_arguments_json(input: str) -> str:
