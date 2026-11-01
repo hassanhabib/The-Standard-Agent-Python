@@ -77,3 +77,21 @@ def test_should_treat_an_absent_bag_as_nothing_quietly():
     assert sanitized.json is None
     assert sanitized.stripped_keys == ()
     assert sanitized.malformed is False
+
+
+def test_should_merge_sanitized_keys_onto_the_request_whole():
+    # given: the request the broker built, and a sanitized bag
+    request = {
+        "model": "test",
+        "temperature": 0.7,
+    }
+
+    sanitized_json = '{"chat_template_kwargs": {"enable_thinking": false}}'
+
+    # when
+    ProviderOptions.merge_into(request, sanitized_json)
+
+    # then: the engine key landed and the core's keys stand untouched
+    assert request["chat_template_kwargs"]["enable_thinking"] is False
+    assert request["temperature"] == 0.7
+    assert request["model"] == "test"
