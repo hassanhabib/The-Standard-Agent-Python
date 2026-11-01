@@ -18,6 +18,7 @@ from standard_agents.services.orchestrations.direction.executions.execution_orch
 from standard_agents.services.orchestrations.direction.perimeters.perimeter_orchestration_service \
     import PerimeterOrchestrationService
 
+_REFUSE_DIRECTION = "Refuse"
 _AWAIT_INPUT_DIRECTION = "AwaitInput"
 
 
@@ -79,6 +80,9 @@ class DirectionCoordinationService:
 
 
 def _to_terminal_status(direction_type: str) -> AgentStatus:
+    if direction_type == _REFUSE_DIRECTION:
+        return AgentStatus.REFUSED
+
     if direction_type == _AWAIT_INPUT_DIRECTION:
         return AgentStatus.AWAITING_INPUT
 
