@@ -60,3 +60,27 @@ async def test_should_refuse_on_think_if_gate_screens_refuse_with_reason(
     # then
     assert actual_context.direction_type == "Refuse"
     assert actual_context.raw_reply == verdict
+
+
+async def test_should_not_carry_last_turns_narration_on_think_if_gate_refuses(
+        decision_coordination_service,
+        gate_service,
+        create_random_agent_context):
+    """Narration is a turn's output, like status and cost.
+
+    The incoming context may still carry the previous turn's, and a refusal path that bypasses
+    interpretation would hand it back out: the loop would voice last turn's prose over this
+    turn's refusal.
+    """
+    # given
+    input_context = dataclasses.replace(
+        create_random_agent_context(),
+        narration="stale prose from last turn")
+
+    gate_service.screen.return_value = "refuse"
+
+    # when
+    actual_context = await decision_coordination_service.think(input_context)
+
+    # then
+    assert actual_context.narration == ""
