@@ -48,24 +48,25 @@ class EffectLedgerService:
         Reports the prior record when the key already has one, and None when this is the first
         time and the caller should proceed (SPEC.md 4.9).
         """
-        now = self.time_broker.get_current_date_time()
+        async with _handling_exceptions(self.logging_broker):
+            now = self.time_broker.get_current_date_time()
 
-        claim = EffectRecord(
-            idempotency_key=effect.idempotency_key,
-            tool_name=effect.tool_name,
-            state=EffectState.IN_FLIGHT,
-            owner=effect.run_id,
-            claimed_on=now,
-            lease_until=now + self.lease)
+            claim = EffectRecord(
+                idempotency_key=effect.idempotency_key,
+                tool_name=effect.tool_name,
+                state=EffectState.IN_FLIGHT,
+                owner=effect.run_id,
+                claimed_on=now,
+                lease_until=now + self.lease)
 
-        claimed = await self.effect_ledger_broker.insert_claim(claim)
+            claimed = await self.effect_ledger_broker.insert_claim(claim)
 
-        # None means this act has not run and the caller should proceed. It has to stay distinct
-        # from a read that failed: one means go, the other means stop.
-        if claimed:
-            return None
+            # None means this act has not run and the caller should proceed. It has to stay
+            # distinct from a read that failed: one means go, the other means stop.
+            if claimed:
+                return None
 
-        return await self.effect_ledger_broker.select_record(effect.idempotency_key)
+            return await self.effect_ledger_broker.select_record(effect.idempotency_key)
 
     async def record_outcome(self, effect: AgentEffect, outcome: str) -> None:
         """Records what the act produced, before the loop advances: the record is completed."""
@@ -157,8 +158,21 @@ class EffectLedgerService:
 async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[None]:
     try:
         yield
+    except PermissionError as permission_error:
+        raise await _create_and_log_critical_dependency_exception(
+            logging_broker, permission_error)
     except OSError as os_error:
         raise await _create_and_log_dependency_exception(logging_broker, os_error)
+
+
+async def _create_and_log_critical_dependency_exception(
+        logging_broker: LoggingBroker,
+        exception: Exception) -> EffectLedgerDependencyException:
+
+    effect_ledger_dependency_exception = _create_dependency_exception(exception)
+    await logging_broker.log_critical(effect_ledger_dependency_exception)
+
+    return effect_ledger_dependency_exception
 
 
 async def _create_and_log_dependency_exception(
