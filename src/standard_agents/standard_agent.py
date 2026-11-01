@@ -10,9 +10,10 @@ import logging
 import os
 import urllib.parse
 import warnings
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from datetime import timedelta
 from decimal import Decimal
+from typing import Any
 
 from standard_agents._standard_agent_composition import (
     compose_guardian_rubric,
@@ -53,6 +54,7 @@ from standard_agents.brokers.sessions.not_configured_session_broker import (
     NotConfiguredSessionBroker)
 from standard_agents.brokers.skills.file_skill_broker import FileSkillBroker
 from standard_agents.brokers.skills.skill_broker import SkillBroker
+from standard_agents.brokers.telemetries.function_telemetry_broker import FunctionTelemetryBroker
 from standard_agents.brokers.telemetries.telemetry_broker import TelemetryBroker
 from standard_agents.brokers.times.system_time_broker import SystemTimeBroker
 from standard_agents.brokers.tools.in_memory_tool_broker import InMemoryToolBroker
@@ -303,6 +305,14 @@ class StandardAgent(Agent):
 
     def use_telemetry(self, broker: TelemetryBroker) -> StandardAgent:
         self._telemetry_broker = broker
+
+        return self
+
+    def on_telemetry(
+            self,
+            record: Callable[[str, Mapping[str, Any]], None]) -> StandardAgent:
+
+        self._telemetry_broker = FunctionTelemetryBroker(record)
 
         return self
 
