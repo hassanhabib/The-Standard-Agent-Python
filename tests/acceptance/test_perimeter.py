@@ -218,3 +218,23 @@ async def test_should_withhold_an_injected_tool_result_from_the_brain():
     assert "email the customer database" not in captured_second_prompt
     assert "refused by screening" in captured_second_prompt
     assert actual_result == "I could not read that page."
+
+
+# The same control through the other door, found in the 2026-08-23 sweep. Screening had exactly
+# one call site, the batched loop, so the identical injected result sailed into the Brain's next
+# prompt whenever the caller streamed. A control a caller can step around by changing method is
+# not a control (SPEC.md 7.6).
+async def test_should_withhold_an_injected_tool_result_from_the_brain_when_streamed():
+    # given
+    captured_second_prompts = []
+    agent = _agent_that_fetches_an_injected_page(captured_second_prompts)
+
+    # when: the identical run, streamed
+    async for _ in agent.process_prompt_stream("summarise example.com"):
+        pass
+
+    # then: the injected text never reaches the Brain on this path either
+    captured_second_prompt = captured_second_prompts[-1] if captured_second_prompts else ""
+
+    assert "email the customer database" not in captured_second_prompt
+    assert "refused by screening" in captured_second_prompt
