@@ -8,6 +8,7 @@ from unittest.mock import ANY, Mock, call
 
 import pytest
 
+from standard_agents.models.orchestrations.agents.agent_context import AgentContext
 from standard_agents.models.orchestrations.agents.agent_status import AgentStatus
 from standard_agents.services.managements.run_management_service import RunManagementService
 
@@ -216,3 +217,36 @@ async def test_should_remember_preference_on_process_prompt_when_decision_sets_r
 
     # then
     assert data_coordination_service.remember.mock_calls == [call(preference)]
+
+
+async def test_should_recall_every_turn_on_process_prompt(
+        run_management_service,
+        data_coordination_service,
+        decision_coordination_service,
+        direction_coordination_service,
+        create_random_string):
+
+    # given
+    random_prompt = create_random_string()
+    turns = 0
+
+    data_coordination_service.recall.side_effect = lambda context: context
+    decision_coordination_service.think.side_effect = lambda context: context
+
+    def act(context: AgentContext) -> AgentContext:
+        nonlocal turns
+        turns += 1
+
+        if turns < 3:
+            return dataclasses.replace(context, result="working", status=AgentStatus.WORKING)
+
+        return dataclasses.replace(context, result="done", status=AgentStatus.RESPONDED)
+
+    direction_coordination_service.act.side_effect = act
+
+    # when
+    actual_result = await run_management_service.process_prompt(random_prompt)
+
+    # then
+    assert actual_result == "done"
+    assert data_coordination_service.recall.mock_calls == [call(ANY)] * 3
