@@ -25,7 +25,7 @@ def is_refusal(verdict: str) -> bool:
 # to answer. A reply with neither prefix is taken as the answer itself.
 def build_user_message(context: AgentContext) -> str:
     user_message = f"Task: {context.prompt}"
-    observations = context.memories + context.knowledge + context.observations
+    observations = context.observations
 
     if observations:
         user_message += "\n\nObservations so far:\n"
