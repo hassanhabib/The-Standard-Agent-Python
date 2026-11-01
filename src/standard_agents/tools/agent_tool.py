@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from standard_agents.agent import Agent
+from standard_agents.models.orchestrations.agents.agent_status import AgentStatus
 from standard_agents.tools.tool import Tool
 
 
@@ -43,4 +44,14 @@ class AgentTool(Tool):
         handed_off = self._handoff.replace(_INPUT_PLACEHOLDER, input)
         outcome = await self._agent.run(handed_off, cancellation=None)
 
-        return outcome.result
+        if outcome.status is AgentStatus.RESPONDED:
+            return outcome.result
+
+        return (
+            f"[did not complete] the sub-agent '{self.name}' ended "
+            + f"{_status_name(outcome.status)}: {outcome.result}")
+
+
+def _status_name(status: AgentStatus) -> str:
+    """The status as the C# prints it: AWAITING_APPROVAL is AwaitingApproval."""
+    return "".join(word.capitalize() for word in status.name.split("_"))
