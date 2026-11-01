@@ -75,3 +75,29 @@ async def test_should_hide_the_value_from_the_brain_and_give_it_back_to_the_call
     assert _SECRET_EMAIL not in seen_by_brain
     assert "{{EMAIL_0}}" in seen_by_brain
     assert actual_answer == f"I emailed {_SECRET_EMAIL} as requested."
+
+
+async def test_should_hide_the_value_from_the_gate():
+    """The Gate screens the raw task, so it sees exactly what redaction exists to hide, and a
+    guardian may run on a different host than the Brain, which makes an unredacted Gate a wider
+    exposure than an unredacted Brain, not a narrower one."""
+    # given
+    seen_by_gate = ""
+
+    async def brain(system_prompt, user_prompt):
+        return "FINAL: done"
+
+    async def gate(rubric, input):
+        nonlocal seen_by_gate
+        seen_by_gate = input
+
+        return "accept"
+
+    agent = _agent_that_redacts(brain=brain, gate=gate)
+
+    # when
+    await agent.process_prompt(f"please email {_SECRET_EMAIL} the report")
+
+    # then
+    assert seen_by_gate != ""
+    assert _SECRET_EMAIL not in seen_by_gate
