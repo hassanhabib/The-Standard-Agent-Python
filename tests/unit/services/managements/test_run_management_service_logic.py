@@ -288,3 +288,36 @@ async def test_should_write_turn_to_log_on_process_prompt(
 
     # then
     assert logging_broker.log_turn.call_count >= 1
+
+
+async def test_should_not_leak_state_between_prompts_on_process_prompt(
+        run_management_service,
+        data_coordination_service,
+        decision_coordination_service,
+        create_random_string,
+        setup_direction_terminates):
+
+    # given
+    first_prompt = create_random_string()
+    second_prompt = create_random_string()
+    recalled_contexts: list[AgentContext] = []
+
+    def recall(context: AgentContext) -> AgentContext:
+        recalled_contexts.append(context)
+
+        return dataclasses.replace(
+            context, observations=(*context.observations, "some observation"))
+
+    data_coordination_service.recall.side_effect = recall
+    decision_coordination_service.think.side_effect = lambda context: context
+    setup_direction_terminates("done")
+
+    # when
+    await run_management_service.process_prompt(first_prompt)
+    await run_management_service.process_prompt(second_prompt)
+
+    # then
+    assert len(recalled_contexts) == 2
+    assert recalled_contexts[0].prompt == first_prompt
+    assert recalled_contexts[1].prompt == second_prompt
+    assert recalled_contexts[1].observations == ()
