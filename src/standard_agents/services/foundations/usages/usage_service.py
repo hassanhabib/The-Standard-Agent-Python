@@ -39,4 +39,4 @@ class UsageService:
         return AgentUsage(
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,
-            is_estimated=False)
+            is_estimated=True)
