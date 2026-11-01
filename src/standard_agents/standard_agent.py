@@ -21,6 +21,8 @@ from standard_agents.brokers.knowledges.not_configured_knowledge_broker import (
     NotConfiguredKnowledgeBroker)
 from standard_agents.brokers.loggings.ilogging_broker import ILoggingBroker
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
+from standard_agents.brokers.mcps.imcp_broker import IMcpBroker
+from standard_agents.brokers.mcps.not_configured_mcp_broker import NotConfiguredMcpBroker
 from standard_agents.brokers.memories.file_memory_broker import FileMemoryBroker
 from standard_agents.brokers.memories.function_memory_broker import FunctionMemoryBroker
 from standard_agents.brokers.memories.imemory_broker import IMemoryBroker
@@ -42,6 +44,8 @@ from standard_agents.services.coordinations.runs.run_coordination_service import
     DEFAULT_MAX_TURNS,
     RunCoordinationService)
 from standard_agents.services.foundations.brains.brain_service import BrainService
+from standard_agents.services.foundations.external_tools.external_tool_service import (
+    ExternalToolService)
 from standard_agents.services.foundations.gates.gate_service import GateService
 from standard_agents.services.foundations.internal_tools.internal_tool_service import (
     InternalToolService)
@@ -76,6 +80,7 @@ class StandardAgent:
         self.knowledge_broker: IKnowledgeBroker = NotConfiguredKnowledgeBroker()
         self.classifier_broker: IClassifierBroker = NotConfiguredClassifierBroker()
         self.verifier_broker: IVerifierBroker = NotConfiguredVerifierBroker()
+        self.mcp_broker: IMcpBroker = NotConfiguredMcpBroker()
         self.logging_broker: ILoggingBroker = LoggingBroker(logging.getLogger("standard_agents"))
         self.agent_tools: dict[str, ITool] = {}
         self.turn_limit = DEFAULT_MAX_TURNS
@@ -226,6 +231,7 @@ class StandardAgent:
             internal_tool_service=InternalToolService(
                 ToolBroker(self.agent_tools),
                 self.logging_broker),
+            external_tool_service=ExternalToolService(self.mcp_broker, self.logging_broker),
             return_service=ReturnService(self.logging_broker),
             logging_broker=self.logging_broker)
 

@@ -49,8 +49,9 @@ class DirectionOrchestrationService(IDirectionOrchestrationService):
 
         return await try_catch(self.logging_broker, returning_context_function)
 
-    # Return to the caller when the decision ends the run; otherwise act through a tool the agent
-    # owns, and let the next turn see what came of it.
+    # The three ways Direction can act (SPEC.md 4.3): Return, ending the run; Internal, through a
+    # tool the agent owns, a name the agent owns never being sent outward; External, out across
+    # the boundary. A non-terminal outcome becomes an observation and the run keeps working.
     async def act_on(self, context: AgentContext) -> AgentContext:
         if context.direction_type == "":
             return context
@@ -62,16 +63,10 @@ class DirectionOrchestrationService(IDirectionOrchestrationService):
 
             return dataclasses.replace(context, result=result, status=terminal_status)
 
-        if await self.internal_tool_service.handles(context.direction_type) is False:
-            return dataclasses.replace(
-                context,
-                observations=context.observations + (
-                    f"There is no tool named '{context.direction_type}'. "
-                    + "Use a tool from the catalog, or give a FINAL answer.",),
-                result="",
-                status=AgentStatus.WORKING)
-
-        outcome = await self.internal_tool_service.run(context.direction_type, context.payload)
+        if await self.internal_tool_service.handles(context.direction_type):
+            outcome = await self.internal_tool_service.run(context.direction_type, context.payload)
+        else:
+            outcome = await self.external_tool_service.call(context.direction_type, context.payload)
 
         return dataclasses.replace(
             context,
