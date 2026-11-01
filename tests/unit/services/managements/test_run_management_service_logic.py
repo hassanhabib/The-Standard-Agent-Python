@@ -250,3 +250,22 @@ async def test_should_recall_every_turn_on_process_prompt(
     # then
     assert actual_result == "done"
     assert data_coordination_service.recall.mock_calls == [call(ANY)] * 3
+
+
+async def test_should_reset_log_on_process_prompt(
+        run_management_service,
+        logging_broker,
+        create_random_string,
+        setup_orchestrations_pass_through,
+        setup_direction_terminates):
+
+    # given
+    random_prompt = create_random_string()
+    setup_orchestrations_pass_through()
+    setup_direction_terminates(create_random_string())
+
+    # when
+    await run_management_service.process_prompt(random_prompt)
+
+    # then
+    assert logging_broker.log_reset.mock_calls == [call()]
