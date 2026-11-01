@@ -105,3 +105,40 @@ class TestRunCoordinationServiceLogicRun(RunCoordinationServiceTests):
         assert self.direction_orchestration_service_mock.mock_calls == [
             call.act(decided_context)
         ]
+
+    # A run that is still working when its turns run out delivers nothing. Saying so is the
+    # honest outcome; handing back whatever the last tool returned as if it were an answer is not.
+    def test_should_run_out_of_turns_and_fail_without_an_answer(self) -> None:
+        # given
+        input_prompt = self.create_random_string()
+        initial_context = AgentContext(prompt=input_prompt)
+        recalled_context = self.create_random_context(input_prompt)
+        decided_context = self.create_random_context(input_prompt)
+        acted_context = self.create_random_context(input_prompt, AgentStatus.WORKING)
+        run_coordination_service = self.create_run_coordination_service(max_turns=1)
+
+        expected_outcome = AgentOutcome(
+            result="I ran out of turns before an answer was ready; nothing was delivered.",
+            status=AgentStatus.FAILED)
+
+        self.data_orchestration_service_mock.recall.return_value = recalled_context
+        self.decision_orchestration_service_mock.think.return_value = decided_context
+        self.direction_orchestration_service_mock.act.return_value = acted_context
+
+        # when
+        actual_outcome = asyncio.run(run_coordination_service.run(input_prompt))
+
+        # then
+        assert actual_outcome == expected_outcome
+
+        assert self.data_orchestration_service_mock.mock_calls == [
+            call.recall(initial_context)
+        ]
+
+        assert self.decision_orchestration_service_mock.mock_calls == [
+            call.think(recalled_context)
+        ]
+
+        assert self.direction_orchestration_service_mock.mock_calls == [
+            call.act(decided_context)
+        ]
