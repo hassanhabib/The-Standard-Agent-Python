@@ -8,10 +8,18 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from restfulsense import HttpResponseBadRequestException
+from restfulsense import (
+    HttpRequestException,
+    HttpResponseBadRequestException,
+    HttpResponseForbiddenException,
+    HttpResponseNotFoundException,
+    HttpResponseUnauthorizedException,
+    HttpResponseUrlNotFoundException)
 from standard_agents.brokers.classifiers.classifier_broker import ClassifierBroker
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.models.foundations.gates.exceptions import (
+    FailedGateDependencyException,
+    GateDependencyException,
     GateDependencyValidationException,
     GateValidationException,
     InvalidGateException)
@@ -65,6 +73,14 @@ async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[N
 
         raise await _create_and_log_dependency_validation_exception(
             logging_broker, invalid_gate_exception)
+    except (
+            HttpResponseUnauthorizedException,
+            HttpResponseForbiddenException,
+            HttpResponseNotFoundException,
+            HttpResponseUrlNotFoundException,
+            HttpRequestException) as critical_dependency_exception:
+        raise await _create_and_log_critical_dependency_exception(
+            logging_broker, critical_dependency_exception)
 
 
 async def _create_and_log_validation_exception(
@@ -91,3 +107,23 @@ async def _create_and_log_dependency_validation_exception(
     await logging_broker.log_error(gate_dependency_validation_exception)
 
     return gate_dependency_validation_exception
+
+
+async def _create_and_log_critical_dependency_exception(
+        logging_broker: LoggingBroker,
+        exception: Exception) -> GateDependencyException:
+
+    gate_dependency_exception = _create_dependency_exception(exception)
+    await logging_broker.log_critical(gate_dependency_exception)
+
+    return gate_dependency_exception
+
+
+def _create_dependency_exception(exception: Exception) -> GateDependencyException:
+    failed_gate_dependency_exception = FailedGateDependencyException(
+        message="Failed gate dependency error occurred, contact support.",
+        inner_exception=exception)
+
+    return GateDependencyException(
+        message="Gate dependency error occurred, contact support.",
+        inner_exception=failed_gate_dependency_exception)
