@@ -52,9 +52,24 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
         case "citeKnowledge":
             agent.cite_knowledge(cite=value)
 
+        case "agents":
+            for member in value:
+                _apply_fleet_member(agent, member, key)
+
         case _:
             raise InvalidAgentConfigurationException(
                 message=(
                     f"Unknown configuration key '{key}'. A key this agent does not know is a "
                     + "control you believe is on and is not, so it refuses to compose. "
                     + "The keys are the builder verbs, camelCased \u2014 see docs/how-to.md."))
+
+
+def _apply_fleet_member(agent: StandardAgent, member: Any, key: str) -> None:
+    # A fleet member rides inline as the same document from_json composes, identity included,
+    # because the document IS the agent. An inline member must be named: a handoff calls agents
+    # by name, and a nameless agent is one the brain could never call.
+    composed = type(agent).from_json(json.dumps(member))
+
+    if not composed.name or composed.name.isspace():
+        raise InvalidAgentConfigurationException(
+            message=f"An inline '{key}' entry needs a 'name' \u2014 a handoff calls agents by name.")
