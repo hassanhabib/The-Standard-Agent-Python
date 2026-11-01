@@ -91,3 +91,25 @@ async def test_should_throw_dependency_exception_on_retrieve_session_if_io_error
         call.log_error(same_exception_as(expected_session_dependency_exception))]
 
     assert session_broker.mock_calls == [call.select_session(random_session_id)]
+
+
+async def test_should_throw_critical_dependency_exception_on_record_session_if_access_denied(
+        session_service, session_broker, logging_broker, same_exception_as, create_random_session):
+
+    # given
+    random_session = create_random_session()
+    permission_error = PermissionError()
+    expected_session_dependency_exception = _session_dependency_exception(permission_error)
+    session_broker.upsert_session.side_effect = permission_error
+
+    # when
+    with pytest.raises(SessionDependencyException) as raised:
+        await session_service.record_session(random_session)
+
+    # then
+    assert raised.value.same_exception_as(expected_session_dependency_exception)
+
+    assert logging_broker.mock_calls == [
+        call.log_critical(same_exception_as(expected_session_dependency_exception))]
+
+    assert session_broker.mock_calls == [call.upsert_session(random_session)]
