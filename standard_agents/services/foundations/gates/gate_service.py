@@ -18,4 +18,6 @@ class GateService(IGateService):
         self.logging_broker = logging_broker
 
     async def screen(self, text: str) -> str:
-        raise NotImplementedError
+        verdict = await self.classifier_broker.classify(text)
+
+        return verdict.strip()
