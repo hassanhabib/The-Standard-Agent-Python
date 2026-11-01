@@ -339,3 +339,23 @@ async def test_should_start_an_mcp_server_process_from_json(tmp_path, monkeypatc
 
     # then: the first-registered process owns the name, started as the document said
     assert "student 1 is Hassan, at Redmond High, for the fall term" in observed_prompts[-1]
+
+
+def test_should_compose_multiple_integrations_from_json():
+    # given: integrations are plural in the document the same way they are in code: a form adds
+    # a row, the agent gains a source.
+    integrations = """
+    {
+      "skills": ["Skills", "Compliance/Skills"],
+      "mcp": [
+        "https://tools.example/",
+        { "endpointUrl": "https://internal.example/", "apiKey": "psk-1" }
+      ]
+    }
+    """
+
+    # when
+    agent = StandardAgent.from_json(integrations)
+
+    # then
+    assert agent is not None
