@@ -10,7 +10,9 @@ import pytest
 
 from standard_agents.models.foundations.brains.exceptions import (
     BrainDependencyException,
-    FailedBrainDependencyException)
+    BrainServiceException,
+    FailedBrainDependencyException,
+    FailedBrainServiceException)
 from tests.unit.services.foundations.brains.brain_service_tests import BrainServiceTests
 
 
@@ -78,3 +80,35 @@ class TestBrainServiceExceptionsGenerate(BrainServiceTests):
         ]
 
         self.assert_logged_once("log_error", expected_brain_dependency_exception)
+
+    def test_should_raise_service_exception_on_generate_if_service_error_occurs_and_log_it(
+        self) -> None:
+
+        # given
+        input_system_prompt = self.create_random_string()
+        input_user_prompt = self.create_random_string()
+        service_error = Exception(self.create_random_string())
+
+        failed_brain_service_exception = FailedBrainServiceException(
+            message="Failed brain service error occurred, contact support.",
+            inner_exception=service_error)
+
+        expected_brain_service_exception = BrainServiceException(
+            message="Brain service error occurred, contact support.",
+            inner_exception=failed_brain_service_exception)
+
+        self.generator_broker_mock.generate.side_effect = service_error
+
+        # when
+        with pytest.raises(BrainServiceException) as actual_brain_service_exception:
+            asyncio.run(self.brain_service.generate(input_system_prompt, input_user_prompt))
+
+        # then
+        assert expected_brain_service_exception.same_exception_as(
+            actual_brain_service_exception.value)
+
+        assert self.generator_broker_mock.mock_calls == [
+            call.generate(input_system_prompt, input_user_prompt)
+        ]
+
+        self.assert_logged_once("log_error", expected_brain_service_exception)
