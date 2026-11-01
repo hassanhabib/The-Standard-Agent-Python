@@ -8,6 +8,8 @@ import dataclasses
 from standard_agents.brokers.loggings.ilogging_broker import ILoggingBroker
 from standard_agents.models.orchestrations.agents.agent_context import AgentContext
 from standard_agents.models.orchestrations.agents.agent_status import AgentStatus
+from standard_agents.services.foundations.external_tools.iexternal_tool_service import (
+    IExternalToolService)
 from standard_agents.services.foundations.internal_tools.iinternal_tool_service import (
     IInternalToolService)
 from standard_agents.services.foundations.returns.ireturn_service import IReturnService
@@ -30,10 +32,12 @@ class DirectionOrchestrationService(IDirectionOrchestrationService):
     def __init__(
         self,
         internal_tool_service: IInternalToolService,
+        external_tool_service: IExternalToolService,
         return_service: IReturnService,
         logging_broker: ILoggingBroker) -> None:
 
         self.internal_tool_service = internal_tool_service
+        self.external_tool_service = external_tool_service
         self.return_service = return_service
         self.logging_broker = logging_broker
 
