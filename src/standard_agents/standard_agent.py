@@ -11,7 +11,14 @@ import os
 import urllib.parse
 import urllib.request
 import warnings
-from collections.abc import AsyncIterator, Awaitable, Callable, Iterable, Mapping, Sequence
+from collections.abc import (
+    AsyncIterator,
+    Awaitable,
+    Callable,
+    Iterable,
+    Mapping,
+    MutableMapping,
+    Sequence)
 from datetime import timedelta
 from decimal import Decimal
 from typing import Any
@@ -21,6 +28,12 @@ from standard_agents._standard_agent_composition import (
     render_tool_catalog,
     render_tool_catalog_entries)
 from standard_agents.agent import Agent
+from standard_agents.brokers.agents.agent_registry_broker import AgentRegistryBroker
+from standard_agents.brokers.agents.file_agent_registry_broker import FileAgentRegistryBroker
+from standard_agents.brokers.agents.function_agent_registry_broker import (
+    FunctionAgentRegistryBroker)
+from standard_agents.brokers.approvals.approval_broker import ApprovalBroker, ApprovalDecision
+from standard_agents.brokers.approvals.function_approval_broker import FunctionApprovalBroker
 from standard_agents.brokers.approvals.not_configured_approval_broker import (
     NotConfiguredApprovalBroker)
 from standard_agents.brokers.audits.audit_broker import AuditBroker
@@ -30,17 +43,28 @@ from standard_agents.brokers.classifiers.classifier_broker import ClassifierBrok
 from standard_agents.brokers.classifiers.function_classifier_broker import FunctionClassifierBroker
 from standard_agents.brokers.classifiers.not_configured_classifier_broker import (
     NotConfiguredClassifierBroker)
+from standard_agents.brokers.classifiers.rule_classifier_broker import RuleClassifierBroker
+from standard_agents.brokers.contracts.contract_broker import ContractBroker
+from standard_agents.brokers.contracts.function_contract_broker import FunctionContractBroker
 from standard_agents.brokers.contracts.rule_contract_broker import RuleContractBroker
+from standard_agents.brokers.effects.effect_ledger_broker import EffectLedgerBroker
+from standard_agents.brokers.effects.file_effect_ledger_broker import FileEffectLedgerBroker
+from standard_agents.brokers.effects.function_effect_ledger_broker import (
+    FunctionEffectLedgerBroker)
 from standard_agents.brokers.effects.in_memory_effect_ledger_broker import (
     InMemoryEffectLedgerBroker)
 from standard_agents.brokers.files.file_broker import FileBroker
 from standard_agents.brokers.files.local_file_broker import LocalFileBroker
 from standard_agents.brokers.generators.function_generator_broker import FunctionGeneratorBroker
+from standard_agents.brokers.generators.function_generator_broker_v1 import (
+    FunctionGeneratorBrokerV1)
 from standard_agents.brokers.generators.generator_broker import GeneratorBroker
 from standard_agents.brokers.generators.generator_broker_v1 import GeneratorBrokerV1
 from standard_agents.brokers.generators.openai_generator_broker import OpenAiGeneratorBroker
 from standard_agents.brokers.generators.openai_generator_broker_v1 import OpenAiGeneratorBrokerV1
+from standard_agents.brokers.knowledges.function_knowledge_broker import FunctionKnowledgeBroker
 from standard_agents.brokers.knowledges.knowledge_broker import KnowledgeBroker
+from standard_agents.brokers.knowledges.sourced_knowledge_broker import SourcedKnowledgeBroker
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.brokers.loggings.stdlib_logging_broker import StdlibLoggingBroker
 from standard_agents.brokers.mcps.composite_mcp_broker import CompositeMcpBroker
@@ -48,30 +72,52 @@ from standard_agents.brokers.mcps.http_mcp_broker import HttpMcpBroker
 from standard_agents.brokers.mcps.mcp_broker import McpBroker
 from standard_agents.brokers.mcps.not_configured_mcp_broker import NotConfiguredMcpBroker
 from standard_agents.brokers.mcps.stdio_mcp_broker import StdioMcpBroker
+from standard_agents.brokers.memories.function_memory_broker import FunctionMemoryBroker
 from standard_agents.brokers.memories.memory_broker import MemoryBroker
+from standard_agents.brokers.policies.function_policy_broker import FunctionPolicyBroker
 from standard_agents.brokers.policies.not_configured_policy_broker import (
     NotConfiguredPolicyBroker)
+from standard_agents.brokers.policies.policy_broker import PolicyBroker
+from standard_agents.brokers.redactions.function_redaction_broker import FunctionRedactionBroker
 from standard_agents.brokers.redactions.not_configured_redaction_broker import (
     NotConfiguredRedactionBroker)
+from standard_agents.brokers.redactions.redaction_broker import RedactionBroker
+from standard_agents.brokers.resiliences.fallback_resilience_broker import (
+    FallbackResilienceBroker)
+from standard_agents.brokers.resiliences.resilience_broker import ResilienceBroker
+from standard_agents.brokers.resiliences.retry_resilience_broker import RetryResilienceBroker
+from standard_agents.brokers.sessions.file_session_broker import FileSessionBroker
+from standard_agents.brokers.sessions.function_session_broker import FunctionSessionBroker
 from standard_agents.brokers.sessions.not_configured_session_broker import (
     NotConfiguredSessionBroker)
+from standard_agents.brokers.sessions.session_broker import SessionBroker
 from standard_agents.brokers.skills.composite_skill_broker import CompositeSkillBroker
 from standard_agents.brokers.skills.file_skill_broker import FileSkillBroker
 from standard_agents.brokers.skills.function_skill_broker import FunctionSkillBroker
 from standard_agents.brokers.skills.skill_broker import SkillBroker
+from standard_agents.brokers.telemetries.activity_telemetry_broker import ActivityTelemetryBroker
 from standard_agents.brokers.telemetries.function_telemetry_broker import FunctionTelemetryBroker
 from standard_agents.brokers.telemetries.telemetry_broker import TelemetryBroker
 from standard_agents.brokers.times.system_time_broker import SystemTimeBroker
 from standard_agents.brokers.tools.in_memory_tool_broker import InMemoryToolBroker
+from standard_agents.brokers.usages.function_usage_broker import FunctionUsageBroker
 from standard_agents.brokers.usages.ratio_usage_broker import RatioUsageBroker
 from standard_agents.brokers.usages.usage_broker import UsageBroker
+from standard_agents.brokers.verifiers.function_verifier_broker import FunctionVerifierBroker
 from standard_agents.brokers.verifiers.not_configured_verifier_broker import (
     NotConfiguredVerifierBroker)
-from standard_agents.brokers.verifiers.function_verifier_broker import FunctionVerifierBroker
+from standard_agents.brokers.verifiers.rule_verifier_broker import RuleVerifierBroker
 from standard_agents.brokers.verifiers.verifier_broker import VerifierBroker
+from standard_agents.models.brokers.agents.registered_agent import RegisteredAgent
 from standard_agents.models.brokers.audits.audit_policy import AuditPolicy
 from standard_agents.models.brokers.audits.audit_record import AuditRecord
+from standard_agents.models.brokers.effects.effect_record import EffectRecord
 from standard_agents.models.brokers.generators.resolved_inference import ResolvedInference
+from standard_agents.models.brokers.generators.v1.conversation import (
+    ConversationMessage,
+    GenerationResult,
+    ToolDefinition)
+from standard_agents.models.brokers.sessions.agent_session import AgentSession
 from standard_agents.models.clients.agents.agent_outcome import AgentOutcome
 from standard_agents.models.clients.agents.agent_stream_event import AgentStreamEvent
 from standard_agents.models.clients.agents.exceptions import (
@@ -81,9 +127,14 @@ from standard_agents.models.clients.agents.exceptions import (
 from standard_agents.models.clients.agents.inference_settings import InferenceSettings
 from standard_agents.models.clients.agents.prompt_request import PromptRequest
 from standard_agents.models.coordinations.agents.agent_budget import AgentBudget
+from standard_agents.models.foundations.brains.redaction_rule import RedactionRule
+from standard_agents.models.foundations.brains.redaction_rules import RedactionRules
 from standard_agents.models.foundations.skills.skill import Skill
 from standard_agents.models.loggings.trace_verbosity import TraceVerbosity
+from standard_agents.models.orchestrations.effects.agent_effect import AgentEffect
 from standard_agents.models.orchestrations.effects.agent_principal import AgentPrincipal
+from standard_agents.models.orchestrations.effects.authorization_decision import (
+    AuthorizationDecision)
 from standard_agents.prompts.guardian_prompts import (
     gate_contract,
     gate_policy,
@@ -165,6 +216,21 @@ class StandardAgent(Agent):
         self._constitution_path = ""
         self._consumption_path = ""
         self._trace_verbosity = TraceVerbosity.FULL
+        self._sourced_knowledge_broker: SourcedKnowledgeBroker | None = None
+        self._audit_path = ""
+        self._allowed_tools: Sequence[str] | None = None
+        self._policy_broker: PolicyBroker | None = None
+        self._approval_required_tools: Sequence[str] | None = None
+        self._approval_broker: ApprovalBroker | None = None
+        self._resilience_broker: ResilienceBroker | None = None
+        self._session_broker: SessionBroker | None = None
+        self._max_history_turns = 20
+        self._effect_ledger_broker: EffectLedgerBroker | None = None
+        self._contract_schema: str | None = None
+        self._contract_broker: ContractBroker | None = None
+        self._agent_sources: list[AgentRegistryBroker] = []
+        self._redaction_rules: Sequence[RedactionRule] | None = None
+        self._redaction_broker: RedactionBroker | None = None
 
         if api_url is not None or api_key is not None or model is not None:
             self.brain(api_url, api_key, model)
@@ -364,6 +430,233 @@ class StandardAgent(Agent):
 
     def on_skills(self, select: Callable[[], Awaitable[Sequence[Skill]]]) -> StandardAgent:
         self._skill_sources.append(FunctionSkillBroker(select))
+
+        return self
+
+    def on_memory(
+            self,
+            recall: Callable[[], Awaitable[Sequence[str]]],
+            remember: Callable[[str], Awaitable[None]]) -> StandardAgent:
+
+        self._memory_broker = FunctionMemoryBroker(recall, remember)
+
+        return self
+
+    def on_knowledge(self, retrieve: Callable[[str], Awaitable[Sequence[str]]]) -> StandardAgent:
+        self._knowledge_broker = FunctionKnowledgeBroker(retrieve)
+        self._sourced_knowledge_broker = None
+
+        return self
+
+    def use_native_brain(self, broker: GeneratorBrokerV1) -> StandardAgent:
+        self._native_brain_source = None
+        self._generator_broker_v1 = broker
+
+        return self
+
+    def on_native_brain(
+            self,
+            generate: Callable[
+                [Sequence[ConversationMessage], Sequence[ToolDefinition]],
+                Awaitable[GenerationResult]]) -> StandardAgent:
+
+        self._native_brain_source = None
+        self._generator_broker_v1 = FunctionGeneratorBrokerV1(generate)
+
+        return self
+
+    def rule_gate(self, *refuse_patterns: str) -> StandardAgent:
+        self._classifier_broker = RuleClassifierBroker(refuse_patterns)
+
+        return self
+
+    def rule_judge(self, *required_patterns: str) -> StandardAgent:
+        self._verifier_broker = RuleVerifierBroker(required_patterns)
+
+        return self
+
+    def audit(self, path: str) -> StandardAgent:
+        self._audit_path = path
+
+        return self
+
+    def allow_tools(self, *tool_names: str) -> StandardAgent:
+        self._allowed_tools = tool_names
+
+        return self
+
+    def use_policy(self, broker: PolicyBroker) -> StandardAgent:
+        self._policy_broker = broker
+
+        return self
+
+    def on_policy(
+            self,
+            authorize: Callable[[AgentEffect], Awaitable[AuthorizationDecision]]) -> StandardAgent:
+
+        self._policy_broker = FunctionPolicyBroker(authorize)
+
+        return self
+
+    def require_approval(self, *tool_names: str) -> StandardAgent:
+        self._approval_required_tools = tool_names
+
+        return self
+
+    def use_approvals(self, broker: ApprovalBroker) -> StandardAgent:
+        self._approval_broker = broker
+
+        return self
+
+    def on_approval(
+            self,
+            request: Callable[[AgentEffect], Awaitable[ApprovalDecision]]) -> StandardAgent:
+
+        self._approval_broker = FunctionApprovalBroker(request)
+
+        return self
+
+    def resilience(self, *, retries: int = 3) -> StandardAgent:
+        self._resilience_broker = RetryResilienceBroker(retries)
+
+        return self
+
+    def use_resilience(self, broker: ResilienceBroker) -> StandardAgent:
+        self._resilience_broker = broker
+
+        return self
+
+    def fallback(
+            self,
+            fallback: Callable[[], Awaitable[str]],
+            *,
+            retries: int = 0,
+            failures_before_open: int = 3) -> StandardAgent:
+
+        self._resilience_broker = FallbackResilienceBroker(
+            primary=RetryResilienceBroker(retries),
+            alternative=fallback,
+            failures_before_open=failures_before_open)
+
+        return self
+
+    def sessions(self, path: str, *, max_history_turns: int = 20) -> StandardAgent:
+        self._session_broker = FileSessionBroker(path)
+        self._max_history_turns = max_history_turns
+
+        return self
+
+    def use_sessions(self, broker: SessionBroker) -> StandardAgent:
+        self._session_broker = broker
+
+        return self
+
+    def on_sessions(
+            self,
+            select: Callable[[str], Awaitable[AgentSession | None]],
+            upsert: Callable[[AgentSession], Awaitable[None]]) -> StandardAgent:
+
+        self._session_broker = FunctionSessionBroker(select, upsert)
+
+        return self
+
+    def effect_ledger(self, path: str) -> StandardAgent:
+        self._effect_ledger_broker = FileEffectLedgerBroker(path)
+
+        return self
+
+    def use_effect_ledger(self, broker: EffectLedgerBroker) -> StandardAgent:
+        self._effect_ledger_broker = broker
+
+        return self
+
+    def on_effect_ledger(
+            self,
+            insert_claim: Callable[[EffectRecord], Awaitable[bool]],
+            select_record: Callable[[str], Awaitable[EffectRecord | None]],
+            update_record: Callable[[EffectRecord], Awaitable[None]],
+            delete_record: Callable[[str], Awaitable[None]]) -> StandardAgent:
+
+        self._effect_ledger_broker = FunctionEffectLedgerBroker(
+            insert_claim,
+            select_record,
+            update_record,
+            delete_record)
+
+        return self
+
+    def usage(self, *, characters_per_token: float = 4.0) -> StandardAgent:
+        self._usage_broker = RatioUsageBroker(characters_per_token)
+
+        return self
+
+    def use_usage(self, broker: UsageBroker) -> StandardAgent:
+        self._usage_broker = broker
+
+        return self
+
+    def on_usage(self, count: Callable[[str], Awaitable[int]]) -> StandardAgent:
+        self._usage_broker = FunctionUsageBroker(count)
+
+        return self
+
+    def telemetry(self, *, agent_name: str = "standard-agent") -> StandardAgent:
+        self._telemetry_broker = ActivityTelemetryBroker(agent_name)
+
+        return self
+
+    def contract(self, json_schema: str) -> StandardAgent:
+        self._contract_schema = json_schema
+
+        return self
+
+    def use_contract(self, broker: ContractBroker) -> StandardAgent:
+        self._contract_broker = broker
+
+        return self
+
+    def on_contract(
+            self,
+            validate: Callable[[str, str], Awaitable[str | None]]) -> StandardAgent:
+
+        self._contract_broker = FunctionContractBroker(validate)
+
+        return self
+
+    def agents(self, path: str) -> StandardAgent:
+        self._agent_sources.append(FileAgentRegistryBroker(os.path.join(os.getcwd(), path)))
+
+        return self
+
+    def use_agents(self, broker: AgentRegistryBroker) -> StandardAgent:
+        self._agent_sources.append(broker)
+
+        return self
+
+    def on_agents(
+            self,
+            select: Callable[[], Awaitable[Sequence[RegisteredAgent]]]) -> StandardAgent:
+
+        self._agent_sources.append(FunctionAgentRegistryBroker(select))
+
+        return self
+
+    def redact(self, *rules: RedactionRule) -> StandardAgent:
+        self._redaction_rules = rules if rules else RedactionRules.DEFAULT
+
+        return self
+
+    def use_redaction(self, broker: RedactionBroker) -> StandardAgent:
+        self._redaction_broker = broker
+
+        return self
+
+    def on_redaction(
+            self,
+            redact: Callable[[str, MutableMapping[str, str]], str],
+            rehydrate: Callable[[str, Mapping[str, str]], str]) -> StandardAgent:
+
+        self._redaction_broker = FunctionRedactionBroker(redact, rehydrate)
 
         return self
 
