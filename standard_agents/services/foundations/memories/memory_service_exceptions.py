@@ -9,7 +9,9 @@ from xeptions import Xeption
 from standard_agents.brokers.loggings.ilogging_broker import ILoggingBroker
 from standard_agents.models.foundations.memories.exceptions import (
     FailedMemoryDependencyException,
-    MemoryDependencyException)
+    FailedMemoryServiceException,
+    MemoryDependencyException,
+    MemoryServiceException)
 
 
 async def try_catch(
@@ -26,6 +28,27 @@ async def try_catch(
         raise await create_and_log_critical_dependency_exception(
             logging_broker,
             failed_memory_dependency_exception)
+    except Exception as exception:
+        failed_memory_service_exception = FailedMemoryServiceException(
+            message="Failed memory service error occurred, contact support.",
+            inner_exception=exception)
+
+        raise await create_and_log_service_exception(
+            logging_broker,
+            failed_memory_service_exception)
+
+
+async def create_and_log_service_exception(
+    logging_broker: ILoggingBroker,
+    exception: Xeption) -> MemoryServiceException:
+
+    memory_service_exception = MemoryServiceException(
+        message="Memory service error occurred, contact support.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(memory_service_exception)
+
+    return memory_service_exception
 
 
 async def create_and_log_critical_dependency_exception(
