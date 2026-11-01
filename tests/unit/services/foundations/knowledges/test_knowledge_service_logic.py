@@ -1,0 +1,291 @@
+# ---------------------------------------------------------------
+# Copyright (c) Hassan Habib All rights reserved.
+# Licensed under the The Standard Software License (TSSL)
+# ---------------------------------------------------------------
+
+import copy
+import os
+import tempfile
+from unittest.mock import call
+
+from standard_agents.brokers.files.file_broker import SearchOption
+from standard_agents.models.foundations.knowledges.knowledge_result import KnowledgeResult
+from standard_agents.services.foundations.knowledges.knowledge_service import KnowledgeService
+
+
+async def test_should_retrieve_knowledge(
+        knowledge_service,
+        knowledge_broker,
+        logging_broker,
+        create_random_string,
+        create_random_documents):
+
+    # given
+    input_query = create_random_string()
+    retrieved_documents = create_random_documents()
+    knowledge_broker.select_knowledge.return_value = retrieved_documents
+    expected_documents = list(retrieved_documents)
+
+    # when
+    actual_documents = await knowledge_service.retrieve_knowledge(input_query)
+
+    # then
+    assert list(actual_documents) == expected_documents
+    assert knowledge_broker.mock_calls == [call.select_knowledge(input_query)]
+    assert logging_broker.mock_calls == []
+
+
+async def test_should_retrieve_no_knowledge_on_retrieve_knowledge_if_nothing_matches(
+        knowledge_service, knowledge_broker, logging_broker, create_random_string):
+
+    # given
+    random_query = create_random_string()
+    knowledge_broker.select_knowledge.return_value = []
+
+    # when
+    actual_documents = await knowledge_service.retrieve_knowledge(random_query)
+
+    # then
+    assert not actual_documents
+    assert knowledge_broker.mock_calls == [call.select_knowledge(random_query)]
+    assert logging_broker.mock_calls == []
+
+
+async def test_should_return_empty_knowledge_if_knowledge_directory_does_not_exist(
+        file_broker, logging_broker, create_random_string):
+
+    # given
+    knowledge_path = create_random_string()
+    search_pattern = "*.md"
+    max_results = 3
+    query = create_random_string()
+
+    file_knowledge_service = KnowledgeService(
+        file_broker=file_broker,
+        knowledge_path=knowledge_path,
+        search_pattern=search_pattern,
+        max_results=max_results,
+        logging_broker=logging_broker)
+
+    file_broker.directory_exists.return_value = False
+
+    # when
+    actual_documents = await file_knowledge_service.retrieve_knowledge(query)
+
+    # then
+    assert not actual_documents
+    assert file_broker.mock_calls == [call.directory_exists(knowledge_path)]
+    assert logging_broker.mock_calls == []
+
+
+async def test_should_retrieve_the_most_relevant_knowledge_up_to_max_results(
+        file_broker, logging_broker, create_random_string):
+    """Every document is read, because relevance is relative (SPEC.md 4.2).
+
+    A term's weight depends on how rare it is across the corpus, which is not knowable from a
+    prefix of it. The old contract stopped reading once it had enough matches, and so could only
+    ever return the first ones found.
+    """
+    # given
+    knowledge_path = create_random_string()
+    search_pattern = "*.md"
+    max_results = 2
+    query = "needle"
+
+    first_path = "a.md"
+    second_path = "b.md"
+    third_path = "c.md"
+    fourth_path = "d.md"
+    unordered_paths = [third_path, first_path, fourth_path, second_path]
+
+    first_document = "alpha needle"
+    second_document = "beta"  # carries no query term, scores zero
+    third_document = "gamma NEEDLE"  # case-insensitive
+    fourth_document = "delta needle"
+
+    documents_by_path = {
+        first_path: first_document,
+        second_path: second_document,
+        third_path: third_document,
+        fourth_path: fourth_document}
+
+    file_knowledge_service = KnowledgeService(
+        file_broker=file_broker,
+        knowledge_path=knowledge_path,
+        search_pattern=search_pattern,
+        max_results=max_results,
+        logging_broker=logging_broker)
+
+    file_broker.directory_exists.return_value = True
+    file_broker.select_files.return_value = unordered_paths
+    file_broker.read_file.side_effect = lambda path: documents_by_path[path]
+
+    # when
+    actual_documents = await file_knowledge_service.retrieve_knowledge(query)
+
+    # then: the best matches, capped, and never the document carrying no query term
+    assert len(actual_documents) == max_results
+    assert second_document not in actual_documents
+    assert all("needle" in document.casefold() for document in actual_documents)
+
+    assert file_broker.mock_calls == [
+        call.directory_exists(knowledge_path),
+        call.select_files(knowledge_path, search_pattern, SearchOption.ALL_DIRECTORIES),
+        call.read_file(first_path),
+        call.read_file(second_path),
+        call.read_file(third_path),
+        call.read_file(fourth_path)]
+
+    assert logging_broker.mock_calls == []
+
+
+async def test_should_retrieve_sourced_knowledge(
+        sourced_knowledge_service,
+        sourced_knowledge_broker,
+        knowledge_broker,
+        logging_broker,
+        create_random_string,
+        create_random_knowledge_results):
+
+    # given
+    input_query = create_random_string()
+    selected_knowledge_results = create_random_knowledge_results()
+    expected_knowledge_results = copy.deepcopy(selected_knowledge_results)
+    sourced_knowledge_broker.select_sourced_knowledge.return_value = selected_knowledge_results
+
+    # when
+    actual_knowledge_results = await sourced_knowledge_service.retrieve_sourced_knowledge(
+        input_query)
+
+    # then
+    assert list(actual_knowledge_results) == expected_knowledge_results
+
+    assert sourced_knowledge_broker.mock_calls == [
+        call.select_sourced_knowledge(input_query)]
+
+    assert knowledge_broker.mock_calls == []
+    assert logging_broker.mock_calls == []
+
+
+async def test_should_retrieve_unsourced_knowledge_on_retrieve_sourced_knowledge_if_the_broker_cannot_say_where_it_came_from(
+        knowledge_service,
+        knowledge_broker,
+        sourced_knowledge_broker,
+        logging_broker,
+        create_random_string,
+        create_random_documents):
+    """A plain broker never said where a passage came from (SPEC.md 4.1).
+
+    Lifting it must not pretend it did: the passage arrives with no score and no source, which
+    is exactly what it always was, and a passage with no source is never cited.
+    """
+    # given
+    input_query = create_random_string()
+    selected_documents = create_random_documents()
+
+    expected_knowledge_results = [
+        KnowledgeResult(text=document, score=None, source="")
+        for document in selected_documents]
+
+    knowledge_broker.select_knowledge.return_value = selected_documents
+
+    # when
+    actual_knowledge_results = await knowledge_service.retrieve_sourced_knowledge(input_query)
+
+    # then
+    assert list(actual_knowledge_results) == expected_knowledge_results
+    assert knowledge_broker.mock_calls == [call.select_knowledge(input_query)]
+    assert sourced_knowledge_broker.mock_calls == []
+    assert logging_broker.mock_calls == []
+
+
+async def test_should_retrieve_the_texts_of_sourced_knowledge_on_retrieve_knowledge(
+        sourced_knowledge_service,
+        sourced_knowledge_broker,
+        knowledge_broker,
+        logging_broker,
+        create_random_string,
+        create_random_knowledge_results):
+    """The plain door over a sourced broker: the same passages, in the same order.
+
+    Nothing travels beside them, so a caller that never asked where a passage came from sees
+    what it always saw.
+    """
+    # given
+    input_query = create_random_string()
+    selected_knowledge_results = create_random_knowledge_results()
+
+    expected_documents = [
+        knowledge_result.text for knowledge_result in selected_knowledge_results]
+
+    sourced_knowledge_broker.select_sourced_knowledge.return_value = selected_knowledge_results
+
+    # when
+    actual_documents = await sourced_knowledge_service.retrieve_knowledge(input_query)
+
+    # then
+    assert list(actual_documents) == expected_documents
+
+    assert sourced_knowledge_broker.mock_calls == [
+        call.select_sourced_knowledge(input_query)]
+
+    assert knowledge_broker.mock_calls == []
+    assert logging_broker.mock_calls == []
+
+
+async def test_should_retrieve_sourced_knowledge_from_files_with_their_paths_and_scores(
+        file_broker,
+        knowledge_broker,
+        sourced_knowledge_broker,
+        logging_broker,
+        create_random_string):
+    """The knowledge an agent is given with nothing installed is citable out of the box.
+
+    Each passage names the document it was cut from (SPEC.md 4.2), relative to the knowledge
+    folder and with forward slashes whatever the platform, so a citation reads the same on every
+    machine.
+    """
+    # given
+    knowledge_path = os.path.join(tempfile.gettempdir(), create_random_string())
+    search_pattern = "*.md"
+    max_results = 3
+    query = "refund"
+    refunds_path = os.path.join(knowledge_path, "policies", "refunds.md")
+    shipping_path = os.path.join(knowledge_path, "shipping.md")
+    document_paths = [shipping_path, refunds_path]
+    refunds_document = "Enterprise customers may request a refund within 90 days."
+    shipping_document = "Orders ship within two business days."
+
+    documents_by_path = {
+        refunds_path: refunds_document,
+        shipping_path: shipping_document}
+
+    file_knowledge_service = KnowledgeService(
+        file_broker=file_broker,
+        knowledge_path=knowledge_path,
+        search_pattern=search_pattern,
+        max_results=max_results,
+        logging_broker=logging_broker)
+
+    file_broker.directory_exists.return_value = True
+    file_broker.select_files.return_value = document_paths
+    file_broker.read_file.side_effect = lambda path: documents_by_path[path]
+
+    # when
+    actual_knowledge_results = await file_knowledge_service.retrieve_sourced_knowledge(query)
+
+    # then: only the passage carrying the query term, credited to its document, scored
+    assert len(actual_knowledge_results) == 1
+    assert actual_knowledge_results[0].text == refunds_document
+    assert actual_knowledge_results[0].source == "policies/refunds.md"
+    assert actual_knowledge_results[0].score > 0
+
+    assert file_broker.mock_calls == [
+        call.directory_exists(knowledge_path),
+        call.select_files(knowledge_path, search_pattern, SearchOption.ALL_DIRECTORIES),
+        call.read_file(refunds_path),
+        call.read_file(shipping_path)]
+
+    assert knowledge_broker.mock_calls == []
+    assert sourced_knowledge_broker.mock_calls == []
+    assert logging_broker.mock_calls == []
