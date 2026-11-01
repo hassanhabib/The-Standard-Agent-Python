@@ -9,6 +9,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from restfulsense.exceptions import (
+    HttpRequestException,
     HttpResponseBadRequestException,
     HttpResponseForbiddenException,
     HttpResponseNotFoundException,
@@ -23,7 +24,8 @@ from standard_agents.models.foundations.brains.exceptions import (
     BrainDependencyValidationException,
     BrainValidationException,
     FailedBrainDependencyException,
-    InvalidBrainException)
+    InvalidBrainException,
+    UnreachableBrainException)
 
 
 class BrainService:
@@ -101,6 +103,9 @@ async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[N
 
         raise await _create_and_log_critical_dependency_exception(
             logging_broker, critical_dependency_exception)
+    except HttpRequestException as http_request_exception:
+        raise await _create_and_log_unreachable_exception(
+            logging_broker, http_request_exception)
 
 
 @asynccontextmanager
@@ -136,6 +141,31 @@ async def _create_and_log_dependency_validation_exception(
     await logging_broker.log_error(brain_dependency_validation_exception)
 
     return brain_dependency_validation_exception
+
+
+async def _create_and_log_unreachable_exception(
+        logging_broker: LoggingBroker,
+        http_request_exception: HttpRequestException) -> BrainDependencyException:
+    """Nothing answered at all (SPEC.md 4.10, v1.14).
+
+    A refused connection, a name that resolves to nothing, a request that never left the
+    machine. Localised to a sentence about the address rather than "contact support", because
+    the person's next step is the address and whatever should be listening at it. The native
+    fault stays as the inner exception for whoever investigates, and it is still critical: a
+    brain that cannot be reached is configuration.
+    """
+    unreachable_brain_exception = UnreachableBrainException(
+        message="Nothing answered at the brain's address. Check that the address is right "
+            "and that the service is running.",
+        inner_exception=http_request_exception)
+
+    brain_dependency_exception = BrainDependencyException(
+        message="Brain dependency error occurred, contact support.",
+        inner_exception=unreachable_brain_exception)
+
+    await logging_broker.log_critical(brain_dependency_exception)
+
+    return brain_dependency_exception
 
 
 async def _create_and_log_critical_dependency_exception(
