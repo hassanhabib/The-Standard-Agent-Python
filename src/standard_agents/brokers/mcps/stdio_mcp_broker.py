@@ -13,6 +13,7 @@ import importlib.metadata
 import json
 import os
 import re
+import shutil
 import signal
 import subprocess
 from collections import deque
@@ -525,27 +526,12 @@ def _resolve_command(command: str) -> str:
     """The executable a command names.
 
     On Windows a bare name resolves through PATH and PATHEXT, so npx finds npx.cmd; a name with an
-    extension, or any name elsewhere, is started as given.
+    extension, a name nothing resolves, or any name elsewhere, is started as given.
     """
     if os.name != "nt" or _has_extension(command):
         return command
 
-    directories = [
-        directory for directory in os.environ.get("PATH", "").split(os.pathsep)
-        if directory]
-
-    extensions = [
-        extension for extension in os.environ.get("PATHEXT", ".EXE;.CMD;.BAT").split(";")
-        if extension]
-
-    for directory in directories:
-        for extension in extensions:
-            candidate = os.path.join(directory, command + extension)
-
-            if os.path.isfile(candidate):
-                return candidate
-
-    return command
+    return shutil.which(command) or command
 
 
 def _has_extension(path: str) -> bool:
