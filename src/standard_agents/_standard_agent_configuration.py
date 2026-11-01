@@ -29,3 +29,6 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
 
         case "maxTurns":
             agent.max_turns(value)
+
+        case "identicalCallLimit":
+            agent.identical_call_limit(value)

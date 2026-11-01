@@ -227,6 +227,7 @@ class StandardAgent(Agent):
         self._session_broker: SessionBroker | None = None
         self._max_history_turns = 20
         self._max_turns = 7
+        self._identical_call_limit = 8
         self._effect_ledger_broker: EffectLedgerBroker | None = None
         self._contract_schema: str | None = None
         self._contract_broker: ContractBroker | None = None
@@ -251,6 +252,11 @@ class StandardAgent(Agent):
 
     def max_turns(self, turns: int) -> StandardAgent:
         self._max_turns = 1 if turns < 1 else turns
+
+        return self
+
+    def identical_call_limit(self, times: int) -> StandardAgent:
+        self._identical_call_limit = 2 if times < 2 else times
 
         return self
 
@@ -775,7 +781,7 @@ class StandardAgent(Agent):
             request: PromptRequest,
             *,
             cancellation: asyncio.Event | None = None) -> AgentOutcome:
-        raise NotImplementedError
+        return await self._compose().run(request, cancellation=cancellation)
 
     async def stream_request(
             self,
@@ -1012,7 +1018,8 @@ class StandardAgent(Agent):
             decision_coordination_service=decision,
             direction_coordination_service=direction,
             logging_broker=logging,
-            telemetry_broker=self._telemetry_broker)
+            telemetry_broker=self._telemetry_broker,
+            identical_call_limit=self._identical_call_limit)
 
 
 def _null_logger() -> logging.Logger:
