@@ -3,6 +3,11 @@
 # Licensed under the The Standard Software License (TSSL)
 # ---------------------------------------------------------------
 
+from unittest.mock import create_autospec
+
+import pytest
+
+from standard_agents.services.foundations.memories.memory_service import MemoryService
 from standard_agents.tools.remember_tool import RememberTool
 
 
@@ -38,3 +43,20 @@ async def test_should_extract_fact_from_structured_arguments_on_execute():
 
     # then
     assert remembered == ["Paris is the capital of France"]
+
+
+# The converting alias keeps working (the same guarantee the local_brain to on_brain aliases
+# carry), but nothing of the service survives into the tool: it accepts the service and keeps
+# only its routine.
+async def test_should_keep_the_obsolete_service_constructor_behaving():
+    # given
+    memory_service = create_autospec(MemoryService, instance=True)
+
+    with pytest.deprecated_call():
+        remember_tool = RememberTool(memory_service)
+
+    # when
+    await remember_tool.execute("a fact worth keeping")
+
+    # then
+    memory_service.remember.assert_awaited_once_with("a fact worth keeping")
