@@ -75,7 +75,7 @@ class DirectionCoordinationService:
 
         output = await self.execution_service.run(context.direction_type, context.payload)
 
-        return dataclasses.replace(context, observations=(output,))
+        return dataclasses.replace(context, observations=(*context.observations, output))
 
     async def compensate_run(self) -> tuple[CompensationOutcome, ...]:
         """Unwinds what this run performed, in reverse order (SPEC.md 4.9).
