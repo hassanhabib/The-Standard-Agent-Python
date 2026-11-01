@@ -218,12 +218,13 @@ class StandardAgent(Agent):
             cancellation: asyncio.Event | None = None) -> AgentOutcome:
         raise NotImplementedError
 
-    def stream_request(
+    async def stream_request(
             self,
             request: PromptRequest,
             *,
             cancellation: asyncio.Event | None = None) -> AsyncIterator[AgentStreamEvent]:
-        raise NotImplementedError
+        async for stream_event in self._compose().run_stream(request, cancellation=cancellation):
+            yield stream_event
 
     def _compose(self) -> RunManagementService:
         _validate_composition(

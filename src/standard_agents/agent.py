@@ -68,11 +68,11 @@ class Agent(ABC):
 
     def process_prompt_stream(
             self,
-            request: PromptRequest | str,
+            prompt: PromptRequest | str,
             *,
             cancellation: asyncio.Event | None = None) -> AsyncIterator[AgentStreamEvent]:
         """The streamed run for a bare prompt, riding the request-rich stream."""
-        return self.stream_request(_as_request(request), cancellation=cancellation)
+        return self.stream_request(_as_request(prompt), cancellation=cancellation)
 
     def run_stream(
             self,
