@@ -116,3 +116,16 @@ async def test_should_show_the_brain_the_passage_without_its_source():
     # then
     assert "within 90 days" in seen_by_brain
     assert _REFUNDS_SOURCE not in seen_by_brain
+
+
+async def test_should_not_repeat_a_source_the_answer_already_credits():
+    # given
+    credited_answer = f"{_ANSWER}\n\nsource: {_REFUNDS_SOURCE}"
+    agent = _grounded_agent(_answering(credited_answer)).cite_knowledge()
+    expected_result = f"{credited_answer}\n\nSource: {_SHIPPING_SOURCE}"
+
+    # when
+    actual_result = await agent.process_prompt("what is the refund window?")
+
+    # then
+    assert actual_result == expected_result
