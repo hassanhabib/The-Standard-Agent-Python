@@ -184,3 +184,24 @@ async def test_should_keep_concurrent_runs_attributable_in_the_decision_log(
 
         assert len(set(sequences)) == len(sequences)
         assert 0 in sequences
+
+
+# The regression that opened the enterprise plan: with log_to and audit both on, a single agent
+# instance failed seven of eight concurrent prompts with an IOException on the sink. Turning on
+# the enterprise features was exactly what made the agent single-threaded.
+async def test_should_serve_concurrent_prompts_with_both_sinks_configured(
+        answering_agent,
+        tmp_path):
+    # given
+    trace_path = str(tmp_path / "trace.txt")
+    agent = answering_agent.log_to(trace_path)
+    expected_answer_count = 64
+
+    # when
+    actual_answers = await asyncio.gather(*(
+        agent.process_prompt(prompt=f"question {index}")
+        for index in range(expected_answer_count)))
+
+    # then
+    assert len(actual_answers) == expected_answer_count
+    assert all(answer == "42" for answer in actual_answers)
