@@ -15,6 +15,7 @@ record is replayed the way any completed act is.
 """
 
 import dataclasses
+from datetime import timedelta
 
 import pytest
 
@@ -77,6 +78,28 @@ class _FailingOutcomeLedger(EffectLedgerBroker):
 
             raise OSError("the ledger store is unavailable")
 
+        await self._store.update_record(record)
+
+    async def delete_record(self, idempotency_key: str) -> None:
+        await self._store.delete_record(idempotency_key)
+
+
+class _CapturingLedger(EffectLedgerBroker):
+    """Keeps every claim the agent writes, so a test can read the lease it was written under."""
+
+    def __init__(self) -> None:
+        self._store = InMemoryEffectLedgerBroker()
+        self.claims: list[EffectRecord] = []
+
+    async def insert_claim(self, claim: EffectRecord) -> bool:
+        self.claims.append(claim)
+
+        return await self._store.insert_claim(claim)
+
+    async def select_record(self, idempotency_key: str) -> EffectRecord | None:
+        return await self._store.select_record(idempotency_key)
+
+    async def update_record(self, record: EffectRecord) -> None:
         await self._store.update_record(record)
 
     async def delete_record(self, idempotency_key: str) -> None:
@@ -188,3 +211,26 @@ async def test_should_replay_the_act_once_the_ledger_is_reconciled(new_process):
     assert tool.execution_count == 1
     assert actual_outcome.status is AgentStatus.RESPONDED
     assert actual_outcome.result == "already paid"
+
+
+async def test_should_claim_under_the_configured_lease(new_process):
+    """The lease is how long an in-flight claim is presumed live; a deployment whose tools take
+    longer than the default five minutes, or far less, says so once at composition."""
+    # given
+    ledger = _CapturingLedger()
+    tool = _CountingTool()
+    configured_lease = timedelta(seconds=30)
+
+    agent = new_process(ledger, tool, _PROPOSAL, "FINAL: paid").effect_lease(configured_lease)
+
+    # when
+    actual_outcome = await agent.run(_request("pay the invoice"))
+
+    # then: the act's claim was written for exactly the configured window
+    assert actual_outcome.status is AgentStatus.RESPONDED
+    assert tool.execution_count == 1
+
+    [actual_claim] = ledger.claims
+
+    assert actual_claim.lease_until - actual_claim.claimed_on == configured_lease
+    assert actual_claim.tool_name == "wire_transfer"
