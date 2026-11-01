@@ -11,6 +11,8 @@ from standard_agents.models.foundations.judges.exceptions import (
     FailedJudgeDependencyException,
     FailedJudgeServiceException,
     InvalidJudgeException,
+    InvalidJudgementException,
+    JudgeDependencyValidationException,
     JudgeDependencyException,
     JudgeServiceException,
     JudgeValidationException)
@@ -27,6 +29,10 @@ async def try_catch(
         raise await create_and_log_validation_exception(
             logging_broker,
             invalid_judge_exception)
+    except InvalidJudgementException as invalid_judgement_exception:
+        raise await create_and_log_dependency_validation_exception(
+            logging_broker,
+            invalid_judgement_exception)
     # A Judge is often a model of its own: unreachable (OSError) or failing (RuntimeError).
     except (OSError, RuntimeError) as dependency_error:
         failed_judge_dependency_exception = FailedJudgeDependencyException(
@@ -57,6 +63,19 @@ async def create_and_log_service_exception(
     await logging_broker.log_error(judge_service_exception)
 
     return judge_service_exception
+
+
+async def create_and_log_dependency_validation_exception(
+    logging_broker: ILoggingBroker,
+    exception: Xeption) -> JudgeDependencyValidationException:
+
+    judge_dependency_validation_exception = JudgeDependencyValidationException(
+        message="Judge dependency validation error occurred, fix the errors and try again.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(judge_dependency_validation_exception)
+
+    return judge_dependency_validation_exception
 
 
 async def create_and_log_dependency_exception(

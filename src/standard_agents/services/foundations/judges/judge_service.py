@@ -9,7 +9,8 @@ from standard_agents.models.foundations.judges.judgement import Judgement
 from standard_agents.services.foundations.judges.ijudge_service import IJudgeService
 from standard_agents.services.foundations.judges.judge_service_exceptions import try_catch
 from standard_agents.services.foundations.judges.judge_service_validations import (
-    validate_evaluate)
+    validate_evaluate,
+    validate_score)
 
 
 SCORE_FIELD = "SCORE"
@@ -32,7 +33,10 @@ class JudgeService(IJudgeService):
             validate_evaluate(task, candidate)
             verdict = await self.verifier_broker.verify(judge_prompt, task, candidate)
 
-            return parse_judgement(verdict)
+            judgement = parse_judgement(verdict)
+            validate_score(judgement.score)
+
+            return judgement
 
         return await try_catch(self.logging_broker, returning_judgement_function)
 
