@@ -12,6 +12,7 @@ asking what the agent did yesterday got nothing.
 
 import hashlib
 import json
+from collections import defaultdict
 from unittest.mock import create_autospec
 
 import pytest
@@ -58,6 +59,19 @@ def _run_id_of(line: str) -> str:
     return json.loads(line)["runId"]
 
 
+def _sequence_of(line: str) -> int:
+    return json.loads(line)["sequence"]
+
+
+def _runs_of(lines: list[str]) -> dict[str, list[str]]:
+    runs = defaultdict(list)
+
+    for line in lines:
+        runs[_run_id_of(line)].append(line)
+
+    return runs
+
+
 def _sha256_hex(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
@@ -81,3 +95,24 @@ async def test_should_retain_every_run_in_the_decision_log_on_process_prompt(
     assert not any("ALPHA" in line for line in actual_lines)
 
     assert len({_run_id_of(line) for line in actual_lines}) == 2
+
+
+async def test_should_number_each_run_from_zero_in_the_decision_log_on_process_prompt(
+        answering_agent,
+        audit_path):
+    # given
+    agent = answering_agent
+
+    # when
+    await agent.process_prompt(prompt="first")
+    await agent.process_prompt(prompt="second")
+
+    # then
+    actual_lines = _read_all_lines(audit_path)
+
+    for run in _runs_of(actual_lines).values():
+        sequences = [_sequence_of(line) for line in run]
+
+        assert sequences == sorted(sequences)
+        assert sequences[0] == 0
+        assert len(set(sequences)) == len(sequences)
