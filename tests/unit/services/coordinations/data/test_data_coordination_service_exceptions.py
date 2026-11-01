@@ -19,7 +19,9 @@ from standard_agents.models.foundations.skills.exceptions import (
 from standard_agents.models.orchestrations.agents.exceptions import (
     AgentOrchestrationDependencyException,
     AgentOrchestrationDependencyValidationException,
+    AgentOrchestrationServiceException,
     AgentOrchestrationValidationException,
+    FailedAgentOrchestrationServiceException,
     NullAgentContextException)
 from xeptions import Xeption
 
@@ -150,6 +152,40 @@ async def test_should_throw_dependency_exception_on_recall_if_dependency_error_o
 
     # when
     with pytest.raises(AgentOrchestrationDependencyException) as raised:
+        await data_coordination_service.recall(input_context)
+
+    # then
+    assert raised.value.same_exception_as(expected_exception)
+
+    # The prompt is announced before anything is fetched, so a failure still says which prompt
+    # Data was working on.
+    assert logging_broker.mock_calls == [
+        call.log_payload("Data", "Received prompt", input_context.prompt, detail=False),
+        call.log_error(same_exception_as(expected_exception))]
+
+
+async def test_should_throw_service_exception_on_recall_if_service_error_occurs_and_log_it(
+        data_coordination_service,
+        skill_service,
+        logging_broker,
+        same_exception_as,
+        create_random_agent_context):
+    # given
+    input_context = create_random_agent_context()
+    service_exception = Exception()
+
+    failed_agent_orchestration_service_exception = FailedAgentOrchestrationServiceException(
+        message="Failed agent orchestration service error occurred, contact support.",
+        inner_exception=service_exception)
+
+    expected_exception = AgentOrchestrationServiceException(
+        message="Agent orchestration service error occurred, contact support.",
+        inner_exception=failed_agent_orchestration_service_exception)
+
+    skill_service.retrieve_skills.side_effect = service_exception
+
+    # when
+    with pytest.raises(AgentOrchestrationServiceException) as raised:
         await data_coordination_service.recall(input_context)
 
     # then
