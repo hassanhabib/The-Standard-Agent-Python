@@ -207,3 +207,25 @@ async def test_should_pass_observations_to_brain_on_think(
         user_prompt=containing(observation))
 
     assert brain_service.generate.mock_calls.count(expected_generate_call) == 1
+
+
+async def test_should_route_structured_tool_call_on_think(
+        decision_coordination_service,
+        brain_service,
+        create_random_agent_context,
+        setup_gate_allows):
+
+    # given
+    input_context = create_random_agent_context()
+    setup_gate_allows()
+
+    brain_service.generate.return_value = (
+        'TOOL: {"tool":"calculator","arguments":{"expression":"47*89"}}')
+
+    # when
+    actual_context = await decision_coordination_service.think(input_context)
+
+    # then
+    assert actual_context.direction_type == "calculator"
+    assert actual_context.intent == "calculator"
+    assert "47*89" in actual_context.payload
