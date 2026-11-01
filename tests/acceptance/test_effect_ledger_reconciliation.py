@@ -234,3 +234,29 @@ async def test_should_claim_under_the_configured_lease(new_process):
 
     assert actual_claim.lease_until - actual_claim.claimed_on == configured_lease
     assert actual_claim.tool_name == "wire_transfer"
+
+
+async def test_should_record_a_failed_attempt_and_hold_its_repeat(new_process):
+    # given: the tool itself fails, so whether the act happened is unknown
+    ledger = InMemoryEffectLedgerBroker()
+    failing_tool = _CountingTool(RuntimeError("the bank is offline"))
+    first_process = new_process(ledger, failing_tool, _PROPOSAL).max_turns(1)
+
+    with pytest.raises(Exception):
+        await first_process.run(_request("pay the invoice"))
+
+    assert failing_tool.execution_count == 1
+
+    # when: the bank is back and the Brain proposes the same act on the same session
+    healthy_tool = _CountingTool()
+
+    actual_outcome = await new_process(ledger, healthy_tool, _PROPOSAL, "FINAL: paid").run(
+        _request("try again"))
+
+    # then: the failed attempt is on the record as failed, and the repeat is held, not run
+    assert healthy_tool.execution_count == 0
+    assert actual_outcome.status is AgentStatus.AWAITING_INPUT
+
+    actual_record = await ledger.select_record(actual_outcome.pending_effect.idempotency_key)
+
+    assert actual_record.state is EffectState.FAILED
