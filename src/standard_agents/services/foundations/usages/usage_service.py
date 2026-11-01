@@ -5,9 +5,16 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.brokers.usages.usage_broker import UsageBroker
 from standard_agents.models.foundations.usages.agent_usage import AgentUsage
+from standard_agents.models.foundations.usages.exceptions import (
+    InvalidUsageException,
+    UsageValidationException)
+from xeptions import Xeption
 
 
 class UsageService:
@@ -33,10 +40,45 @@ class UsageService:
         Returned with is_estimated set, because a counted number is an estimate of what the
         provider will bill.
         """
-        prompt_tokens = await self.usage_broker.count_tokens(prompt)
-        completion_tokens = await self.usage_broker.count_tokens(completion)
+        async with _handling_exceptions(self.logging_broker):
+            _validate_text(prompt, "prompt")
 
-        return AgentUsage(
-            prompt_tokens=prompt_tokens,
-            completion_tokens=completion_tokens,
-            is_estimated=True)
+            prompt_tokens = await self.usage_broker.count_tokens(prompt)
+            completion_tokens = await self.usage_broker.count_tokens(completion)
+
+            return AgentUsage(
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                is_estimated=True)
+
+
+def _validate_text(text: str | None, name: str) -> None:
+    """Rejects missing text; empty text is a legitimate measurement.
+
+    A call with no completion consumed no completion tokens. None is not: it is a caller that lost
+    the text it meant to charge for, and measuring it as zero would quietly under-bill the run.
+    """
+    if text is None:
+        raise InvalidUsageException(
+            message=f"Invalid usage, {name} is required. Please correct the error and try again.")
+
+
+@asynccontextmanager
+async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[None]:
+    try:
+        yield
+    except InvalidUsageException as invalid_usage_exception:
+        raise await _create_and_log_validation_exception(logging_broker, invalid_usage_exception)
+
+
+async def _create_and_log_validation_exception(
+        logging_broker: LoggingBroker,
+        exception: Xeption) -> UsageValidationException:
+
+    usage_validation_exception = UsageValidationException(
+        message="Usage validation error occurred, fix the error and try again.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(usage_validation_exception)
+
+    return usage_validation_exception
