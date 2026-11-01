@@ -68,3 +68,21 @@ async def test_should_parse_surrounding_whitespace_on_evaluate(
     assert actual_judgement.score == expected_score
     assert verifier_broker.mock_calls == [call.verify(ANY, random_candidate)]
     assert logging_broker.mock_calls == []
+
+
+async def test_should_parse_score_and_reason_on_evaluate(
+        judge_service, verifier_broker, logging_broker, create_random_string):
+
+    # given
+    random_candidate = create_random_string()
+    verdict = "SCORE: 0.4\nREASON: it never states the year"
+    verifier_broker.verify.return_value = verdict
+
+    # when
+    actual_judgement = await judge_service.evaluate(create_random_string(), random_candidate)
+
+    # then
+    assert actual_judgement.score == 0.4
+    assert actual_judgement.reason == "it never states the year"
+    assert verifier_broker.mock_calls == [call.verify(ANY, random_candidate)]
+    assert logging_broker.mock_calls == []
