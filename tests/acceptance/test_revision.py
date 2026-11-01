@@ -57,3 +57,26 @@ async def test_should_deliver_a_draft_that_passes_on_revision():
     # the whole exchange; anything more is the loop spinning after the answer was already good.
     assert actual_answer == "forty two"
     assert len(judged) == 2
+
+
+# The fix above was first applied to one branch of one path. The root cause, Interpret copying the
+# incoming status forward, has three exits. Exit two is the streamed path: a streamed draft
+# rejected once and accepted on revision must not spin to the cap either.
+async def test_should_deliver_a_draft_that_passes_on_revision_when_streamed():
+    # given: the same judge as the batched test above
+    evaluate, judged = _judge_rejecting_once()
+
+    agent = (StandardAgent()
+        .on_brain(_forty_two)
+        .on_judge(evaluate)
+        .max_turns(4))
+
+    # when
+    responses = [
+        stream_event.content
+        async for stream_event in agent.process_prompt_stream("what is the answer")
+        if stream_event.type == AgentStreamEventType.RESPONSE]
+
+    # then: a control a caller can step around by changing method is not a control
+    assert "forty two" in "".join(responses)
+    assert len(judged) == 2
