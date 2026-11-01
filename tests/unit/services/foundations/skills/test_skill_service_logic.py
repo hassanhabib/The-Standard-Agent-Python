@@ -62,3 +62,23 @@ async def test_should_compose_skills_in_name_order(
     assert actual_skills == expected_skills
     assert skill_broker.mock_calls == [call.select_skills()]
     assert logging_broker.mock_calls == []
+
+
+async def test_should_retrieve_only_routed_skill_when_route_is_given(
+        skill_service, skill_broker, create_random_string):
+
+    # given
+    calculator_skill = create_random_string()
+    identity_skill = create_random_string()
+
+    skills = [
+        Skill(name="identity-skill.md", content=identity_skill),
+        Skill(name="calculator-skill.md", content=calculator_skill)]
+
+    skill_broker.select_skills.return_value = skills
+
+    # when
+    actual_skills = await skill_service.retrieve_skills(route="calculator")
+
+    # then: only the skill whose name matches the route label is fanned in
+    assert actual_skills == calculator_skill
