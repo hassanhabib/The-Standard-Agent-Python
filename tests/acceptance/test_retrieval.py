@@ -96,3 +96,19 @@ async def test_should_retrieve_the_passage_that_answers_a_natural_question(tmp_p
     # then
     assert len(actual_passages) == 1
     assert "90 days" in actual_passages[0]
+
+
+async def test_should_prefer_the_rarer_term_when_ranking(tmp_path):
+    # given: "policy" is in every document, so it says nothing; "refund" singles one out
+    knowledge_service = _knowledge_over(
+        tmp_path / "knowledge",
+        ("a.md", "Shipping policy. This policy covers delivery."),
+        ("b.md", "Returns policy. This policy covers refund requests and their handling."),
+        ("c.md", "Privacy policy. This policy covers data."))
+
+    # when
+    actual_passages = await knowledge_service.retrieve_knowledge(query="refund policy")
+
+    # then
+    assert len(actual_passages) == 1
+    assert "refund" in actual_passages[0]
