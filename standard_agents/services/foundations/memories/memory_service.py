@@ -18,4 +18,6 @@ class MemoryService(IMemoryService):
         self.logging_broker = logging_broker
 
     async def retrieve_all_memories(self) -> list[str]:
-        raise NotImplementedError
+        memories = await self.memory_broker.select_all_memories()
+
+        return [memory for memory in memories if memory.strip() != ""]
