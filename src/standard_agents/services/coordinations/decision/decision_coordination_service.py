@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import dataclasses
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable, Sequence
 from contextlib import aclosing
 
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
@@ -28,6 +28,7 @@ _AWAIT_INPUT_DIRECTION = "AwaitInput"
 _CONFLICT_PREFIX = "CONFLICT:"
 _CONFLICT_OPTION_SEPARATOR = "||"
 _CONFLICT_LABEL_SEPARATOR = "|"
+_PREFERENCE_PREFIX = "SKILL_PREFERENCE::"
 
 
 class DecisionCoordinationService:
@@ -135,12 +136,32 @@ class DecisionCoordinationService:
         if conflict is None:
             return context, False
 
+        key = _conflict_key(conflict)
+        preferred = _find_preference(context.observations, key)
+
+        if preferred is not None:
+            return context, False
+
         question_context = dataclasses.replace(
             context,
             direction_type=_AWAIT_INPUT_DIRECTION,
             payload=_build_clarification_question(conflict))
 
         return question_context, True
+
+
+def _conflict_key(conflict: SkillConflict) -> str:
+    return "|".join(option.skill.strip().lower() for option in conflict.options)
+
+
+def _find_preference(observations: Sequence[str], key: str) -> str | None:
+    prefix = f"{_PREFERENCE_PREFIX}{key}::"
+
+    record = next(
+        (observation for observation in observations if observation.startswith(prefix)),
+        None)
+
+    return record[len(prefix):] if record is not None else None
 
 
 def _parse_conflict(verdict: str | None) -> SkillConflict | None:
