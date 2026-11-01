@@ -11,6 +11,8 @@ from contextlib import asynccontextmanager
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.brokers.tools.tool_broker import ToolBroker
 from standard_agents.models.foundations.internal_tools.exceptions import (
+    FailedInternalToolDependencyException,
+    InternalToolDependencyException,
     InternalToolValidationException,
     InvalidInternalToolException)
 
@@ -55,6 +57,13 @@ async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[N
     except InvalidInternalToolException as invalid_internal_tool_exception:
         raise await _create_and_log_validation_exception(
             logging_broker, invalid_internal_tool_exception)
+    except Exception as exception:
+        failed_internal_tool_dependency_exception = FailedInternalToolDependencyException(
+            message="Failed internal tool dependency error occurred, contact support.",
+            inner_exception=exception)
+
+        raise await _create_and_log_dependency_exception(
+            logging_broker, failed_internal_tool_dependency_exception)
 
 
 async def _create_and_log_validation_exception(
@@ -68,3 +77,16 @@ async def _create_and_log_validation_exception(
     await logging_broker.log_error(internal_tool_validation_exception)
 
     return internal_tool_validation_exception
+
+
+async def _create_and_log_dependency_exception(
+        logging_broker: LoggingBroker,
+        exception: Exception) -> InternalToolDependencyException:
+
+    internal_tool_dependency_exception = InternalToolDependencyException(
+        message="Internal tool dependency error occurred, contact support.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(internal_tool_dependency_exception)
+
+    return internal_tool_dependency_exception
