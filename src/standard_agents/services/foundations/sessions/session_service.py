@@ -9,11 +9,14 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
+from standard_agents.brokers.sessions.db_concurrency_exception import DBConcurrencyException
 from standard_agents.brokers.sessions.session_broker import SessionBroker
 from standard_agents.models.brokers.sessions.agent_session import AgentSession
 from standard_agents.models.foundations.sessions.exceptions import (
     InvalidSessionException,
-    SessionValidationException)
+    SessionDependencyValidationException,
+    SessionValidationException,
+    StaleSessionException)
 from xeptions import Xeption
 
 
@@ -76,6 +79,14 @@ async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[N
     except InvalidSessionException as invalid_session_exception:
         raise await _create_and_log_validation_exception(
             logging_broker, invalid_session_exception)
+    except DBConcurrencyException as db_concurrency_exception:
+        stale_session_exception = StaleSessionException(
+            message="The session was written by another prompt since it was read; "
+                "read it again and retry.",
+            inner_exception=db_concurrency_exception)
+
+        raise await _create_and_log_dependency_validation_exception(
+            logging_broker, stale_session_exception)
 
 
 async def _create_and_log_validation_exception(
@@ -89,3 +100,16 @@ async def _create_and_log_validation_exception(
     await logging_broker.log_error(session_validation_exception)
 
     return session_validation_exception
+
+
+async def _create_and_log_dependency_validation_exception(
+        logging_broker: LoggingBroker,
+        exception: Xeption) -> SessionDependencyValidationException:
+
+    session_dependency_validation_exception = SessionDependencyValidationException(
+        message="Session dependency validation error occurred, fix the error and try again.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(session_dependency_validation_exception)
+
+    return session_dependency_validation_exception
