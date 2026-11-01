@@ -1,0 +1,147 @@
+# ---------------------------------------------------------------
+# Copyright (c) Hassan Habib All rights reserved.
+# Licensed under the The Standard Software License (TSSL)
+# ---------------------------------------------------------------
+
+"""The whole point of the foundation.
+
+A store failure has to arrive as a SESSION failure: an OSError surfacing unmapped is what let a
+full disk get blamed on the loop.
+"""
+
+from unittest.mock import call
+
+import pytest
+
+from standard_agents.brokers.sessions.db_concurrency_exception import DBConcurrencyException
+from standard_agents.models.foundations.sessions.exceptions import (
+    FailedSessionDependencyException,
+    FailedSessionServiceException,
+    SessionDependencyException,
+    SessionDependencyValidationException,
+    SessionServiceException,
+    StaleSessionException)
+
+
+def _session_dependency_exception(inner_exception: Exception) -> SessionDependencyException:
+    failed_session_dependency_exception = FailedSessionDependencyException(
+        message="Failed session dependency error occurred, contact support.",
+        inner_exception=inner_exception)
+
+    return SessionDependencyException(
+        message="Session dependency error occurred, contact support.",
+        inner_exception=failed_session_dependency_exception)
+
+
+async def test_should_throw_dependency_validation_exception_on_record_session_if_session_is_stale_and_log_it(
+        session_service,
+        session_broker,
+        logging_broker,
+        same_exception_as,
+        create_random_session):
+    """A store that refuses a write based on a stale read is the caller's to retry.
+
+    Found in the 2026-09-04 principal review (F-06): it is not an outage. The native concurrency
+    signal is localized into a session failure and categorized as dependency validation, so the
+    tier above can tell "try again" from "the disk is gone".
+    """
+    # given
+    random_session = create_random_session()
+    db_concurrency_exception = DBConcurrencyException("the session moved on")
+
+    stale_session_exception = StaleSessionException(
+        message="The session was written by another prompt since it was read; "
+            "read it again and retry.",
+        inner_exception=db_concurrency_exception)
+
+    expected_session_dependency_validation_exception = SessionDependencyValidationException(
+        message="Session dependency validation error occurred, fix the error and try again.",
+        inner_exception=stale_session_exception)
+
+    session_broker.upsert_session.side_effect = db_concurrency_exception
+
+    # when
+    with pytest.raises(SessionDependencyValidationException) as raised:
+        await session_service.record_session(random_session)
+
+    # then
+    assert raised.value.same_exception_as(expected_session_dependency_validation_exception)
+
+    assert logging_broker.mock_calls == [
+        call.log_error(same_exception_as(expected_session_dependency_validation_exception))]
+
+    assert session_broker.mock_calls == [call.upsert_session(random_session)]
+
+
+async def test_should_throw_dependency_exception_on_retrieve_session_if_io_error_occurs(
+        session_service, session_broker, logging_broker, same_exception_as, create_random_string):
+
+    # given
+    random_session_id = create_random_string()
+    io_error = OSError()
+    expected_session_dependency_exception = _session_dependency_exception(io_error)
+    session_broker.select_session.side_effect = io_error
+
+    # when
+    with pytest.raises(SessionDependencyException) as raised:
+        await session_service.retrieve_session(random_session_id)
+
+    # then
+    assert raised.value.same_exception_as(expected_session_dependency_exception)
+
+    assert logging_broker.mock_calls == [
+        call.log_error(same_exception_as(expected_session_dependency_exception))]
+
+    assert session_broker.mock_calls == [call.select_session(random_session_id)]
+
+
+async def test_should_throw_critical_dependency_exception_on_record_session_if_access_denied(
+        session_service, session_broker, logging_broker, same_exception_as, create_random_session):
+
+    # given
+    random_session = create_random_session()
+    permission_error = PermissionError()
+    expected_session_dependency_exception = _session_dependency_exception(permission_error)
+    session_broker.upsert_session.side_effect = permission_error
+
+    # when
+    with pytest.raises(SessionDependencyException) as raised:
+        await session_service.record_session(random_session)
+
+    # then
+    assert raised.value.same_exception_as(expected_session_dependency_exception)
+
+    assert logging_broker.mock_calls == [
+        call.log_critical(same_exception_as(expected_session_dependency_exception))]
+
+    assert session_broker.mock_calls == [call.upsert_session(random_session)]
+
+
+async def test_should_throw_service_exception_on_retrieve_session_if_service_error_occurs(
+        session_service, session_broker, logging_broker, same_exception_as, create_random_string):
+
+    # given
+    random_session_id = create_random_string()
+    service_error = Exception()
+
+    failed_session_service_exception = FailedSessionServiceException(
+        message="Failed session service error occurred, contact support.",
+        inner_exception=service_error)
+
+    expected_session_service_exception = SessionServiceException(
+        message="Session service error occurred, contact support.",
+        inner_exception=failed_session_service_exception)
+
+    session_broker.select_session.side_effect = service_error
+
+    # when
+    with pytest.raises(SessionServiceException) as raised:
+        await session_service.retrieve_session(random_session_id)
+
+    # then
+    assert raised.value.same_exception_as(expected_session_service_exception)
+
+    assert logging_broker.mock_calls == [
+        call.log_error(same_exception_as(expected_session_service_exception))]
+
+    assert session_broker.mock_calls == [call.select_session(random_session_id)]
