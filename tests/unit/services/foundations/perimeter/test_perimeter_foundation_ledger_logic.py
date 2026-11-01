@@ -208,3 +208,42 @@ async def test_should_not_release_claim_if_record_is_not_in_flight(
         call.select_record(random_effect.idempotency_key)]
 
     assert logging_broker.mock_calls == []
+
+
+async def test_should_record_compensation_intent(
+        effect_ledger_service,
+        effect_ledger_broker,
+        time_broker,
+        logging_broker,
+        create_random_string,
+        create_random_effect,
+        create_random_date_time,
+        create_in_flight_record):
+
+    # given: a completed act about to be undone; the intent goes on the record first
+    random_effect = create_random_effect()
+    claimed_on = create_random_date_time()
+    recorded_on = claimed_on + timedelta(seconds=9)
+
+    completed_record = dataclasses.replace(
+        create_in_flight_record(random_effect, claimed_on),
+        state=EffectState.COMPLETED,
+        outcome=create_random_string())
+
+    expected_record = dataclasses.replace(
+        completed_record,
+        state=EffectState.COMPENSATION_PENDING,
+        recorded_on=recorded_on)
+
+    time_broker.get_current_date_time.return_value = recorded_on
+    effect_ledger_broker.select_record.return_value = completed_record
+
+    # when
+    await effect_ledger_service.record_compensation_intent(random_effect.idempotency_key)
+
+    # then
+    assert effect_ledger_broker.mock_calls == [
+        call.select_record(random_effect.idempotency_key),
+        call.update_record(expected_record)]
+
+    assert logging_broker.mock_calls == []
