@@ -8,9 +8,11 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+from restfulsense import HttpResponseBadRequestException
 from standard_agents.brokers.classifiers.classifier_broker import ClassifierBroker
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.models.foundations.gates.exceptions import (
+    GateDependencyValidationException,
     GateValidationException,
     InvalidGateException)
 from xeptions import Xeption
@@ -55,6 +57,14 @@ async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[N
         yield
     except InvalidGateException as invalid_gate_exception:
         raise await _create_and_log_validation_exception(logging_broker, invalid_gate_exception)
+    except HttpResponseBadRequestException as http_response_bad_request_exception:
+        invalid_gate_exception = InvalidGateException(
+            message="Invalid gate request. Please correct the error and try again.")
+
+        invalid_gate_exception.add_data(http_response_bad_request_exception.data)
+
+        raise await _create_and_log_dependency_validation_exception(
+            logging_broker, invalid_gate_exception)
 
 
 async def _create_and_log_validation_exception(
@@ -68,3 +78,16 @@ async def _create_and_log_validation_exception(
     await logging_broker.log_error(gate_validation_exception)
 
     return gate_validation_exception
+
+
+async def _create_and_log_dependency_validation_exception(
+        logging_broker: LoggingBroker,
+        exception: Xeption) -> GateDependencyValidationException:
+
+    gate_dependency_validation_exception = GateDependencyValidationException(
+        message="Gate dependency validation error occurred, fix the error and try again.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(gate_dependency_validation_exception)
+
+    return gate_dependency_validation_exception
