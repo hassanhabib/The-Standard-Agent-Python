@@ -452,3 +452,37 @@ async def test_should_carry_the_batched_outcome_through_the_streamed_door(scenar
     # then: 4. the trace, in full: the streamed outcome adds a reading, not a path, so a forked
     # loop diverges here without this test ever having to name it
     assert _trace_of(streamed) == _trace_of(batched), scenario
+
+
+# A fault is localized once and surfaces in the run-management family, whichever door the prompt
+# entered by. The batched door maps through its exception handling; the streamed door used to hand
+# the raw inner-tier exception to the caller, so error-handling code written against one door
+# silently failed to match the other's types.
+async def test_should_surface_the_same_exception_family_on_both_doors():
+    # given: a brain that faults
+    async def faulting_brain(system_prompt: str, user_prompt: str) -> str:
+        raise RuntimeError("the model host is down")
+
+    batched = _bare_agent(faulting_brain)
+    streamed = _bare_agent(faulting_brain)
+
+    # when
+    batched_exception = None
+    streamed_exception = None
+
+    try:
+        await batched.process_prompt("hello")
+    except Exception as exception:
+        batched_exception = exception
+
+    try:
+        async for _ in streamed.process_prompt_stream("hello"):
+            pass
+    except Exception as exception:
+        streamed_exception = exception
+
+    # then: a caller that cannot rely on the exception family cannot write one error handler
+    # for both doors, and the mapping is a control like any other
+    assert batched_exception is not None
+    assert streamed_exception is not None
+    assert type(streamed_exception) is type(batched_exception)
