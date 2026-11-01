@@ -24,7 +24,9 @@ from standard_agents.models.coordinations.agents.agent_budget import AgentBudget
 from standard_agents.models.coordinations.agents.exceptions import (
     AgentCoordinationDependencyException,
     AgentCoordinationValidationException,
-    InvalidAgentException)
+    FailedRunManagementServiceException,
+    InvalidAgentException,
+    RunManagementServiceException)
 from standard_agents.models.coordinations.agents.principal_resolver import PrincipalResolver
 from standard_agents.models.coordinations.agents.tool_narration import ToolNarration
 from standard_agents.models.coordinations.agents.tool_selector import ToolSelector
@@ -235,6 +237,13 @@ async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[N
 
         raise await _create_and_log_dependency_exception(
             logging_broker, _local_exception(dependency_exception))
+    except Exception as exception:
+        failed_run_management_service_exception = FailedRunManagementServiceException(
+            message="Failed agent coordination service error occurred, contact support.",
+            inner_exception=exception)
+
+        raise await _create_and_log_service_exception(
+            logging_broker, failed_run_management_service_exception)
 
 
 def _local_exception(categorized_exception: Xeption) -> Xeption | None:
@@ -268,3 +277,16 @@ async def _create_and_log_dependency_exception(
     await logging_broker.log_error(agent_coordination_dependency_exception)
 
     return agent_coordination_dependency_exception
+
+
+async def _create_and_log_service_exception(
+        logging_broker: LoggingBroker,
+        exception: Xeption) -> RunManagementServiceException:
+
+    run_management_service_exception = RunManagementServiceException(
+        message="Agent coordination service error occurred, contact support.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(run_management_service_exception)
+
+    return run_management_service_exception
