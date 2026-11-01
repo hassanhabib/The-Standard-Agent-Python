@@ -11,6 +11,7 @@
 import itertools
 
 from standard_agents.models.brokers.agents.registered_agent import RegisteredAgent
+from standard_agents.models.foundations.skills.skill import Skill
 from standard_agents.standard_agent import StandardAgent
 
 
@@ -57,3 +58,45 @@ async def test_should_hand_off_to_a_registered_agent(empty_memory_broker, empty_
     assert "refund order 7741" in inner_received[-1]
     assert "please refund my last order, number 7741" in inner_received[-1]
     assert "billing booked the refund" in answer
+
+
+async def select_concierge():
+    return [Skill(name="concierge", content="Hand work to whoever does it best.\n\n{{tools}}")]
+
+
+async def test_should_advertise_registered_agents_to_the_brain(
+        empty_memory_broker,
+        empty_knowledge_broker):
+
+    # given: a registry whose agent carries a description, which is the advertisement opt-in a
+    # tool's description already is, surfaced where every advertisement is surfaced: a skill's
+    # {{tools}} marker.
+    async def specialist_brain(system_prompt, user_prompt):
+        return "FINAL: ok"
+
+    specialist = (StandardAgent()
+        .use_memory(empty_memory_broker)
+        .use_knowledge(empty_knowledge_broker)
+        .on_brain(specialist_brain))
+
+    outer_saw = []
+
+    async def outer_brain(system_prompt, user_prompt):
+        outer_saw.append(system_prompt)
+
+        return "FINAL: nothing to do"
+
+    outer_agent = (StandardAgent()
+        .use_memory(empty_memory_broker)
+        .use_knowledge(empty_knowledge_broker)
+        .on_skills(select_concierge)
+        .on_agents(registry_of(
+            RegisteredAgent("billing", "Handles refunds and invoices.", specialist)))
+        .on_brain(outer_brain))
+
+    # when
+    await outer_agent.process_prompt("hello")
+
+    # then: the brain can only hand off to an agent it was told exists.
+    assert "billing" in outer_saw[-1]
+    assert "Handles refunds and invoices." in outer_saw[-1]
