@@ -187,3 +187,48 @@ async def test_should_leave_effects_standing_when_compensation_is_not_configured
 
     # then: behavior is exactly as if the section did not exist
     assert ledger == ["do:book_flight"]
+
+
+async def test_should_unwind_the_remaining_effects_when_one_compensation_fails():
+    # given: undoing the charge throws; the booking behind it must still be unwound
+    ledger: list[str] = []
+
+    agent = (_agent_that_runs(
+            [_ReversibleTool("book_flight", ledger), _ThrowingTool("charge_card", ledger)],
+            "ACTION: book_flight: LHR-JFK",
+            "ACTION: charge_card: 480.00")
+        .max_turns(2)
+        .compensate_on_failure())
+
+    # when
+    actual_result = await agent.process_prompt("book me a flight")
+
+    # then: abandoning the rest would leave more standing, not less
+    assert "undo:book_flight" in ledger
+    assert "Unwound 1 of 2 effects." in actual_result
+    assert "'charge_card' could not be undone; the effect stands." in actual_result
+
+
+class _ThrowingTool(Tool):
+    """A tool whose undo fails: the reversal itself is an act against the world, and acts
+    fail."""
+
+    def __init__(self, name: str, ledger: list[str]) -> None:
+        self._name = name
+        self._ledger = ledger
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def description(self) -> str:
+        return f"Performs {self._name}."
+
+    async def execute(self, input: str) -> str:
+        self._ledger.append(f"do:{self._name}")
+
+        return f"{self._name}-receipt"
+
+    async def compensate(self, input: str, outcome: str) -> str | None:
+        raise RuntimeError("the reversal window has closed")
