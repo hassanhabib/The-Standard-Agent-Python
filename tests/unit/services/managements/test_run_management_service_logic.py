@@ -109,3 +109,27 @@ async def test_should_break_loop_on_process_prompt_if_status_is_not_working(
     # then
     assert actual_result == "stopped"
     assert data_coordination_service.recall.mock_calls == [call(ANY)]
+
+
+async def test_should_cap_turns_on_process_prompt_if_brain_never_terminates(
+        run_management_service,
+        data_coordination_service,
+        decision_coordination_service,
+        create_random_string,
+        setup_orchestrations_pass_through,
+        setup_direction_never_terminates):
+
+    # given
+    random_prompt = create_random_string()
+    setup_orchestrations_pass_through()
+    setup_direction_never_terminates("again")
+
+    # when
+    actual_result = await run_management_service.process_prompt(random_prompt)
+
+    # then: the capped run delivered no answer, and says so rather than handing back the last
+    # tool output as though it were one.
+    assert "out of turns" in actual_result
+    assert "again" not in actual_result
+    assert data_coordination_service.recall.mock_calls == [call(ANY)] * 7
+    assert decision_coordination_service.think.mock_calls == [call(ANY)] * 7
