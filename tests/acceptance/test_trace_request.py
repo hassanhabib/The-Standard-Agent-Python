@@ -94,3 +94,18 @@ async def test_should_announce_a_stripped_core_owned_key(agent_with, log_path):
     trace = _read_trace(log_path)
     assert "max_tokens" in trace
     assert "stripped" in trace
+
+
+async def test_should_announce_a_broker_that_does_not_honor_requests(agent_with, log_path):
+    # given: a Custom brain that never opts in, and a caller with opinions
+    agent = agent_with(_answering_ok)
+
+    request = PromptRequest(prompt="hello", temperature=0.2)
+
+    # when
+    await agent.process_prompt(request)
+
+    # then: degradation is graceful AND announced. Shape is enforced by the guardian only, and
+    # the trace can say which of the two happened.
+    trace = _read_trace(log_path)
+    assert "does not honor" in trace
