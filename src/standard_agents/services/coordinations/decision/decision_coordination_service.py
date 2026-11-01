@@ -61,6 +61,11 @@ class DecisionCoordinationService:
 
     async def think(self, context: AgentContext) -> AgentContext:
         verdict = await self.guardian_service.screen(context.prompt)
+        refused = await self._refused_by_gate(context, verdict)
+
+        if refused is not None:
+            return refused
+
         context = await self._routed_by_gate(context, verdict)
         resolved_context, is_terminal = await self._resolve_skill_conflict(context)
 
@@ -115,7 +120,10 @@ class DecisionCoordinationService:
         if not _is_refusal(verdict):
             return None
 
-        return dataclasses.replace(context, direction_type=_REFUSE_DIRECTION)
+        return dataclasses.replace(
+            context,
+            intent=_REFUSE_DIRECTION,
+            direction_type=_REFUSE_DIRECTION)
 
     async def _routed_by_gate(self, context: AgentContext, verdict: str) -> AgentContext:
         """Everything else the Gate's verdict carries, handled once for both doors.
@@ -149,7 +157,7 @@ class DecisionCoordinationService:
             learned_context = dataclasses.replace(
                 context,
                 direction_type=_RETURN_RESPONSE_DIRECTION,
-                payload=f"Understood — I'll follow '{chosen.skill}' for that from now on.",
+                payload=f"Understood \u2014 I'll follow '{chosen.skill}' for that from now on.",
                 remember=f"{_PREFERENCE_PREFIX}{key}::{chosen.skill}")
 
             return learned_context, True
