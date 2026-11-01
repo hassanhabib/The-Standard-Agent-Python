@@ -340,3 +340,47 @@ async def test_should_use_custom_judge_to_score_on_process_prompt(
     # then
     assert actual_result == "42"
     assert judge_invocations
+
+
+# The local_* verbs were renamed to on_*: a delegate is the Custom mode, not the Local one. They
+# stay behavioral aliases for the published deprecation window, so this pins that they still
+# compose exactly what the new verbs compose.
+async def test_should_keep_obsolete_local_aliases_behaving_like_the_custom_verbs(
+        create_skill_broker,
+        empty_memory_broker,
+        empty_knowledge_broker):
+
+    # given
+    gate_invocations = []
+    judge_invocations = []
+
+    async def brain(system_prompt, user_prompt):
+        return "FINAL: 42"
+
+    async def gate(gate_rubric, prompt):
+        gate_invocations.append(prompt)
+
+        return "allow"
+
+    async def judge(judge_rubric, draft_answer):
+        judge_invocations.append(draft_answer)
+
+        return "1.0"
+
+    # the aliases are exactly what is under test
+    with pytest.deprecated_call():
+        agent = (StandardAgent()
+            .use_skills(create_skill_broker())
+            .use_memory(empty_memory_broker)
+            .use_knowledge(empty_knowledge_broker)
+            .local_brain(brain)
+            .local_gate(gate)
+            .local_judge(judge))
+
+    # when
+    actual_result = await agent.process_prompt(prompt="what is the answer?")
+
+    # then
+    assert actual_result == "42"
+    assert gate_invocations
+    assert judge_invocations
