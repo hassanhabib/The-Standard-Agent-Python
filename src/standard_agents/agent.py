@@ -35,14 +35,22 @@ class Agent(ABC):
         ...
 
     async def process_prompt(self, prompt: str) -> str:
-        raise NotImplementedError
+        """The one-line door: a prompt in, the answer's text out."""
+        return (await self.run(prompt)).result
 
     async def run(
             self,
             request: PromptRequest | str,
             *,
             cancellation: asyncio.Event | None = None) -> AgentOutcome:
-        raise NotImplementedError
+        """The run, reported with how it ended as well as what it produced.
+
+        A plain prompt is a request that expressed no opinions. Setting cancellation stops the
+        run at its next turn boundary, so no effect is left half-recorded (SPEC.md 4.10).
+        Nesting reads this: AgentTool forwards the outer run's signal here, so cancelling an
+        outer run stops the whole tree.
+        """
+        return await self.run_request(_as_request(request), cancellation=cancellation)
 
     def process_prompt_stream(
             self,
@@ -57,3 +65,7 @@ class Agent(ABC):
             *,
             cancellation: asyncio.Event | None = None) -> AgentRunStream:
         raise NotImplementedError
+
+
+def _as_request(request: PromptRequest | str) -> PromptRequest:
+    return request if isinstance(request, PromptRequest) else PromptRequest(prompt=request)
