@@ -158,3 +158,26 @@ async def test_should_carry_the_whole_identity_into_the_authorization_decision()
     assert seen_by_policy.tenant_id == "acme-eu"
     assert seen_by_policy.jurisdiction == "EU"
     assert seen_by_policy.delegated_by == "teller-42"
+
+
+async def test_should_refuse_an_act_on_jurisdiction_alone():
+    # given: the same act, by the same principal, permitted in one regime and not another
+    tool = _CountingTool()
+
+    async def authorize(effect):
+        jurisdiction = None if effect.identity is None else effect.identity.jurisdiction
+
+        return (
+            AuthorizationDecision.allow() if jurisdiction == "US"
+            else AuthorizationDecision.deny("cross-border transfers need US booking"))
+
+    agent = (_agent_that_calls_the_tool(
+            tool, "ACTION: wire_transfer: 10000", "FINAL: I could not do that")
+        .principal(lambda: AgentPrincipal(id="teller-42", jurisdiction="EU"))
+        .on_policy(authorize))
+
+    # when
+    await agent.process_prompt("pay the invoice")
+
+    # then
+    assert tool.execution_count == 0
