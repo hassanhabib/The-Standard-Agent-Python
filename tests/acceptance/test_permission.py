@@ -135,3 +135,17 @@ async def test_should_deny_an_act_outside_an_allowed_scope():
 
     # then: the tool is permitted under /project and the act targeted /etc
     assert tool.writes == 0
+
+
+async def test_should_allow_an_act_inside_an_allowed_scope():
+    # given
+    tool = _WriteFileTool()
+
+    agent = (_agent_acting(tool, "ACTION: write_file: /project/a.txt hello", "FINAL: done")
+        .allow_tools("write_file:/project"))
+
+    # when
+    await agent.process_prompt("write it")
+
+    # then
+    assert tool.writes == 1
