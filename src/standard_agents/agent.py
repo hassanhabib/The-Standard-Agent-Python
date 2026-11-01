@@ -57,7 +57,8 @@ class Agent(ABC):
             request: PromptRequest | str,
             *,
             cancellation: asyncio.Event | None = None) -> AsyncIterator[AgentStreamEvent]:
-        raise NotImplementedError
+        """The streamed run for a bare prompt, riding the request-rich stream."""
+        return self.stream_request(_as_request(request), cancellation=cancellation)
 
     def run_stream(
             self,
