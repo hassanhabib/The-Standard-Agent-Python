@@ -27,9 +27,7 @@ async def local_brain(system_prompt: str, user_prompt: str) -> str:
         return f"FINAL: {expression.group(0).strip()} = {calculator_result.group(1).strip()}"
 
     if expression:
-        return (
-            "SAY: Let me work that out.\n"
-            + f"ACTION: calculator: {expression.group(0).strip()}")
+        return f"ACTION: calculator: {expression.group(0).strip()}"
 
     return "FINAL: I can only help with arithmetic."
 
