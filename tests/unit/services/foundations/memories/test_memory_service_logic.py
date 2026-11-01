@@ -60,3 +60,29 @@ async def test_should_return_empty_memories_if_memory_file_does_not_exist(
     assert not actual_memories
     assert file_broker.mock_calls == [call.file_exists(memory_path)]
     assert logging_broker.mock_calls == []
+
+
+async def test_should_recall_memories_from_file(
+        file_broker, logging_broker, create_random_string, create_random_memories):
+
+    # given
+    memory_path = create_random_string()
+    stored_memories = create_random_memories()
+    expected_memories = list(stored_memories)
+    file_memory_service = MemoryService(
+        file_broker=file_broker, memory_path=memory_path, logging_broker=logging_broker)
+
+    file_broker.file_exists.return_value = True
+    file_broker.read_all_lines.return_value = stored_memories
+
+    # when
+    actual_memories = await file_memory_service.recall_memories()
+
+    # then
+    assert list(actual_memories) == expected_memories
+
+    assert file_broker.mock_calls == [
+        call.file_exists(memory_path),
+        call.read_all_lines(memory_path)]
+
+    assert logging_broker.mock_calls == []
