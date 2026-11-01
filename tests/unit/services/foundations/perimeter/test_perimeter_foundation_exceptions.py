@@ -133,3 +133,39 @@ async def test_should_throw_dependency_exception_on_record_outcome_if_disk_is_fu
 
     assert logging_broker.mock_calls == [
         call.log_error(same_exception_as(expected_effect_ledger_dependency_exception))]
+
+
+async def test_should_throw_critical_dependency_exception_on_claim_effect_if_access_denied(
+        effect_ledger_service,
+        effect_ledger_broker,
+        time_broker,
+        logging_broker,
+        create_random_effect,
+        create_random_date_time,
+        same_exception_as):
+
+    # given
+    random_effect = create_random_effect()
+    unauthorized_access_error = PermissionError()
+    time_broker.get_current_date_time.return_value = create_random_date_time()
+
+    failed_effect_ledger_dependency_exception = FailedEffectLedgerDependencyException(
+        message="Failed effect ledger dependency error occurred, contact support.",
+        inner_exception=unauthorized_access_error)
+
+    expected_effect_ledger_dependency_exception = EffectLedgerDependencyException(
+        message="Effect ledger dependency error occurred, contact support.",
+        inner_exception=failed_effect_ledger_dependency_exception)
+
+    effect_ledger_broker.insert_claim.side_effect = unauthorized_access_error
+
+    # when
+    with pytest.raises(EffectLedgerDependencyException) as raised:
+        await effect_ledger_service.claim_effect(random_effect)
+
+    # then
+    assert raised.value.same_exception_as(expected_effect_ledger_dependency_exception)
+    assert effect_ledger_broker.mock_calls == [call.insert_claim(ANY)]
+
+    assert logging_broker.mock_calls == [
+        call.log_critical(same_exception_as(expected_effect_ledger_dependency_exception))]
