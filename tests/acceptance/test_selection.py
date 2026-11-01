@@ -158,3 +158,24 @@ async def test_should_ignore_selector_names_the_agent_does_not_carry():
     assert any(
         record.message == "Selection → offered [web_search]; withheld [code_search, remember]"
         for record in trace)
+
+
+# An empty selection is a valid selection: the run is offered nothing, the greeting case.
+async def test_should_offer_nothing_on_an_empty_selection():
+    # given
+    shown: list[Sequence[ToolDefinition]] = [[]]
+
+    def reply(tools: Sequence[ToolDefinition]) -> GenerationResult:
+        shown[0] = tools
+
+        return GenerationResult(content="hello!")
+
+    agent = (_agent_with(reply, _NamedTool("web_search"), _NamedTool("code_search"))
+        .on_select_tools(_selecting()))
+
+    # when
+    answer = await agent.process_prompt("hi there")
+
+    # then
+    assert answer == "hello!"
+    assert len(shown[0]) == 0
