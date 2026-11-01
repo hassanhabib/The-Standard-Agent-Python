@@ -202,3 +202,41 @@ async def test_should_not_ask_about_an_act_that_was_explicitly_permitted():
     # then: an explicit permission is the answer to the question
     assert asked == 0
     assert tool.writes == 1
+
+
+# Gap 5, found in the 2026-08-23 sweep. PermissionMode.DENY was declared, documented ("Denied.
+# Nothing runs but what was named.") and never consulted: the only read of the mode compared
+# against ASK, so the strictest disposition behaved exactly like OPEN and an unnamed tool ran
+# unasked.
+async def test_should_deny_an_act_that_was_never_explicitly_permitted():
+    # given: nothing names the tool: no allow-list, no approval list, no policy
+    tool = _WriteFileTool()
+    second_prompt = ""
+    asked = 0
+
+    async def generate(system_prompt, user_prompt):
+        nonlocal asked, second_prompt
+
+        if asked > 0:
+            second_prompt = user_prompt
+
+        reply = "ACTION: write_file: /project/a.txt hello" if asked == 0 else "FINAL: done"
+        asked += 1
+
+        return reply
+
+    agent = (StandardAgent()
+        .tool(tool)
+        .on_brain(generate)
+        .permissions(PermissionMode.DENY)
+        .max_turns(4))
+
+    # when
+    actual_answer = await agent.process_prompt("write it")
+
+    # then: denied, told, and non-terminal: the agent chooses another path. DENY says nothing
+    # runs but what was named, and nothing named this tool; a denial the agent is not told about
+    # leaves it to propose the act forever.
+    assert tool.writes == 0
+    assert "not permitted" in second_prompt
+    assert actual_answer == "done"
