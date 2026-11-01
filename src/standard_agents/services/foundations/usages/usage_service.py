@@ -47,6 +47,9 @@ class UsageService:
             prompt_tokens = await self.usage_broker.count_tokens(prompt)
             completion_tokens = await self.usage_broker.count_tokens(completion)
 
+            _validate_count(prompt_tokens)
+            _validate_count(completion_tokens)
+
             return AgentUsage(
                 prompt_tokens=prompt_tokens,
                 completion_tokens=completion_tokens,
@@ -62,6 +65,18 @@ def _validate_text(text: str | None, name: str) -> None:
     if text is None:
         raise InvalidUsageException(
             message=f"Invalid usage, {name} is required. Please correct the error and try again.")
+
+
+def _validate_count(tokens: int) -> None:
+    """Rejects a negative count, which would subtract from the run's spend.
+
+    That turns a budget into a thing an unusual reply can extend. A custom counter is host code,
+    so this is reachable.
+    """
+    if tokens < 0:
+        raise InvalidUsageException(
+            message="Invalid usage, token count cannot be negative. "
+                "Please correct the error and try again.")
 
 
 @asynccontextmanager
