@@ -183,6 +183,11 @@ class StandardAgent:
 
         return self
 
+    def use_logging(self, logging_broker: ILoggingBroker) -> "StandardAgent":
+        self.logging_broker = logging_broker
+
+        return self
+
     # A bound on how many Recall, Think, Act turns one prompt may take.
     def max_turns(self, turns: int) -> "StandardAgent":
         validate_turns(turns)
