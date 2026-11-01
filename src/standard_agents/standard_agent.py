@@ -45,6 +45,7 @@ from standard_agents.brokers.verifiers.verifier_broker import VerifierBroker
 from standard_agents.models.brokers.generators.resolved_inference import ResolvedInference
 from standard_agents.models.clients.agents.agent_outcome import AgentOutcome
 from standard_agents.models.clients.agents.agent_stream_event import AgentStreamEvent
+from standard_agents.models.clients.agents.exceptions import InvalidAgentCompositionException
 from standard_agents.models.clients.agents.inference_settings import InferenceSettings
 from standard_agents.models.clients.agents.prompt_request import PromptRequest
 from standard_agents.models.loggings.trace_verbosity import TraceVerbosity
@@ -224,6 +225,9 @@ class StandardAgent(Agent):
         raise NotImplementedError
 
     def _compose(self) -> RunManagementService:
+        _validate_composition(
+            has_brain=self._generator_broker is not None or self._brain_settings is not None)
+
         brain = self._brain_settings
 
         logging = (
@@ -338,3 +342,14 @@ def _null_logger() -> logging.Logger:
     logger.disabled = True
 
     return logger
+
+
+def _validate_composition(has_brain: bool) -> None:
+    # A native brain is a brain. Either seam satisfies this: the check exists to catch an agent
+    # with no way to think at all, not to prefer one contract over the other.
+    if not has_brain:
+        raise InvalidAgentCompositionException(
+            message=(
+                "Agent has no brain. Call Brain(apiUrl, apiKey, model), "
+                + "UseGenerator(broker) or NativeBrain(apiUrl, apiKey, model) "
+                + "before processing a prompt."))
