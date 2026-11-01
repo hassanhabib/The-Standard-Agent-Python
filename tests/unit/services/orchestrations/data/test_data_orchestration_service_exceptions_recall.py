@@ -20,7 +20,9 @@ from standard_agents.models.foundations.skills.exceptions import (
     SkillServiceException)
 from standard_agents.models.orchestrations.data.exceptions import (
     DataOrchestrationDependencyException,
-    DataOrchestrationDependencyValidationException)
+    DataOrchestrationDependencyValidationException,
+    DataOrchestrationServiceException,
+    FailedDataOrchestrationServiceException)
 from tests.unit.services.orchestrations.data.data_orchestration_service_tests import (
     DataOrchestrationServiceTests)
 
@@ -97,3 +99,30 @@ class TestDataOrchestrationServiceExceptionsRecall(DataOrchestrationServiceTests
         self.assert_logged_once("log_error", expected_dependency_exception)
         assert self.memory_service_mock.mock_calls == []
         assert self.knowledge_service_mock.mock_calls == []
+
+    def test_should_raise_service_exception_on_recall_if_service_error_occurs_and_log_it(
+        self) -> None:
+
+        # given
+        input_context = self.create_random_context()
+        service_error = Exception(self.create_random_string())
+
+        failed_data_orchestration_service_exception = FailedDataOrchestrationServiceException(
+            message="Failed data orchestration service error occurred, contact support.",
+            inner_exception=service_error)
+
+        expected_data_orchestration_service_exception = DataOrchestrationServiceException(
+            message="Data orchestration service error occurred, contact support.",
+            inner_exception=failed_data_orchestration_service_exception)
+
+        self.skill_service_mock.retrieve_all_skills.side_effect = service_error
+
+        # when
+        with pytest.raises(DataOrchestrationServiceException) as actual_exception:
+            asyncio.run(self.data_orchestration_service.recall(input_context))
+
+        # then
+        assert expected_data_orchestration_service_exception.same_exception_as(
+            actual_exception.value)
+
+        self.assert_logged_once("log_error", expected_data_orchestration_service_exception)
