@@ -98,6 +98,27 @@ async def test_should_run_internal_tool_and_append_observation_on_act(
     assert external_tool_service.call.mock_calls == []
 
 
+async def test_should_route_to_external_and_recover_on_act_if_tool_is_unknown(
+        direction_coordination_service,
+        internal_tool_service,
+        external_tool_service,
+        create_context_with_direction):
+
+    # given
+    input_context = create_context_with_direction("weather", "today")
+    internal_tool_service.handles.return_value = False
+    external_tool_service.call.return_value = "[external 'weather' not configured]"
+
+    # when
+    actual_context = await direction_coordination_service.act(input_context)
+
+    # then
+    assert actual_context.status is AgentStatus.WORKING
+    assert _count_containing(actual_context.observations, "weather") == 1
+    assert external_tool_service.mock_calls == [call.call("weather", "today")]
+    assert internal_tool_service.run.mock_calls == []
+
+
 def _count_containing(observations: tuple[str, ...], *texts: str) -> int:
     """How many observations contain every text (ContainSingle with a Contains predicate)."""
     return sum(1 for observation in observations if all(text in observation for text in texts))
