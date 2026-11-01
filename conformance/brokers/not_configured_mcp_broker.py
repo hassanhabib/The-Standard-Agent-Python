@@ -1,0 +1,19 @@
+# ---------------------------------------------------------------
+# Copyright (c) Hassan Habib All rights reserved.
+# Licensed under the The Standard Software License (TSSL)
+# ---------------------------------------------------------------
+
+from __future__ import annotations
+
+from standard_agents.brokers.mcps.mcp_broker import McpBroker
+from standard_agents.models.brokers.mcps.mcp_tool import McpTool
+
+
+class NotConfiguredMcpBroker(McpBroker):
+    """No remote server: a call says so, and the catalog is empty."""
+
+    async def call(self, name: str, arguments_json: str) -> str:
+        return f"[external '{name}' not configured]"
+
+    async def list_tools(self) -> list[McpTool]:
+        return []
