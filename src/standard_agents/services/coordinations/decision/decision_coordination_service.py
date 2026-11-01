@@ -5,7 +5,11 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator, Callable
+from contextlib import aclosing
+
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
+from standard_agents.models.clients.agents.agent_stream_event import AgentStreamEvent
 from standard_agents.models.orchestrations.agents.agent_context import AgentContext
 from standard_agents.services.coordinations.decision.decision_stream import DecisionStream
 from standard_agents.services.orchestrations.decision.guardians.guardian_orchestration_service \
@@ -45,4 +49,29 @@ class DecisionCoordinationService:
         return await self.inference_service.decide(context)
 
     def think_stream(self, context: AgentContext) -> DecisionStream:
-        raise NotImplementedError
+        """The streamed door.
+
+        Draft segments are yielded as they arrive; the decided context is the stream's result
+        once the enumeration completes.
+        """
+        return DecisionStream(
+            lambda set_result: self._stream_think(context, set_result))
+
+    async def _stream_think(
+            self,
+            context: AgentContext,
+            set_result: Callable[[AgentContext], None]) -> AsyncIterator[AgentStreamEvent]:
+
+        decided = context
+
+        def set_decided(interpreted: AgentContext) -> None:
+            nonlocal decided
+            decided = interpreted
+
+        drafting = self.inference_service.decide_stream(context, set_decided)
+
+        async with aclosing(drafting):
+            async for segment in drafting:
+                yield segment
+
+        set_result(decided)
