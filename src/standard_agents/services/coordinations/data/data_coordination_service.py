@@ -44,6 +44,9 @@ class DataCoordinationService:
         knowledge = await self.retrieval_service.retrieve_grounding(context.prompt)
         passages = (knowledge_result.text for knowledge_result in knowledge)
 
+        await self.logging_broker.log_payload(
+            "Data", "System prompt sent to Decision", system_prompt, detail=True)
+
         return dataclasses.replace(
             context,
             system_prompt=system_prompt,
