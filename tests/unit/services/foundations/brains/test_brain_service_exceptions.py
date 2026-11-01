@@ -254,3 +254,30 @@ async def test_should_throw_critical_dependency_exception_on_generate_stream_if_
 
     assert logging_broker.mock_calls == [
         call.log_critical(same_exception_as(expected_brain_dependency_exception))]
+
+
+async def test_should_throw_service_exception_on_generate_stream_if_service_error_occurs_and_log_it(
+        brain_service,
+        generator_broker,
+        logging_broker,
+        same_exception_as,
+        create_random_string,
+        throwing_stream,
+        drain):
+
+    # given
+    random_system_prompt = create_random_string()
+    random_user_prompt = create_random_string()
+    service_exception = Exception()
+    expected_brain_service_exception = _brain_service_exception(service_exception)
+    generator_broker.generate_stream.return_value = throwing_stream(service_exception)
+
+    # when
+    with pytest.raises(BrainServiceException) as raised:
+        await drain(brain_service.generate_stream(random_system_prompt, random_user_prompt))
+
+    # then
+    assert raised.value.same_exception_as(expected_brain_service_exception)
+
+    assert logging_broker.mock_calls == [
+        call.log_error(same_exception_as(expected_brain_service_exception))]
