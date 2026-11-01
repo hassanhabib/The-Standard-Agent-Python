@@ -16,7 +16,9 @@ class AgentTool(Tool):
 
     @property
     def name(self) -> str:
-        raise NotImplementedError
+        return self._name
 
     async def execute(self, input: str) -> str:
-        raise NotImplementedError
+        outcome = await self._agent.run(input, cancellation=None)
+
+        return outcome.result
