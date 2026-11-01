@@ -44,6 +44,12 @@ class KnowledgeService:
         if self.file_broker is not None:
             return await self._select_knowledge_from_files(self.file_broker, query)
 
+        if self.sourced_knowledge_broker is not None:
+            knowledge_results = await self.sourced_knowledge_broker.select_sourced_knowledge(
+                query)
+
+            return tuple(knowledge_result.text for knowledge_result in knowledge_results)
+
         return await self.knowledge_broker.select_knowledge(query)
 
     async def retrieve_sourced_knowledge(self, query: str) -> Sequence[KnowledgeResult]:
