@@ -138,3 +138,37 @@ async def test_should_measure_every_turn_on_the_text_protocol():
     # spends most.
     assert brain_calls == 2
     assert usage_calls == 4
+
+
+async def test_should_measure_a_rejected_draft_on_the_text_protocol():
+    """The rejected half of the same defect: a draft the Judge sends back for revision cost a
+    model call, and that call must reach the budget; the revision loop is exactly where a run
+    burns tokens fastest."""
+    # given
+    tool = _CountingTool()
+    usage_calls = 0
+    judged = 0
+
+    async def brain(system_prompt, user_prompt):
+        return "FINAL: forty two"
+
+    async def judge(rubric, input):
+        nonlocal judged
+        judged += 1
+
+        return "0.0" if judged == 1 else "1.0"
+
+    async def count(text):
+        nonlocal usage_calls
+        usage_calls += 1
+
+        return max(1, len(text) // 4)
+
+    agent = _agent_with(brain, tool).on_judge(judge).on_usage(count).max_turns(4)
+
+    # when
+    await agent.process_prompt("what is the answer")
+
+    # then: the rejected draft and the accepted one were both measured
+    assert judged == 2
+    assert usage_calls == 4
