@@ -252,6 +252,7 @@ class StandardAgent(Agent):
         self._declared_risk: dict[str, RiskLevel] = {}
         self._screen_tool_output = False
         self._compensate_on_failure = False
+        self._effect_lease = timedelta(minutes=5)
 
         if api_url is not None or api_key is not None or model is not None:
             self.brain(api_url, api_key, model)
@@ -676,6 +677,11 @@ class StandardAgent(Agent):
             upsert: Callable[[AgentSession], Awaitable[None]]) -> StandardAgent:
 
         self._session_broker = FunctionSessionBroker(select, upsert)
+
+        return self
+
+    def effect_lease(self, lease: timedelta) -> StandardAgent:
+        self._effect_lease = lease
 
         return self
 

@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from standard_agents.standard_agent import StandardAgent
 
 _Named = TypeVar("_Named", bound=Enum)
+_Limit = TypeVar("_Limit", int, Decimal, timedelta)
 
 
 def apply_document(agent: StandardAgent, document_json: str) -> None:
@@ -89,8 +90,8 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
                 value.get("apiKey", ""),
                 value["model"],
                 temperature=_number(value, key, "temperature", 0.7),
-                max_tokens=_whole_property(value, key, "maxTokens", 1024),
-                timeout_seconds=_whole_property(value, key, "timeoutSeconds", 120))
+                max_tokens=_positive_whole(value, key, "maxTokens", 1024),
+                timeout_seconds=_positive_whole(value, key, "timeoutSeconds", 120))
 
         case "nativeBrain":
             _shaped(value, key)
@@ -100,7 +101,7 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
                 value.get("apiKey", ""),
                 value["model"],
                 temperature=_number(value, key, "temperature", 0.7),
-                max_tokens=_whole_property(value, key, "maxTokens", 1024))
+                max_tokens=_positive_whole(value, key, "maxTokens", 1024))
 
         case "nativeBrainAnthropic":
             _shaped(value, key)
@@ -109,7 +110,7 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
                 value["apiKey"],
                 value["model"],
                 temperature=_number(value, key, "temperature", 0.7),
-                max_tokens=_whole_property(value, key, "maxTokens", 1024))
+                max_tokens=_positive_whole(value, key, "maxTokens", 1024))
 
         case "skills" if isinstance(value, list):
             for source in value:
@@ -124,7 +125,7 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
             agent.knowledge(
                 value["path"],
                 pattern=value.get("pattern", "*.md"),
-                max_results=_whole_property(value, key, "maxResults", 3),
+                max_results=_positive_whole(value, key, "maxResults", 3),
                 min_score=_number(value, key, "minScore", 0.0))
 
         case "knowledge":
@@ -155,8 +156,8 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
                 value.get("apiKey", ""),
                 value["model"],
                 temperature=_number(value, key, "temperature", 0.0),
-                max_tokens=_whole_property(value, key, "maxTokens", 16),
-                timeout_seconds=_whole_property(value, key, "timeoutSeconds", 30))
+                max_tokens=_positive_whole(value, key, "maxTokens", 16),
+                timeout_seconds=_positive_whole(value, key, "timeoutSeconds", 30))
 
         case "ruleGate":
             agent.rule_gate(*value)
@@ -169,8 +170,8 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
                 value.get("apiKey", ""),
                 value["model"],
                 temperature=_number(value, key, "temperature", 0.0),
-                max_tokens=_whole_property(value, key, "maxTokens", 16),
-                timeout_seconds=_whole_property(value, key, "timeoutSeconds", 30))
+                max_tokens=_positive_whole(value, key, "maxTokens", 16),
+                timeout_seconds=_positive_whole(value, key, "timeoutSeconds", 30))
 
         case "ruleJudge":
             agent.rule_judge(*value)
@@ -202,10 +203,10 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
             pass
 
         case "maxTurns":
-            agent.max_turns(_whole(value, key))
+            agent.max_turns(_positive(_whole(value, key), key))
 
         case "identicalCallLimit":
-            agent.identical_call_limit(_whole(value, key))
+            agent.identical_call_limit(_positive(_whole(value, key), key))
 
         # true or false is the deployment's decision; text is that decision made with the words
         # each citation line starts with (SPEC.md 4.2).
@@ -253,13 +254,17 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
         case "sessions" if isinstance(value, dict):
             _shaped(value, key)
 
-            agent.sessions(value["path"], max_history_turns=_whole_property(value, key, "maxHistoryTurns", 20))
+            agent.sessions(value["path"], max_history_turns=_positive_whole(value, key, "maxHistoryTurns", 20))
 
         case "sessions":
             agent.sessions(value)
 
         case "effectLedger":
             agent.effect_ledger(value)
+
+        case "effectLeaseSeconds":
+            agent.effect_lease(
+                timedelta(seconds=_positive_number(_number_value(value, key), key)))
 
         case "screenToolOutput" if value:
             agent.screen_tool_output()
@@ -273,15 +278,21 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
         case "usage":
             _shaped(value, key)
 
-            agent.usage(characters_per_token=_number(value, key, "charactersPerToken", 4.0))
+            agent.usage(
+                characters_per_token=_positive_number(
+                    _number(value, key, "charactersPerToken", 4.0),
+                    f"{key}.charactersPerToken"))
 
         case "resilience" if isinstance(value, dict):
             _shaped(value, key)
 
-            agent.resilience(retries=_whole_property(value, key, "retries", 3))
+            agent.resilience(
+                retries=_non_negative(
+                    _whole_property(value, key, "retries", 3),
+                    f"{key}.retries"))
 
         case "resilience":
-            agent.resilience(retries=_whole(value, key))
+            agent.resilience(retries=_non_negative(_whole(value, key), key))
 
         case "compensateOnFailure" if value:
             agent.compensate_on_failure()
@@ -333,10 +344,18 @@ def _apply_budget(agent: StandardAgent, budget: Any) -> None:
 
     try:
         agent.budget(
-            max_tokens=_optional_whole(budget, key, "maxTokens"),
-            max_cost_usd=_optional_money(budget, key, "maxCostUsd"),
-            max_wall_clock=_optional_seconds(budget, key, "maxWallClockSeconds"),
-            cost_per_thousand_tokens=_money(budget, key, "costPerThousandTokens"))
+            max_tokens=_positive(
+                _optional_whole(budget, key, "maxTokens"),
+                f"{key}.maxTokens"),
+            max_cost_usd=_positive(
+                _optional_money(budget, key, "maxCostUsd"),
+                f"{key}.maxCostUsd"),
+            max_wall_clock=_positive(
+                _optional_seconds(budget, key, "maxWallClockSeconds"),
+                f"{key}.maxWallClockSeconds"),
+            cost_per_thousand_tokens=_non_negative(
+                _money(budget, key, "costPerThousandTokens"),
+                f"{key}.costPerThousandTokens"))
     except InvalidAgentBudgetException as invalid_agent_budget_exception:
         raise InvalidAgentConfigurationException(
             message=(
@@ -359,7 +378,7 @@ def _apply_mcp_server(agent: StandardAgent, server: Any, key: str) -> None:
             arguments=_mcp_arguments(server),
             environment_variables=_mcp_environment_variables(server),
             working_directory=server.get("workingDirectory"),
-            timeout_seconds=_whole_property(server, key, "timeoutSeconds", 30))
+            timeout_seconds=_positive_whole(server, key, "timeoutSeconds", 30))
 
         return
 
@@ -369,7 +388,7 @@ def _apply_mcp_server(agent: StandardAgent, server: Any, key: str) -> None:
         agent.mcp(
             server["endpointUrl"],
             relative_url=server.get("relativeUrl", ""),
-            timeout_seconds=_whole_property(server, key, "timeoutSeconds", 30),
+            timeout_seconds=_positive_whole(server, key, "timeoutSeconds", 30),
             bearer_token=server.get("bearerToken"),
             api_key=server.get("apiKey"),
             api_key_header=server.get("apiKeyHeader", "X-Api-Key"))
@@ -419,6 +438,40 @@ def _shaped(node: Any, key: str) -> dict[str, Any]:
                     + ", ".join(properties) + "."))
 
     return node
+
+
+# A limit of zero or less composes as if it were set and never binds (or, in max_turns' case, is
+# quietly clamped). The document refuses it by name instead.
+def _positive(value: _Limit | None, name: str) -> _Limit | None:
+    if value is None or value > _zero_of(value):
+        return value
+
+    raise InvalidAgentConfigurationException(message=f"'{name}' must be a positive number.")
+
+
+def _positive_number(value: float, name: str) -> float:
+    if value > 0:
+        return value
+
+    raise InvalidAgentConfigurationException(message=f"'{name}' must be a positive number.")
+
+
+def _non_negative(value: _Limit, name: str) -> _Limit:
+    if value >= _zero_of(value):
+        return value
+
+    raise InvalidAgentConfigurationException(
+        message=f"'{name}' must be zero or a positive number.")
+
+
+def _positive_whole(node: Any, key: str, document_property: str, fallback: int) -> int:
+    return _positive(
+        _whole_property(node, key, document_property, fallback),
+        f"{key}.{document_property}")
+
+
+def _zero_of(value: int | Decimal | timedelta) -> int | Decimal | timedelta:
+    return timedelta(0) if isinstance(value, timedelta) else 0
 
 
 # Numbers are read as numbers or refused by name; a string where a number belongs used to surface
