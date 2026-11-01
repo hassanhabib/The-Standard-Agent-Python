@@ -140,3 +140,21 @@ async def test_should_deny_an_unoffered_tool_when_the_offering_is_enforced():
     assert any(
         message.content is not None and "not offered" in message.content
         for message in second_turn_messages[-1])
+
+
+# Off by default: without enforcement, an unoffered tool keeps its 4.15 treatment (reachable if
+# the Brain names it), so no existing deployment changes behavior.
+async def test_should_keep_an_unoffered_tool_reachable_without_enforcement():
+    # given: the same disobedient brain, with no enforcement configured
+    web_search = _NamedTool("web_search")
+    calculator = _NamedTool("calculator")
+
+    agent = (_agent_with(_calls_then_answers("web_search", "done"), web_search, calculator)
+        .on_select_tools(_selecting("calculator")))
+
+    # when
+    result = await agent.process_prompt("what is 2 + 2?")
+
+    # then: the unamended behavior: the named tool ran
+    assert web_search.executions == 1
+    assert result == "done"
