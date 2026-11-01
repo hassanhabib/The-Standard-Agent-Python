@@ -47,7 +47,7 @@ class KnowledgeService:
         return await self.knowledge_broker.select_knowledge(query)
 
     async def retrieve_sourced_knowledge(self, query: str) -> Sequence[KnowledgeResult]:
-        raise NotImplementedError
+        return await self.sourced_knowledge_broker.select_sourced_knowledge(query)
 
     async def _select_knowledge_from_files(
             self,
