@@ -17,6 +17,7 @@ from unittest.mock import create_autospec
 
 import pytest
 
+from standard_agents.brokers.audits.file_audit_broker import FileAuditBroker
 from standard_agents.brokers.knowledges.knowledge_broker import KnowledgeBroker
 from standard_agents.brokers.memories.memory_broker import MemoryBroker
 from standard_agents.brokers.skills.skill_broker import SkillBroker
@@ -116,3 +117,29 @@ async def test_should_number_each_run_from_zero_in_the_decision_log_on_process_p
         assert sequences == sorted(sequences)
         assert sequences[0] == 0
         assert len(set(sequences)) == len(sequences)
+
+
+async def test_should_detect_an_altered_or_removed_record_in_the_decision_log(
+        answering_agent,
+        audit_path):
+    # given
+    agent = answering_agent
+
+    await agent.process_prompt(prompt="the question")
+
+    written_lines = _read_all_lines(audit_path)
+
+    altered_lines = list(written_lines)
+    altered_lines[0] = altered_lines[0].replace("run started", "nothing happened")
+
+    shortened_lines = written_lines[1:]
+
+    # when
+    actual_intact_link = FileAuditBroker.find_broken_link(written_lines)
+    actual_altered_link = FileAuditBroker.find_broken_link(altered_lines)
+    actual_shortened_link = FileAuditBroker.find_broken_link(shortened_lines)
+
+    # then
+    assert actual_intact_link is None
+    assert actual_altered_link is not None
+    assert actual_shortened_link is not None
