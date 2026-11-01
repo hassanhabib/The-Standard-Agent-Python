@@ -121,6 +121,9 @@ class DirectionCoordinationService:
 
         await self.perimeter_service.record_outcome(effect, output)
 
+        await self.logging_broker.log_payload(
+            "Direction", f"Tool '{effect.tool_name}' output", output, detail=False)
+
         return _observed(context, output)
 
     async def _replayed_observed(
