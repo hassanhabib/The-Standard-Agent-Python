@@ -103,3 +103,13 @@ async def test_should_omit_steps_and_processes_at_summary_verbosity(tmp_path):
     assert "Turn 0" in transcript
     assert "Step 0: Data" not in transcript
     assert "Process 0:" not in transcript
+
+
+async def test_should_show_natures_but_not_detail_processes_at_natures_verbosity(tmp_path):
+    # given . when
+    transcript = await _run_and_read_transcript(tmp_path, TraceVerbosity.NATURES)
+
+    # then
+    assert "Step 1: Decision" in transcript
+    assert "Gate" in transcript
+    assert "Retrieved skills" not in transcript
