@@ -86,3 +86,41 @@ async def test_should_carry_the_principal_into_the_authorization_decision():
 
     # then: an audit trail that names the caller after the fact is not authorization
     assert seen_by_policy == "teller-42"
+
+
+async def test_should_let_policy_refuse_an_act_on_the_identity_alone():
+    # given: the same act, permitted for one principal and not the other
+    tool = _CountingTool()
+    second_prompt = ""
+    brain_calls = 0
+
+    async def generate(system_prompt, user_prompt):
+        nonlocal brain_calls, second_prompt
+        brain_calls += 1
+
+        if brain_calls > 1:
+            second_prompt = user_prompt
+
+        return "ACTION: wire_transfer: 10000" if brain_calls == 1 else "FINAL: I could not do that"
+
+    async def authorize(effect):
+        return (
+            AuthorizationDecision.allow() if effect.principal == "teller-42"
+            else AuthorizationDecision.deny(f"'{effect.principal}' may not move money"))
+
+    agent = (StandardAgent()
+        .on_skills(_select_no_skills)
+        .on_memory(_recall_nothing, _remember_nothing)
+        .on_knowledge(_retrieve_nothing)
+        .tool(tool)
+        .principal(lambda: "intern-9")
+        .on_brain(generate)
+        .on_policy(authorize))
+
+    # when
+    actual_result = await agent.process_prompt("pay the invoice")
+
+    # then: the denial names who was refused, which is what makes it reviewable
+    assert tool.execution_count == 0
+    assert "'intern-9' may not move money" in second_prompt
+    assert actual_result == "I could not do that"
