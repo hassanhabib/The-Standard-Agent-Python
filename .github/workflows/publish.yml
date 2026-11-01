@@ -1,0 +1,85 @@
+name: Publish To PyPI
+
+# PyPI Trusted Publishing: no token exists anywhere. PyPI trusts this repository, this workflow
+# file and the named environment, and GitHub proves all three with a short-lived OIDC token.
+#
+# - A published GitHub release uploads to PyPI (environment "pypi").
+# - Running the workflow by hand uploads to TestPyPI (environment "testpypi"), the dry run.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+    - name: Pulling Code
+      uses: actions/checkout@v4
+    - name: Installing Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+    - name: Installing Build Tools
+      run: python -m pip install -e ".[test]" build twine
+    - name: Running Tests
+      run: python -m pytest -q
+    - name: Pulling Conformance Vectors
+      uses: actions/checkout@v4
+      with:
+        repository: hassanhabib/The-Standard-Agent
+        path: reference
+        sparse-checkout: conformance
+    - name: Certifying Core Conformance
+      run: python -m conformance reference/conformance/vectors --profile Core
+    - name: Building Distributions
+      run: python -m build
+    - name: Checking Distributions
+      run: python -m twine check --strict dist/*
+    - name: Keeping Distributions
+      uses: actions/upload-artifact@v4
+      with:
+        name: distributions
+        path: dist/
+
+  publish-testpypi:
+    if: github.event_name == 'workflow_dispatch'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/the-standard-agent
+    permissions:
+      id-token: write
+    steps:
+    - name: Fetching Distributions
+      uses: actions/download-artifact@v4
+      with:
+        name: distributions
+        path: dist/
+    - name: Publishing To TestPyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        repository-url: https://test.pypi.org/legacy/
+
+  publish-pypi:
+    if: github.event_name == 'release'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/the-standard-agent
+    permissions:
+      id-token: write
+    steps:
+    - name: Fetching Distributions
+      uses: actions/download-artifact@v4
+      with:
+        name: distributions
+        path: dist/
+    - name: Publishing To PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
