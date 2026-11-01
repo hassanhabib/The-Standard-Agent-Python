@@ -3,6 +3,7 @@
 # Licensed under the The Standard Software License (TSSL)
 # ---------------------------------------------------------------
 
+import json
 from unittest.mock import create_autospec
 
 import pytest
@@ -60,3 +61,22 @@ async def test_should_keep_the_obsolete_service_constructor_behaving():
 
     # then
     memory_service.remember.assert_awaited_once_with("a fact worth keeping")
+
+
+# A tool's parameters is a JSON SCHEMA the wire validates strictly: Azure OpenAI rejects the WHOLE
+# request when any advertised tool's parameters is not a schema of type object. This tool shipped
+# plain JSON ('{ "fact": "..." }') and production found it: every native run against a strict
+# provider 400'd the moment memory was composed in.
+def test_should_declare_parameters_as_a_json_schema_object():
+    # given
+    async def remember(memory):
+        pass
+
+    tool = RememberTool(remember)
+
+    # when
+    schema = json.loads(tool.parameters)
+
+    # then
+    assert schema["type"] == "object"
+    assert schema["properties"]["fact"]["type"] == "string"
