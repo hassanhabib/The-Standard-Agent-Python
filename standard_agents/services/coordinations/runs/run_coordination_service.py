@@ -20,6 +20,9 @@ from standard_agents.services.orchestrations.direction.idirection_orchestration_
 
 DEFAULT_MAX_TURNS = 7
 
+TURNS_EXHAUSTED_MESSAGE = (
+    "I ran out of turns before an answer was ready; nothing was delivered.")
+
 
 class RunCoordinationService(IRunCoordinationService):
     def __init__(
@@ -53,3 +56,7 @@ class RunCoordinationService(IRunCoordinationService):
 
             if context.status is not AgentStatus.WORKING:
                 return AgentOutcome(result=context.result, status=context.status)
+
+        await self.logging_broker.log_process("Run", f"stopped: {TURNS_EXHAUSTED_MESSAGE}")
+
+        return AgentOutcome(result=TURNS_EXHAUSTED_MESSAGE, status=AgentStatus.FAILED)
