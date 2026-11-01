@@ -14,6 +14,7 @@ from standard_agents.brokers.approvals.approval_broker import ApprovalDecision
 from standard_agents.brokers.knowledges.knowledge_broker import KnowledgeBroker
 from standard_agents.brokers.memories.memory_broker import MemoryBroker
 from standard_agents.brokers.skills.skill_broker import SkillBroker
+from standard_agents.models.clients.agents.agent_stream_event_type import AgentStreamEventType
 from standard_agents.standard_agent import StandardAgent
 from standard_agents.tools.tool import Tool
 
@@ -113,3 +114,29 @@ async def test_should_run_the_same_effect_only_once_within_a_run():
 
     # then: one act, however many times it is proposed
     assert tool.execution_count == 1
+
+
+# Found in the 2026-08-23 sweep: a streamed run that ended AwaitingApproval emitted no event of
+# any kind: the loop yields a Response for Responded, Refused and AwaitingInput, and a held act
+# fell through every condition. The batched caller is told "'wire_transfer' is waiting for
+# approval before it can run."; a streamed caller who is told nothing will report held work as
+# done, which is the exact leak AgentOutcome was built to close.
+async def test_should_tell_a_streaming_caller_when_an_act_is_held_for_approval():
+    # given: the identical run as the batched hold test above, streamed
+    tool = _CountingTool()
+
+    agent = (_agent_that_calls_the_tool(tool, "ACTION: wire_transfer: 10000")
+        .require_approval("wire_transfer"))
+
+    # when
+    responses = [
+        stream_event.content
+        async for stream_event in agent.process_prompt_stream("pay the invoice")
+        if stream_event.type == AgentStreamEventType.RESPONSE]
+
+    # then: held is not silent: filtering the stream to Response equals the batched answer
+    assert tool.execution_count == 0
+
+    # The batched caller is told the act is held, and a streamed caller told nothing will report
+    # held work as done.
+    assert "waiting for approval" in "".join(responses)
