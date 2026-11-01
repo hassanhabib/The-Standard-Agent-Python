@@ -3,6 +3,8 @@
 # Licensed under the The Standard Software License (TSSL)
 # ---------------------------------------------------------------
 
+import dataclasses
+
 from standard_agents.brokers.loggings.ilogging_broker import ILoggingBroker
 from standard_agents.models.orchestrations.agents.agent_context import AgentContext
 from standard_agents.services.foundations.knowledges.iknowledge_service import (
@@ -11,6 +13,9 @@ from standard_agents.services.foundations.memories.imemory_service import IMemor
 from standard_agents.services.foundations.skills.iskill_service import ISkillService
 from standard_agents.services.orchestrations.data.idata_orchestration_service import (
     IDataOrchestrationService)
+
+# Where a skill asks for the tool catalog to be written in, exactly as in the C# framework.
+TOOLS_MARKER = "{{tools}}"
 
 
 class DataOrchestrationService(IDataOrchestrationService):
@@ -28,5 +33,15 @@ class DataOrchestrationService(IDataOrchestrationService):
         self.logging_broker = logging_broker
         self.tool_catalog = tool_catalog
 
+    # Recalled fresh every turn: memories and knowledge replace last turn's, while observations,
+    # which only Direction adds to, are carried through untouched.
     async def recall(self, context: AgentContext) -> AgentContext:
-        raise NotImplementedError
+        skills = await self.skill_service.retrieve_all_skills()
+        memories = await self.memory_service.retrieve_all_memories()
+        knowledge = await self.knowledge_service.retrieve_knowledge(context.prompt)
+
+        return dataclasses.replace(
+            context,
+            system_prompt=skills.replace(TOOLS_MARKER, self.tool_catalog),
+            memories=tuple(memories),
+            knowledge=tuple(knowledge))
