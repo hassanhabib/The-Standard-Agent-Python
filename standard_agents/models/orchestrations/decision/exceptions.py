@@ -24,3 +24,13 @@ class DecisionOrchestrationDependencyValidationException(Xeption):
 class DecisionOrchestrationDependencyException(Xeption):
     def __init__(self, message: str, inner_exception: BaseException | None) -> None:
         super().__init__(message, inner_exception)
+
+
+class FailedDecisionOrchestrationServiceException(Xeption):
+    def __init__(self, message: str, inner_exception: BaseException | None) -> None:
+        super().__init__(message, inner_exception)
+
+
+class DecisionOrchestrationServiceException(Xeption):
+    def __init__(self, message: str, inner_exception: Xeption | None) -> None:
+        super().__init__(message, inner_exception)

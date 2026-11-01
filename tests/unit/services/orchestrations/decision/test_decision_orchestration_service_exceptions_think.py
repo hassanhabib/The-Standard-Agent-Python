@@ -22,7 +22,9 @@ from standard_agents.models.foundations.judges.exceptions import (
     JudgeValidationException)
 from standard_agents.models.orchestrations.decision.exceptions import (
     DecisionOrchestrationDependencyException,
-    DecisionOrchestrationDependencyValidationException)
+    DecisionOrchestrationDependencyValidationException,
+    DecisionOrchestrationServiceException,
+    FailedDecisionOrchestrationServiceException)
 from tests.unit.services.orchestrations.decision.decision_orchestration_service_tests import (
     DecisionOrchestrationServiceTests)
 
@@ -97,3 +99,28 @@ class TestDecisionOrchestrationServiceExceptionsThink(DecisionOrchestrationServi
         self.assert_logged_once("log_error", expected_exception)
         assert self.brain_service_mock.mock_calls == []
         assert self.judge_service_mock.mock_calls == []
+
+    def test_should_raise_service_exception_on_think_if_service_error_occurs_and_log_it(
+        self) -> None:
+
+        # given
+        input_context = self.create_random_context()
+        service_error = Exception(self.create_random_string())
+
+        failed_service_exception = FailedDecisionOrchestrationServiceException(
+            message="Failed decision orchestration service error occurred, contact support.",
+            inner_exception=service_error)
+
+        expected_exception = DecisionOrchestrationServiceException(
+            message="Decision orchestration service error occurred, contact support.",
+            inner_exception=failed_service_exception)
+
+        self.gate_service_mock.screen.side_effect = service_error
+
+        # when
+        with pytest.raises(DecisionOrchestrationServiceException) as actual_exception:
+            asyncio.run(self.decision_orchestration_service.think(input_context))
+
+        # then
+        assert expected_exception.same_exception_as(actual_exception.value)
+        self.assert_logged_once("log_error", expected_exception)
