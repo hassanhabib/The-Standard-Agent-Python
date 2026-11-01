@@ -1,0 +1,75 @@
+# ---------------------------------------------------------------
+# Copyright (c) Hassan Habib All rights reserved.
+# Licensed under the The Standard Software License (TSSL)
+# ---------------------------------------------------------------
+
+"""Conversation and resumption (SPEC.md 4.11).
+
+Invariant 4 says the agent INSTANCE is stateless across prompts. It does not say the conversation
+is. These pin that distinction: the same session continues across two separate agent instances,
+which is the property that makes resumption real rather than incidental.
+"""
+
+from collections.abc import Callable
+from unittest.mock import create_autospec
+
+from standard_agents.brokers.knowledges.knowledge_broker import KnowledgeBroker
+from standard_agents.brokers.memories.memory_broker import MemoryBroker
+from standard_agents.brokers.skills.skill_broker import SkillBroker
+from standard_agents.standard_agent import StandardAgent
+
+
+def _new_agent(
+        sessions_path: str,
+        answer_for: Callable[[str], str],
+        capture: Callable[[str], None] | None = None) -> StandardAgent:
+
+    skill_broker = create_autospec(SkillBroker, instance=True)
+    skill_broker.select_skills.return_value = []
+
+    memory_broker = create_autospec(MemoryBroker, instance=True)
+    memory_broker.select_memories.return_value = []
+
+    knowledge_broker = create_autospec(KnowledgeBroker, instance=True)
+    knowledge_broker.select_knowledge.return_value = []
+
+    async def generate(system_prompt: str, user_prompt: str) -> str:
+        if capture is not None:
+            capture(user_prompt)
+
+        return answer_for(user_prompt)
+
+    return (StandardAgent()
+        .use_skills(skill_broker)
+        .use_memory(memory_broker)
+        .use_knowledge(knowledge_broker)
+        .on_brain(generate)
+        .sessions(sessions_path))
+
+
+async def test_should_carry_conversation_across_prompts(tmp_path):
+    # given
+    captured_second_prompt = ""
+    calls = 0
+
+    def answer_for(user_prompt):
+        nonlocal calls
+        calls += 1
+
+        return "FINAL: Paris" if calls == 1 else "FINAL: about 2.1 million"
+
+    def capture(user_prompt):
+        nonlocal captured_second_prompt
+
+        if calls == 1:
+            captured_second_prompt = user_prompt
+
+    agent = _new_agent(str(tmp_path / "sessions"), answer_for, capture)
+
+    # when
+    await agent.process_prompt("what is the capital of France?", session_id="user-42")
+    await agent.process_prompt("and its population?", session_id="user-42")
+
+    # then: the follow-up carries what came before
+    assert "capital of France" in captured_second_prompt
+    assert "Paris" in captured_second_prompt
