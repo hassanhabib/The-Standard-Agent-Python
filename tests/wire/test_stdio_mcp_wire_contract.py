@@ -166,3 +166,35 @@ async def test_should_throw_http_request_exception_on_a_json_rpc_error_over_stan
     # then: the server's own words, as the same native exception the HTTP broker raises, so the
     # foundation localizes both transports alike
     assert raised.value.message == "unknown tool"
+
+
+async def test_should_follow_the_cursor_over_standard_input_until_the_catalog_ends():
+    # given: a server that pages its catalog
+    def respond(message):
+        method = message.get("method")
+        cursor = (message.get("params") or {}).get("cursor")
+
+        if method == "initialize":
+            return answer_initialize(message)
+
+        if method == "tools/list" and cursor is None:
+            return answer(
+                message,
+                '{"jsonrpc":"2.0","id":{id},"result":{"tools":[{"name":"first"}],'
+                + '"nextCursor":"page-2"}}')
+
+        if method == "tools/list" and cursor == "page-2":
+            return answer(
+                message,
+                '{"jsonrpc":"2.0","id":{id},"result":{"tools":[{"name":"second"}]}}')
+
+        return []
+
+    server = ScriptedStdioServer(respond)
+    broker = create_broker(server)
+
+    # when
+    actual_tools = await broker.list_tools()
+
+    # then
+    assert [tool.name for tool in actual_tools] == ["first", "second"]
