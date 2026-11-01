@@ -173,3 +173,26 @@ async def test_should_rehydrate_a_streamed_value_split_across_chunks():
 
     assert _SECRET_EMAIL in whole
     assert "{{EMAI" not in whole
+
+
+async def test_should_not_redact_when_redaction_is_not_configured():
+    # given: redaction is opt-in; absent it the agent behaves as if 4.6 did not exist
+    seen_by_brain = ""
+
+    async def brain(system_prompt, user_prompt):
+        nonlocal seen_by_brain
+        seen_by_brain = user_prompt
+
+        return "FINAL: done"
+
+    agent = (StandardAgent()
+        .on_skills(_select_no_skills)
+        .on_memory(_recall_nothing, _remember_nothing)
+        .on_knowledge(_retrieve_nothing)
+        .on_brain(brain))
+
+    # when
+    await agent.process_prompt(f"please email {_SECRET_EMAIL} the report")
+
+    # then
+    assert _SECRET_EMAIL in seen_by_brain
