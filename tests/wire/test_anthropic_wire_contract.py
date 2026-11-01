@@ -117,3 +117,16 @@ async def test_should_throw_http_request_exception_on_a_failed_status(status_cod
 
     # then
     assert raised.value.status_code == status_code
+
+
+async def test_should_read_an_answer_with_no_blocks_as_empty():
+    # given: a stop with nothing in it
+    server = ScriptedServerHandler.answering('{"content":[],"stop_reason":"end_turn"}')
+    broker = create_broker(server)
+    expected_result = GenerationResult()
+
+    # when
+    actual_result = await broker.generate(CONVERSATION, TOOLS)
+
+    # then
+    assert actual_result == expected_result
