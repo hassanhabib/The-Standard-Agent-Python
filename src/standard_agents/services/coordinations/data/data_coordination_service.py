@@ -6,13 +6,17 @@
 from __future__ import annotations
 
 import dataclasses
-from collections.abc import Sequence
+from collections.abc import AsyncIterator, Sequence
+from contextlib import asynccontextmanager
 
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.models.brokers.mcps.mcp_tool import McpTool
 from standard_agents.models.brokers.sessions.agent_session import AgentSession
 from standard_agents.models.foundations.knowledges.knowledge_result import KnowledgeResult
 from standard_agents.models.orchestrations.agents.agent_context import AgentContext
+from standard_agents.models.orchestrations.agents.exceptions import (
+    AgentOrchestrationValidationException,
+    NullAgentContextException)
 from standard_agents.services.orchestrations.data.recollections \
     .recollection_orchestration_service import RecollectionOrchestrationService
 from standard_agents.services.orchestrations.data.retrievals \
@@ -39,19 +43,22 @@ class DataCoordinationService:
         self.logging_broker = logging_broker
 
     async def recall(self, context: AgentContext) -> AgentContext:
-        system_prompt = await self.retrieval_service.retrieve_instructions(context.route)
-        memories = await self.recollection_service.recall_memories()
-        knowledge = await self.retrieval_service.retrieve_grounding(context.prompt)
-        passages = (knowledge_result.text for knowledge_result in knowledge)
+        async with _handling_exceptions(self.logging_broker):
+            _validate_context(context)
 
-        await self.logging_broker.log_payload(
-            "Data", "System prompt sent to Decision", system_prompt, detail=True)
+            system_prompt = await self.retrieval_service.retrieve_instructions(context.route)
+            memories = await self.recollection_service.recall_memories()
+            knowledge = await self.retrieval_service.retrieve_grounding(context.prompt)
+            passages = (knowledge_result.text for knowledge_result in knowledge)
 
-        return dataclasses.replace(
-            context,
-            system_prompt=system_prompt,
-            observations=(*context.observations, *memories, *passages),
-            grounding_sources=_with_grounding_sources(context.grounding_sources, knowledge))
+            await self.logging_broker.log_payload(
+                "Data", "System prompt sent to Decision", system_prompt, detail=True)
+
+            return dataclasses.replace(
+                context,
+                system_prompt=system_prompt,
+                observations=(*context.observations, *memories, *passages),
+                grounding_sources=_with_grounding_sources(context.grounding_sources, knowledge))
 
     async def remember(self, memory: str) -> None:
         await self.recollection_service.remember(memory)
@@ -84,3 +91,30 @@ def _with_grounding_sources(
         if knowledge_result.source and not knowledge_result.source.isspace())
 
     return tuple(dict.fromkeys((*grounding_sources, *recalled_sources)))
+
+
+def _validate_context(context: AgentContext | None) -> None:
+    if context is None:
+        raise NullAgentContextException(message="Agent context is null.")
+
+
+@asynccontextmanager
+async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[None]:
+    try:
+        yield
+    except NullAgentContextException as null_agent_context_exception:
+        raise await _create_and_log_validation_exception(
+            logging_broker, null_agent_context_exception)
+
+
+async def _create_and_log_validation_exception(
+        logging_broker: LoggingBroker,
+        exception: Xeption | None) -> AgentOrchestrationValidationException:
+
+    agent_orchestration_validation_exception = AgentOrchestrationValidationException(
+        message="Agent orchestration validation error occurred, fix the error and try again.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(agent_orchestration_validation_exception)
+
+    return agent_orchestration_validation_exception
