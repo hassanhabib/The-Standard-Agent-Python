@@ -354,3 +354,23 @@ async def test_should_follow_the_cursor_until_the_catalog_ends():
     # then: every page reaches the agent, in order, and the walk stops where the server says
     assert [tool.name for tool in actual_tools] == ["first", "second"]
     assert sum("tools/list" in body for body in server.bodies) == 2
+
+
+async def test_should_read_every_kind_of_content_as_text_the_brain_can_use():
+    # given: a tool answering with more than text: an embedded resource, a link, an image
+    server = ScriptedServerHandler.answering(
+        '{"jsonrpc":"2.0","id":1,"result":{"content":['
+        + '{"type":"text","text":"owed: "},'
+        + '{"type":"resource",'
+        + '"resource":{"uri":"ledger://42","mimeType":"text/plain","text":"12"}},'
+        + '{"type":"resource_link","uri":"file:///statement.pdf","name":"statement"},'
+        + '{"type":"image","data":"iVBORw0KGgo=","mimeType":"image/png"}]}}')
+
+    broker = create_broker(server)
+
+    # when
+    actual_text = await broker.call("lookup", "{}")
+
+    # then: nothing the tool returned is silently dropped
+    assert actual_text == (
+        "owed: 12[resource_link statement: file:///statement.pdf][image image/png]")
