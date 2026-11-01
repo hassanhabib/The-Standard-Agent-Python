@@ -42,3 +42,38 @@ async def test_should_return_the_answer_plainly_when_the_nested_agent_responded(
 
     # then: an answer is an answer; nothing is added to it
     assert actual_output == "the answer"
+
+
+@pytest.mark.parametrize(("status", "status_name"), [
+    (AgentStatus.AWAITING_APPROVAL, "AwaitingApproval"),
+    (AgentStatus.AWAITING_INPUT, "AwaitingInput"),
+    (AgentStatus.REFUSED, "Refused"),
+    (AgentStatus.FAILED, "Failed"),
+])
+async def test_should_mark_an_outcome_that_is_not_an_answer(
+        setup_nested_agent_ending,
+        status,
+        status_name):
+
+    # given
+    nested = setup_nested_agent_ending(
+        status,
+        "'wire_transfer' is waiting for approval before it can run.")
+
+    agent_tool = AgentTool(name="settlement", agent=nested)
+
+    # when
+    actual_output = await agent_tool.execute("pay it")
+
+    # then: the outer agent must not be able to read this as a completed result. A run that was
+    # held, refused or failed is not a tool result, and prose that merely mentions waiting is
+    # indistinguishable from an answer that mentions it.
+    assert actual_output.startswith("[did not complete]")
+
+    # The outer agent has to know WHICH way it ended: held is not refused, and refused is not
+    # failed.
+    assert status_name in actual_output
+
+    # The inner agent's own words are what say why; dropping them would leave the outer agent
+    # with a category and no reason.
+    assert "waiting for approval" in actual_output
