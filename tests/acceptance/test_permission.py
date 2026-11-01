@@ -303,3 +303,33 @@ async def test_should_hold_an_unlisted_act_under_ask_when_the_authority_only_kno
     # question is a held act, not a granted one
     assert tool.writes == 0
     assert "waiting for approval" in actual_answer
+
+
+# Gap 4. A granted approval was forgotten immediately, so a second act on the same target asked
+# again, and an authority asked the identical question twice stops reading it.
+async def test_should_remember_a_grant_for_the_same_tool_and_scope_within_the_run():
+    # given: two writes to the SAME path, then finish
+    tool = _WriteFileTool()
+    asked = 0
+
+    async def approve(effect):
+        nonlocal asked
+        asked += 1
+
+        return ApprovalDecision.APPROVED
+
+    agent = (_agent_acting(
+        tool,
+        "ACTION: write_file: /project/a.txt first",
+        "ACTION: write_file: /project/a.txt second",
+        "FINAL: done")
+            .require_approval("write_file")
+            .on_approval(approve))
+
+    # when
+    await agent.process_prompt("write it twice")
+
+    # then: the grant was for this tool at this scope, and asking an authority the identical
+    # question twice is how they stop reading it
+    assert asked == 1
+    assert tool.writes == 2
