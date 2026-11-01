@@ -153,3 +153,29 @@ async def test_should_perform_a_held_act_once_the_authority_approves_it(tmp_path
     # after the claim was left standing is an approval that can never be used
     assert resumed_tool.execution_count == 1
     assert actual_result == "paid"
+
+
+async def test_should_finish_a_held_run_through_resume(tmp_path):
+    # given: the authority has not answered, so the act is held
+    tool = _CountingTool()
+
+    await (_new_process(tmp_path, tool, "ACTION: wire_transfer: 10000")
+        .require_approval("wire_transfer")
+        .on_approval(_pending)
+        .process_prompt("pay the invoice", session_id="invoice-97"))
+
+    # when: a different process resumes the conversation with the authority's yes
+    resumed_tool = _CountingTool()
+
+    actual_result = await (_new_process(
+        tmp_path,
+        resumed_tool,
+        "ACTION: wire_transfer: 10000",
+        "FINAL: paid")
+            .require_approval("wire_transfer")
+            .on_approval(_approved)
+            .resume(session_id="invoice-97", answer="yes, approve it"))
+
+    # then: resuming asks nothing of the caller but the answer; the session holds the rest
+    assert resumed_tool.execution_count == 1
+    assert actual_result == "paid"
