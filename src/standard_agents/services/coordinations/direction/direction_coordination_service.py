@@ -90,7 +90,7 @@ class DirectionCoordinationService:
             risk_level=self._risk_level_for(context.direction_type),
             scope=self._scope_for(context.direction_type, context.payload))
 
-        effect = self._after_what_changed_it(effect)
+        effect = self._after_what_changed_it(context, effect)
 
         claim = await self.perimeter_service.claim(effect)
 
@@ -136,7 +136,7 @@ class DirectionCoordinationService:
 
         return _observed(context, _replayed_again(effect.tool_name), replayed=True)
 
-    def _after_what_changed_it(self, effect: AgentEffect) -> AgentEffect:
+    def _after_what_changed_it(self, context: AgentContext, effect: AgentEffect) -> AgentEffect:
         """A look after a write to the same place is a new question (SPEC.md 4.9, v1.14).
 
         The ledger remembers what a read said and replays it to the same read for the rest of
@@ -145,14 +145,27 @@ class DirectionCoordinationService:
         that counts the writes: it runs, and a second identical look after the same writes
         replays as before. An act that is not SAFE keeps its key exactly: a transfer proposed
         twice is one transfer, whatever else happened in between.
+
+        The exchanges still count, for a run resumed with a conversation: resumed, a run keeps
+        its identity, so the ledger still holds the look from before the pause, and it begins
+        with nothing performed. The writes before the pause are in the exchanges it was handed.
+        Whichever saw more writes saw what happened.
         """
         if effect.risk_level is not RiskLevel.SAFE or not effect.scope:
             return effect
 
         run = AgentRun.current()
-        writes = run.writes_to(effect.scope) if run is not None else 0
+        performed_writes = run.writes_to(effect.scope) if run is not None else 0
+        exchanged_writes = self._exchanged_writes_to(context, effect.scope)
+        writes = max(performed_writes, exchanged_writes)
 
         return effect if writes == 0 else effect.after_writes(writes)
+
+    def _exchanged_writes_to(self, context: AgentContext, scope: str) -> int:
+        return sum(
+            1 for exchange in context.tool_exchanges
+            if self._risk_level_for(exchange.tool_name) is not RiskLevel.SAFE
+            and self._scope_for(exchange.tool_name, exchange.arguments_json) == scope)
 
     def _risk_level_for(self, tool_name: str) -> RiskLevel:
         tool_declared = self.tool_risk.get(tool_name)
