@@ -140,6 +140,20 @@ class DecisionCoordinationService:
             async for segment in drafting:
                 yield segment
 
+        if decided.direction_type != _RETURN_RESPONSE_DIRECTION:
+            set_result(decided)
+
+            return
+
+        if not decided.payload:
+            set_result(decided)
+
+            return
+
+        # The identical verdict sequence the batched door runs: one copy, so neither door can
+        # hold a guardian the other lacks.
+        await self._rejected_by_guardians(context, decided)
+
         set_result(decided)
 
     async def _rejected_by_guardians(
@@ -153,6 +167,9 @@ class DecisionCoordinationService:
         judgement = await self.guardian_service.evaluate(
             task=context.prompt,
             candidate=decided.payload)
+
+        await self.logging_broker.log_process(
+            "Decision", f"Judge → scored {judgement.score:.2f} → ACCEPT")
 
         if judgement.score < _MINIMUM_ACCEPTABLE_SCORE:
             return dataclasses.replace(
