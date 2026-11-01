@@ -9,8 +9,10 @@ import pytest
 
 from xeptions import Xeption
 from standard_agents.models.coordinations.runs.exceptions import (
+    FailedRunCoordinationServiceException,
     RunCoordinationDependencyException,
-    RunCoordinationDependencyValidationException)
+    RunCoordinationDependencyValidationException,
+    RunCoordinationServiceException)
 from standard_agents.models.orchestrations.data.exceptions import (
     DataOrchestrationDependencyException,
     DataOrchestrationDependencyValidationException,
@@ -105,3 +107,28 @@ class TestRunCoordinationServiceExceptionsRun(RunCoordinationServiceTests):
         self.assert_logged_once("log_error", expected_exception)
         assert self.decision_orchestration_service_mock.mock_calls == []
         assert self.direction_orchestration_service_mock.mock_calls == []
+
+    def test_should_raise_service_exception_on_run_if_service_error_occurs_and_log_it(
+        self) -> None:
+
+        # given
+        input_prompt = self.create_random_string()
+        service_error = Exception(self.create_random_string())
+
+        failed_service_exception = FailedRunCoordinationServiceException(
+            message="Failed run coordination service error occurred, contact support.",
+            inner_exception=service_error)
+
+        expected_exception = RunCoordinationServiceException(
+            message="Run coordination service error occurred, contact support.",
+            inner_exception=failed_service_exception)
+
+        self.data_orchestration_service_mock.recall.side_effect = service_error
+
+        # when
+        with pytest.raises(RunCoordinationServiceException) as actual_exception:
+            asyncio.run(self.run_coordination_service.run(input_prompt))
+
+        # then
+        assert expected_exception.same_exception_as(actual_exception.value)
+        self.assert_logged_once("log_error", expected_exception)
