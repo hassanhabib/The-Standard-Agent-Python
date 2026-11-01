@@ -22,12 +22,16 @@ from standard_agents.brokers.memories.memory_broker import MemoryBroker
 from standard_agents.brokers.sessions.file_session_broker import FileSessionBroker
 from standard_agents.brokers.skills.skill_broker import SkillBroker
 from standard_agents.models.brokers.generators.v1.conversation import (
+    ConversationMessage,
     GenerationResult,
+    MessageRole,
     ModelToolCall,
     ToolDefinition)
+from standard_agents.models.brokers.sessions.agent_session import AgentTurn
 from standard_agents.models.clients.agents.prompt_request import PromptRequest
 from standard_agents.models.foundations.skills.skill import Skill
 from standard_agents.models.orchestrations.agents.agent_status import AgentStatus
+from standard_agents.models.orchestrations.agents.tool_exchange import ToolExchange
 from standard_agents.standard_agent import StandardAgent
 from standard_agents.tools.tool import Tool
 
@@ -231,3 +235,52 @@ async def test_should_hand_the_caller_their_call_on_the_outcome_without_a_sessio
     assert outcome.pending_effect.tool_name == "send_email"
     assert outcome.pending_effect.call_id == "call_9"
     assert "jane@acme.com" in outcome.pending_effect.arguments
+
+
+class _MessageRecordingNativeBroker(GeneratorBrokerV1):
+    def __init__(self) -> None:
+        self.captured_messages: tuple[ConversationMessage, ...] = ()
+
+    async def generate(self, messages, tools, *, inference=None):
+        self.captured_messages = tuple(messages)
+
+        return GenerationResult(content="ok")
+
+
+# The exposed protocols this seam exists for are stateless: the client re-posts the whole
+# conversation, prior tool exchanges included. A run that cannot receive that transcript starts
+# from nothing every time, and the second half of the yield (the caller answering a call the
+# run handed out) becomes impossible to express.
+async def test_should_carry_the_caller_owned_transcript_to_the_native_brain():
+    # given
+    broker = _MessageRecordingNativeBroker()
+    agent = _bare_agent().use_native_brain(broker)
+
+    request = PromptRequest(
+        prompt="and then?",
+        history=(AgentTurn("What is 2+2?", "4"),),
+        tool_exchanges=(
+            ToolExchange(
+                call_id="call_9",
+                tool_name="send_email",
+                arguments_json='{"to":"jane@acme.com"}',
+                result="sent"),))
+
+    # when
+    await agent.process_prompt(request)
+
+    # then: the prior turn as user and assistant messages, and the exchange as a tool message
+    # still naming the call the model minted
+    assert any(
+        message.role is MessageRole.USER and message.content == "What is 2+2?"
+        for message in broker.captured_messages)
+
+    assert any(
+        message.role is MessageRole.ASSISTANT and message.content == "4"
+        for message in broker.captured_messages)
+
+    assert any(
+        message.role is MessageRole.TOOL
+        and message.tool_call_id == "call_9"
+        and message.content == "sent"
+        for message in broker.captured_messages)
