@@ -140,3 +140,43 @@ async def test_should_narrate_processes_to_logging_broker_on_think_stream(
 
     assert logging_broker.log_payload.mock_calls.count(expected_gate_call) == 1
     assert logging_broker.log_process.mock_calls.count(expected_judge_call) == 1
+
+
+async def test_should_narrate_measured_tokens_and_their_provenance_on_think_stream(
+        decision_coordination_service,
+        brain_service,
+        usage_service,
+        logging_broker,
+        create_random_agent_context,
+        setup_gate_allows,
+        setup_judge_approves,
+        to_async_stream,
+        drain,
+        containing):
+    """The trace records what was counted and where the number came from.
+
+    This used to assert the word "estimated" against a characters/4 figure that was logged and
+    then discarded. The figure is now the measurement the budget is enforced on, and an estimate
+    and a provider's report are both usable for a bound, while only one can be reconciled
+    against an invoice.
+    """
+    # given
+    input_context = create_random_agent_context()
+    setup_gate_allows()
+    setup_judge_approves()
+
+    usage_service.measure.return_value = AgentUsage(
+        prompt_tokens=12,
+        completion_tokens=5,
+        is_estimated=True)
+
+    brain_service.generate_stream.return_value = to_async_stream("FINAL: 42")
+
+    # when
+    await drain(decision_coordination_service.think_stream(input_context))
+
+    # then: the measurement is recorded, and it says it was counted rather than reported
+    expected_measured_tokens_call = call(
+        "Decision", containing("17 tokens", "counted"), detail=ANY)
+
+    assert logging_broker.log_process.mock_calls.count(expected_measured_tokens_call) == 1
