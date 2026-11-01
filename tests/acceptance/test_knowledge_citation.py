@@ -184,3 +184,21 @@ async def test_should_not_cite_a_run_that_did_not_answer():
     # then
     assert actual_outcome.status == AgentStatus.REFUSED
     assert "Source:" not in actual_outcome.result
+
+
+# An answer held to a response schema is a document the caller will parse; a line appended after
+# it breaks the very shape the caller was promised (SPEC.md 4.2).
+async def test_should_not_cite_an_answer_held_to_a_response_schema():
+    # given
+    json_answer = '{"refundDays":90}'
+    agent = _grounded_agent(_answering(json_answer)).cite_knowledge()
+
+    request = PromptRequest(
+        prompt="what is the refund window?",
+        response_schema_json='{"type":"object"}')
+
+    # when
+    actual_result = await agent.process_prompt(request)
+
+    # then
+    assert actual_result == json_answer
