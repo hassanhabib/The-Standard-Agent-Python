@@ -64,6 +64,8 @@ from standard_agents.brokers.generators.generator_broker_v1 import GeneratorBrok
 from standard_agents.brokers.generators.openai_generator_broker import OpenAiGeneratorBroker
 from standard_agents.brokers.generators.openai_generator_broker_v1 import OpenAiGeneratorBrokerV1
 from standard_agents.brokers.knowledges.function_knowledge_broker import FunctionKnowledgeBroker
+from standard_agents.brokers.knowledges.function_sourced_knowledge_broker import (
+    FunctionSourcedKnowledgeBroker)
 from standard_agents.brokers.knowledges.knowledge_broker import KnowledgeBroker
 from standard_agents.brokers.knowledges.sourced_knowledge_broker import SourcedKnowledgeBroker
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
@@ -130,6 +132,7 @@ from standard_agents.models.clients.agents.prompt_request import PromptRequest
 from standard_agents.models.coordinations.agents.agent_budget import AgentBudget
 from standard_agents.models.foundations.brains.redaction_rule import RedactionRule
 from standard_agents.models.foundations.brains.redaction_rules import RedactionRules
+from standard_agents.models.foundations.knowledges.knowledge_result import KnowledgeResult
 from standard_agents.models.foundations.skills.skill import Skill
 from standard_agents.models.loggings.trace_verbosity import TraceVerbosity
 from standard_agents.models.orchestrations.effects.agent_effect import AgentEffect
@@ -228,6 +231,8 @@ class StandardAgent(Agent):
         self._max_history_turns = 20
         self._max_turns = 7
         self._identical_call_limit = 8
+        self._cite_knowledge: bool | None = None
+        self._knowledge_citation_prefix = "Source: "
         self._effect_ledger_broker: EffectLedgerBroker | None = None
         self._contract_schema: str | None = None
         self._contract_broker: ContractBroker | None = None
@@ -459,6 +464,21 @@ class StandardAgent(Agent):
             remember: Callable[[str], Awaitable[None]]) -> StandardAgent:
 
         self._memory_broker = FunctionMemoryBroker(recall, remember)
+
+        return self
+
+    def on_sourced_knowledge(
+            self,
+            retrieve: Callable[[str], Awaitable[Sequence[KnowledgeResult]]]) -> StandardAgent:
+
+        self._sourced_knowledge_broker = FunctionSourcedKnowledgeBroker(retrieve)
+        self._knowledge_broker = None
+
+        return self
+
+    def cite_knowledge(self, *, cite: bool = True, prefix: str = "Source: ") -> StandardAgent:
+        self._cite_knowledge = cite
+        self._knowledge_citation_prefix = prefix
 
         return self
 
@@ -937,7 +957,11 @@ class StandardAgent(Agent):
 
         skill_service = SkillService(skill_broker=skills, logging_broker=logging)
 
-        if self._knowledge_broker is not None:
+        if self._sourced_knowledge_broker is not None:
+            knowledge_service = KnowledgeService(
+                sourced_knowledge_broker=self._sourced_knowledge_broker,
+                logging_broker=logging)
+        elif self._knowledge_broker is not None:
             knowledge_service = KnowledgeService(
                 knowledge_broker=self._knowledge_broker,
                 logging_broker=logging)
@@ -1019,7 +1043,9 @@ class StandardAgent(Agent):
             direction_coordination_service=direction,
             logging_broker=logging,
             telemetry_broker=self._telemetry_broker,
-            identical_call_limit=self._identical_call_limit)
+            identical_call_limit=self._identical_call_limit,
+            configured_cite_knowledge=self._cite_knowledge,
+            knowledge_citation_prefix=self._knowledge_citation_prefix)
 
 
 def _null_logger() -> logging.Logger:

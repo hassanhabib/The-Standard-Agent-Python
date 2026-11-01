@@ -32,3 +32,11 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
 
         case "identicalCallLimit":
             agent.identical_call_limit(value)
+
+        # true or false is the deployment's decision; text is that decision made with the words
+        # each citation line starts with (SPEC.md 4.2).
+        case "citeKnowledge" if isinstance(value, str):
+            agent.cite_knowledge(prefix=value)
+
+        case "citeKnowledge":
+            agent.cite_knowledge(cite=value)
