@@ -82,3 +82,23 @@ async def test_should_retrieve_only_routed_skill_when_route_is_given(
 
     # then: only the skill whose name matches the route label is fanned in
     assert actual_skills == calculator_skill
+
+
+async def test_should_route_by_nested_folder_name_when_route_is_given(
+        skill_service, skill_broker, create_random_string):
+
+    # given: a nested skill is identified by its folder in name
+    nested_skill = create_random_string()
+    other_skill = create_random_string()
+
+    skills = [
+        Skill(name="the-standard-skill/SKILL.md", content=nested_skill),
+        Skill(name="other-skill.md", content=other_skill)]
+
+    skill_broker.select_skills.return_value = skills
+
+    # when
+    actual_skills = await skill_service.retrieve_skills(route="the-standard-skill")
+
+    # then
+    assert actual_skills == nested_skill
