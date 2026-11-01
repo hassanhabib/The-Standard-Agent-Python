@@ -120,3 +120,18 @@ async def test_should_carry_the_scope_the_tool_is_about_to_touch():
 
     # then
     assert seen_scope == "/project/a.txt"
+
+
+# Gap 2, Local mode. The allow-list should be able to say WHERE, not only WHAT.
+async def test_should_deny_an_act_outside_an_allowed_scope():
+    # given
+    tool = _WriteFileTool()
+
+    agent = (_agent_acting(tool, "ACTION: write_file: /etc/passwd hello", "FINAL: done")
+        .allow_tools("write_file:/project"))
+
+    # when
+    await agent.process_prompt("write it")
+
+    # then: the tool is permitted under /project and the act targeted /etc
+    assert tool.writes == 0
