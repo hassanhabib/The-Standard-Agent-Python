@@ -46,6 +46,11 @@ class DataCoordinationService:
         async with _handling_exceptions(self.logging_broker):
             _validate_context(context)
 
+            # Announced before anything is fetched, so the trace reads in the order things
+            # happened.
+            await self.logging_broker.log_payload(
+                "Data", "Received prompt", context.prompt, detail=False)
+
             system_prompt = await self.retrieval_service.retrieve_instructions(context.route)
             memories = await self.recollection_service.recall_memories()
             knowledge = await self.retrieval_service.retrieve_grounding(context.prompt)
