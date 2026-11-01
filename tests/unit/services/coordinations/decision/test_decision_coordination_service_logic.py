@@ -153,3 +153,26 @@ async def test_should_treat_non_protocol_reply_as_answer_on_think(
     # then
     assert actual_context.direction_type == "ReturnResponse"
     assert actual_context.payload == "just an answer, no prefix"
+
+
+@pytest.mark.parametrize("reply", ["ACTION:", "ACTION: ", "ACTION: : missing tool name"])
+async def test_should_treat_empty_action_as_answer_on_think(
+        reply,
+        decision_coordination_service,
+        brain_service,
+        create_random_agent_context,
+        setup_gate_allows,
+        setup_judge_approves):
+
+    # given
+    input_context = create_random_agent_context()
+    setup_gate_allows()
+    setup_judge_approves()
+    brain_service.generate.return_value = reply
+
+    # when
+    actual_context = await decision_coordination_service.think(input_context)
+
+    # then
+    assert actual_context.direction_type == "ReturnResponse"
+    assert actual_context.intent == "Respond"
