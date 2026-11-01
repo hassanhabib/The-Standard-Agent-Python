@@ -55,3 +55,22 @@ class TestXeption:
 
         # then
         assert xeption.data == {}
+
+    def test_should_add_data(self) -> None:
+        # given
+        random_key = create_random_string()
+        random_existing_value = create_random_string()
+        random_added_value = create_random_string()
+        xeption = Xeption(message=create_random_string())
+        xeption.upsert_data_list(random_key, random_existing_value)
+        input_data = {random_key: [random_added_value]}
+
+        expected_data = {
+            random_key: [random_existing_value, random_added_value]
+        }
+
+        # when
+        xeption.add_data(input_data)
+
+        # then
+        assert xeption.data == expected_data
