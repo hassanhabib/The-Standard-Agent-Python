@@ -53,11 +53,16 @@ live in `src/xeptions` and `src/restfulsense`, and the wheel must not ship them 
 
 - `HttpMcpBroker` reads an event-stream data line as blank with `str.isspace`, which also counts
   U+001C to U+001F; .NET's `IsNullOrWhiteSpace` does not (Phase 4, MCP over HTTP).
-- `AgentRun` still carries a `cancellation_token`. C# stops a run only at a turn boundary, so no
-  effect is left half-recorded; cancelling a Python task interrupts at any await. The Python way
-  to keep that guarantee is decided with `RunManagementService` (Phase 1). The foundations
-  already show the gap: C# turns a cancelled brain stream or usage count into a dependency or
-  service exception, while the Python lets `asyncio.CancelledError` propagate.
+- Resolved with `RunManagementService` (Phase 1): cancellation. C# stops a run only at a turn
+  boundary, so no effect is left half-recorded, and the run then ends normally with the
+  `cancelled` failure code. The Python form is a cooperative stop signal: every door takes
+  `cancellation: asyncio.Event | None`, `AgentRun` carries it as `cancellation`, and the loop
+  checks `is_set()` where C# checks the token, with the same outcome. `task.cancel()` keeps its
+  ordinary Python meaning: `asyncio.CancelledError` propagates from every door and is never
+  mapped, so a dependency's own cancellation reaches the caller as a cancellation where C# maps
+  it to a service error on the batched door. The foundations do the same: C# turns a cancelled
+  brain stream or usage count into a dependency or service exception, while the Python lets
+  `asyncio.CancelledError` propagate.
 - `mcp_json.parse` has no depth limit. `JsonNode.Parse` refuses nesting deeper than 64, so the
   external tool service sends such input wrapped as `{"input": ...}` in C# and as given in
   Python (Phase 4).
