@@ -492,12 +492,27 @@ def _stop_server_process(server_process: asyncio.subprocess.Process) -> None:
 
 
 def _descendants_of(process_id: int) -> list[int]:
-    parents: dict[int, list[int]] = {}
+    """Every process process_id started, and every process those started, as the tree is now."""
+    children = _children_from_proc() or _children_from_ps()
+    descendants: list[int] = []
+    pending = list(children.get(process_id, []))
+
+    while pending:
+        child_id = pending.pop()
+        descendants.append(child_id)
+        pending.extend(children.get(child_id, []))
+
+    return descendants
+
+
+def _children_from_proc() -> dict[int, list[int]]:
+    """Each process's children, read from /proc; empty where there is no /proc (macOS, BSD)."""
+    children: dict[int, list[int]] = {}
 
     try:
         entries = os.listdir("/proc")
     except OSError:
-        return []
+        return children
 
     for entry in entries:
         if not entry.isdigit():
@@ -509,17 +524,33 @@ def _descendants_of(process_id: int) -> list[int]:
         except (OSError, ValueError, IndexError):
             continue
 
-        parents.setdefault(parent_id, []).append(int(entry))
+        children.setdefault(parent_id, []).append(int(entry))
 
-    descendants: list[int] = []
-    pending = list(parents.get(process_id, []))
+    return children
 
-    while pending:
-        child_id = pending.pop()
-        descendants.append(child_id)
-        pending.extend(parents.get(child_id, []))
 
-    return descendants
+def _children_from_ps() -> dict[int, list[int]]:
+    """Each process's children, as POSIX ps lists every process and its parent."""
+    children: dict[int, list[int]] = {}
+
+    try:
+        listing = subprocess.run(
+            ["ps", "-A", "-o", "pid=", "-o", "ppid="],
+            capture_output=True,
+            text=True,
+            check=True).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return children
+
+    for line in listing.splitlines():
+        try:
+            child_id, parent_id = (int(field) for field in line.split())
+        except ValueError:
+            continue
+
+        children.setdefault(parent_id, []).append(child_id)
+
+    return children
 
 
 def _resolve_command(command: str) -> str:
