@@ -67,3 +67,31 @@ async def test_should_auto_resolve_skill_conflict_from_learned_preference_on_thi
     # then
     assert actual_context.direction_type == "ReturnResponse"
     assert brain_service.generate.mock_calls == [call(system_prompt=ANY, user_prompt=ANY)]
+
+
+async def test_should_learn_preference_on_think_if_prompt_answers_skill_conflict(
+        decision_coordination_service,
+        gate_service,
+        brain_service,
+        create_random_agent_context,
+        create_random_string,
+        setup_gate_allows):
+
+    # given
+    input_context = dataclasses.replace(
+        create_random_agent_context(),
+        prompt="Arabic",
+        system_prompt=create_random_string())
+
+    setup_gate_allows()
+    gate_service.detect_conflict.return_value = ARABIC_OR_ENGLISH
+
+    # when
+    actual_context = await decision_coordination_service.think(input_context)
+
+    # then
+    assert actual_context.direction_type == "ReturnResponse"
+    assert "Arabic" in actual_context.payload
+    assert actual_context.remember.startswith("SKILL_PREFERENCE::")
+    assert actual_context.remember.endswith("Arabic")
+    assert brain_service.generate.mock_calls == []
