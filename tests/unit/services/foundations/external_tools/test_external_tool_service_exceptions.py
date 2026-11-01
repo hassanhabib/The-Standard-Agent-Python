@@ -209,3 +209,29 @@ async def test_should_throw_dependency_exception_on_call_if_dependency_error_occ
 
     assert logging_broker.mock_calls == [
         call.log_error(same_exception_as(expected_external_tool_dependency_exception))]
+
+
+@pytest.mark.parametrize("dependency_exception", DEPENDENCY_EXCEPTIONS)
+async def test_should_throw_dependency_exception_on_retrieve_tools_if_dependency_error_occurs_and_log_it(
+        dependency_exception,
+        external_tool_service,
+        mcp_broker,
+        logging_broker,
+        same_exception_as):
+
+    # given
+    expected_external_tool_dependency_exception = _external_tool_dependency_exception(
+        dependency_exception)
+
+    mcp_broker.list_tools.side_effect = dependency_exception
+
+    # when
+    with pytest.raises(ExternalToolDependencyException) as raised:
+        await external_tool_service.retrieve_tools()
+
+    # then
+    assert raised.value.same_exception_as(expected_external_tool_dependency_exception)
+    assert mcp_broker.mock_calls == [call.list_tools()]
+
+    assert logging_broker.mock_calls == [
+        call.log_error(same_exception_as(expected_external_tool_dependency_exception))]
