@@ -116,3 +116,38 @@ async def test_should_throw_service_exception_on_retrieve_knowledge_if_service_e
 
     assert logging_broker.mock_calls == [
         call.log_error(same_exception_as(expected_knowledge_service_exception))]
+
+
+@_CRITICAL_DEPENDENCY_EXCEPTIONS
+async def test_should_throw_dependency_exception_on_retrieve_sourced_knowledge_if_critical_error_occurs_and_log_it(
+        critical_dependency_exception,
+        sourced_knowledge_service,
+        sourced_knowledge_broker,
+        knowledge_broker,
+        logging_broker,
+        same_exception_as,
+        create_random_string):
+
+    # given
+    random_query = create_random_string()
+
+    expected_knowledge_dependency_exception = _knowledge_dependency_exception(
+        critical_dependency_exception)
+
+    sourced_knowledge_broker.select_sourced_knowledge.side_effect = (
+        critical_dependency_exception)
+
+    # when
+    with pytest.raises(KnowledgeDependencyException) as raised:
+        await sourced_knowledge_service.retrieve_sourced_knowledge(random_query)
+
+    # then
+    assert raised.value.same_exception_as(expected_knowledge_dependency_exception)
+
+    assert sourced_knowledge_broker.mock_calls == [
+        call.select_sourced_knowledge(random_query)]
+
+    assert logging_broker.mock_calls == [
+        call.log_critical(same_exception_as(expected_knowledge_dependency_exception))]
+
+    assert knowledge_broker.mock_calls == []
