@@ -11,6 +11,8 @@ the boundary. These pin the request seam: what a caller may shape, what the depl
 wins, and what degrades gracefully.
 """
 
+import asyncio
+import threading
 from unittest.mock import create_autospec
 
 from standard_agents.brokers.generators.generator_broker import GeneratorBroker
@@ -209,3 +211,57 @@ async def test_should_carry_the_request_to_the_broker_on_the_streamed_path():
     assert broker.captured is not None
     assert broker.captured.temperature == 0.2
     assert broker.captured.max_tokens == 64
+
+
+class _RecordingGeneratorBroker(GeneratorBroker):
+    """A broker that opts in and records every batched call with the options it was handed."""
+
+    def __init__(self) -> None:
+        self._calls: list[tuple[str, ResolvedInference]] = []
+        self._calls_lock = threading.Lock()
+
+    @property
+    def calls(self) -> tuple[tuple[str, ResolvedInference], ...]:
+        with self._calls_lock:
+            return tuple(self._calls)
+
+    @property
+    def honors_request(self) -> bool:
+        return True
+
+    async def generate(self, system_prompt, user_prompt, *, inference=None):
+        if inference is not None:
+            with self._calls_lock:
+                self._calls.append((user_prompt, inference))
+
+        return "FINAL: ok"
+
+    async def generate_stream(self, system_prompt, user_prompt, *, inference=None):
+        yield "FINAL: ok"
+
+
+# The acceptance criterion (design 7): N concurrent prompts with N different values against ONE
+# StandardAgent instance (one composition, one broker) and every run keeps its own. This is what
+# neither workaround could do: rebuilding per request exhausts sockets, and mutating a shared
+# agent recomposes the graph another request is mid-run against.
+async def test_should_serve_concurrent_heterogeneous_requests_from_one_composition():
+    # given: one composed agent, three callers who want different things
+    broker = _RecordingGeneratorBroker()
+    agent = _agent_with_broker(broker)
+    temperatures = [0.1, 0.5, 0.9]
+
+    # when: all at once, no configuring call between them, so the composition cache holds
+    await asyncio.gather(*(
+        agent.process_prompt(PromptRequest(prompt=f"task-{temperature}", temperature=temperature))
+        for temperature in temperatures))
+
+    # then: every run reached the one broker carrying its own caller's value
+    assert len(broker.calls) == 3
+
+    for temperature in temperatures:
+        matching_calls = [
+            (user_prompt, inference)
+            for user_prompt, inference in broker.calls
+            if f"task-{temperature}" in user_prompt and inference.temperature == temperature]
+
+        assert len(matching_calls) == 1
