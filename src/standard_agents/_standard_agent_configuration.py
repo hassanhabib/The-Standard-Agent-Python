@@ -211,10 +211,13 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
         # true or false is the deployment's decision; text is that decision made with the words
         # each citation line starts with (SPEC.md 4.2).
         case "citeKnowledge" if isinstance(value, str):
-            agent.cite_knowledge(prefix=value)
+            agent.cite_knowledge(prefix=_citation_prefix(value, key))
+
+        case "citeKnowledge" if isinstance(value, bool):
+            agent.cite_knowledge(cite=value)
 
         case "citeKnowledge":
-            agent.cite_knowledge(cite=value)
+            raise InvalidAgentConfigurationException(message=_citation_refusal(key))
 
         case "allowTools":
             agent.allow_tools(*value)
@@ -466,6 +469,17 @@ def _lists_nothing(key: str) -> str:
     return (
         f"'{key}' lists nothing. A control that lists nothing is not a control: remove the "
         + "key, or list what it should hold.")
+
+def _citation_refusal(key: str) -> str:
+    return f"'{key}' must be true, false, or the text each citation line starts with."
+
+
+def _citation_prefix(prefix: str, key: str) -> str:
+    if not prefix or prefix.isspace():
+        raise InvalidAgentConfigurationException(message=_citation_refusal(key))
+
+    return prefix
+
 
 # A limit of zero or less composes as if it were set and never binds (or, in max_turns' case, is
 # quietly clamped). The document refuses it by name instead.
