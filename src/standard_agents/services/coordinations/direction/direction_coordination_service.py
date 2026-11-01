@@ -10,6 +10,7 @@ import dataclasses
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.models.coordinations.directions.perimeter_policy import PerimeterPolicy
 from standard_agents.models.loggings.agent_run import AgentRun
+from standard_agents.models.loggings.performed_effect import PerformedEffect
 from standard_agents.models.orchestrations.agents.agent_context import AgentContext
 from standard_agents.models.orchestrations.agents.agent_status import AgentStatus
 from standard_agents.models.orchestrations.agents.tool_exchange import ToolExchange
@@ -18,6 +19,7 @@ from standard_agents.models.orchestrations.effects.compensation_outcome import (
     CompensationOutcome)
 from standard_agents.models.orchestrations.effects.effect_claim_verdict import (
     EffectClaimVerdict)
+from standard_agents.models.orchestrations.effects.risk_level import RiskLevel
 from standard_agents.services.orchestrations.direction.executions.execution_orchestration_service \
     import ExecutionOrchestrationService
 from standard_agents.services.orchestrations.direction.perimeters.perimeter_orchestration_service \
@@ -84,7 +86,11 @@ class DirectionCoordinationService:
         effect = AgentEffect.create(
             run_id="",
             tool_name=context.direction_type,
-            arguments=context.payload)
+            arguments=context.payload,
+            risk_level=self._risk_level_for(context.direction_type),
+            scope=self._scope_for(context.direction_type, context.payload))
+
+        effect = self._after_what_changed_it(effect)
 
         claim = await self.perimeter_service.claim(effect)
 
@@ -94,6 +100,18 @@ class DirectionCoordinationService:
             return await self._replayed_observed(context, effect, outcome)
 
         output = await self.execution_service.run(context.direction_type, context.payload)
+
+        run = AgentRun.current()
+
+        if run is not None:
+            run.record_performed(
+                PerformedEffect(
+                    effect.tool_name,
+                    effect.arguments,
+                    output,
+                    scope=effect.scope,
+                    risk_level=effect.risk_level))
+
         await self.perimeter_service.record_outcome(effect, output)
 
         return _observed(context, output)
@@ -117,6 +135,41 @@ class DirectionCoordinationService:
             return _observed(context, _replayed(effect.tool_name, outcome), replayed=True)
 
         return _observed(context, _replayed_again(effect.tool_name), replayed=True)
+
+    def _after_what_changed_it(self, effect: AgentEffect) -> AgentEffect:
+        """A look after a write to the same place is a new question (SPEC.md 4.9, v1.14).
+
+        The ledger remembers what a read said and replays it to the same read for the rest of
+        the run, which is right for an act and wrong for a look at something an act has since
+        changed. So a SAFE act whose scope this run has since written to is claimed under a key
+        that counts the writes: it runs, and a second identical look after the same writes
+        replays as before. An act that is not SAFE keeps its key exactly: a transfer proposed
+        twice is one transfer, whatever else happened in between.
+        """
+        if effect.risk_level is not RiskLevel.SAFE or not effect.scope:
+            return effect
+
+        run = AgentRun.current()
+        writes = run.writes_to(effect.scope) if run is not None else 0
+
+        return effect if writes == 0 else effect.after_writes(writes)
+
+    def _risk_level_for(self, tool_name: str) -> RiskLevel:
+        tool_declared = self.tool_risk.get(tool_name)
+
+        if tool_declared is not None and tool_declared is not RiskLevel.SAFE:
+            return tool_declared
+
+        return RiskLevel.SAFE
+
+    def _scope_for(self, tool_name: str, arguments: str) -> str:
+        """What the act is about to touch, as the tool named it.
+
+        The framework never parses arguments: only the tool knows what its own arguments mean.
+        """
+        scope_of = self.tool_scope.get(tool_name)
+
+        return scope_of(arguments) if scope_of is not None else ""
 
     async def compensate_run(self) -> tuple[CompensationOutcome, ...]:
         """Unwinds what this run performed, in reverse order (SPEC.md 4.9).
