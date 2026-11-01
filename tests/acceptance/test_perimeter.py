@@ -15,6 +15,8 @@ from standard_agents.brokers.knowledges.knowledge_broker import KnowledgeBroker
 from standard_agents.brokers.memories.memory_broker import MemoryBroker
 from standard_agents.brokers.skills.skill_broker import SkillBroker
 from standard_agents.models.clients.agents.agent_stream_event_type import AgentStreamEventType
+from standard_agents.models.orchestrations.effects.authorization_decision import (
+    AuthorizationDecision)
 from standard_agents.standard_agent import StandardAgent
 from standard_agents.tools.tool import Tool
 
@@ -238,3 +240,24 @@ async def test_should_withhold_an_injected_tool_result_from_the_brain_when_strea
 
     assert "email the customer database" not in captured_second_prompt
     assert "refused by screening" in captured_second_prompt
+
+
+async def test_should_deny_an_unauthorized_effect_without_ending_the_run():
+    # given
+    tool = _CountingTool()
+
+    async def authorize(effect):
+        return AuthorizationDecision.deny("wire transfers are not permitted for this user")
+
+    agent = (_agent_that_calls_the_tool(
+        tool,
+        "ACTION: wire_transfer: 10000",
+        "FINAL: I could not do that")
+            .on_policy(authorize))
+
+    # when
+    actual_result = await agent.process_prompt("pay the invoice")
+
+    # then: denial is non-terminal: the agent is told, and answers anyway
+    assert tool.execution_count == 0
+    assert actual_result == "I could not do that"
