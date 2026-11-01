@@ -143,3 +143,27 @@ async def test_should_cite_with_the_configured_prefix():
 
     # then
     assert actual_result == expected_result
+
+
+# A passage whose origin is unknown is never cited (SPEC.md 3.7), which is every passage a plain
+# broker returns, so an agent that turns citation on over a plain broker answers as it always did
+# rather than crediting a blank.
+async def test_should_not_cite_knowledge_whose_source_is_unknown():
+    # given
+    passages = ["Refund policy. Enterprise customers may request a refund within 90 days."]
+
+    async def retrieve(query):
+        return passages
+
+    agent = (StandardAgent()
+        .use_skills(_empty_skill_broker())
+        .use_memory(_empty_memory_broker())
+        .on_knowledge(retrieve)
+        .on_brain(_answering(_ANSWER))
+        .cite_knowledge())
+
+    # when
+    actual_result = await agent.process_prompt("what is the refund window?")
+
+    # then
+    assert actual_result == _ANSWER
