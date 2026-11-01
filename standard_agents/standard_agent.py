@@ -6,6 +6,8 @@
 import logging
 from collections.abc import Awaitable, Callable
 
+from standard_agents.brokers.classifiers.function_classifier_broker import (
+    FunctionClassifierBroker)
 from standard_agents.brokers.classifiers.iclassifier_broker import IClassifierBroker
 from standard_agents.brokers.classifiers.not_configured_classifier_broker import (
     NotConfiguredClassifierBroker)
@@ -27,6 +29,8 @@ from standard_agents.brokers.skills.file_skill_broker import FileSkillBroker
 from standard_agents.brokers.skills.function_skill_broker import FunctionSkillBroker
 from standard_agents.brokers.skills.iskill_broker import ISkillBroker
 from standard_agents.brokers.tools.tool_broker import ToolBroker
+from standard_agents.brokers.verifiers.function_verifier_broker import (
+    FunctionVerifierBroker)
 from standard_agents.brokers.verifiers.iverifier_broker import IVerifierBroker
 from standard_agents.brokers.verifiers.not_configured_verifier_broker import (
     NotConfiguredVerifierBroker)
@@ -94,6 +98,16 @@ class StandardAgent:
         select_knowledge: Callable[[str], Awaitable[list[str]]]) -> "StandardAgent":
 
         self.knowledge_broker = FunctionKnowledgeBroker(select_knowledge)
+
+        return self
+
+    def on_gate(self, screen: Callable[[str], Awaitable[str]]) -> "StandardAgent":
+        self.classifier_broker = FunctionClassifierBroker(screen)
+
+        return self
+
+    def on_judge(self, evaluate: Callable[[str, str], Awaitable[str]]) -> "StandardAgent":
+        self.verifier_broker = FunctionVerifierBroker(evaluate)
 
         return self
 
