@@ -94,7 +94,7 @@ class RecordingLoggingBroker(ILoggingBroker):
 
     async def log_critical(self, exception: BaseException) -> None: ...
 
-    async def log_turn(self, turn: int) -> None:
+    async def log_turn(self, run_id: str, turn: int) -> None:
         self.turns.append(turn)
 
     async def log_process(self, actor: str, message: str) -> None: ...

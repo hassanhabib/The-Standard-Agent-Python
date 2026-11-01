@@ -143,3 +143,37 @@ class TestRunCoordinationServiceLogicRun(RunCoordinationServiceTests):
         assert self.direction_orchestration_service_mock.mock_calls == [
             call.act(decided_context)
         ]
+
+    # SPEC.md 4.4: each invocation establishes its own run identity, and every turn it records is
+    # attributed to that run and no other, so two runs on one instance never share a record.
+    def test_should_attribute_every_turn_to_its_own_run(self) -> None:
+        # given
+        input_prompt = self.create_random_string()
+        working_context = self.create_random_context(input_prompt, AgentStatus.WORKING)
+        responded_context = self.create_random_context(input_prompt, AgentStatus.RESPONDED)
+        self.data_orchestration_service_mock.recall.return_value = working_context
+        self.decision_orchestration_service_mock.think.return_value = working_context
+
+        self.direction_orchestration_service_mock.act.side_effect = [
+            working_context,
+            responded_context,
+            responded_context
+        ]
+
+        # when
+        asyncio.run(self.run_coordination_service.run(input_prompt))
+        asyncio.run(self.run_coordination_service.run(input_prompt))
+
+        # then
+        turn_calls = [
+            logged_call for logged_call in self.logging_broker_mock.mock_calls
+            if logged_call[0] == "log_turn"
+        ]
+
+        run_ids = [logged_call[1][0] for logged_call in turn_calls]
+        turns = [logged_call[1][1] for logged_call in turn_calls]
+
+        assert turns == [0, 1, 0]
+        assert run_ids[0] == run_ids[1]
+        assert run_ids[2] != run_ids[0]
+        assert all(run_id != "" for run_id in run_ids)
