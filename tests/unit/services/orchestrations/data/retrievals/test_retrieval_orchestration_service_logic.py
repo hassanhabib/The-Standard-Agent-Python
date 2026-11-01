@@ -142,3 +142,30 @@ async def test_should_not_retrieve_remote_tools_on_retrieve_instructions_when_th
     assert external_tool_service.mock_calls == []
     assert knowledge_service.mock_calls == []
     assert logging_broker.mock_calls == []
+
+
+async def test_should_retrieve_remote_tools(
+        retrieval_orchestration_service,
+        skill_service,
+        knowledge_service,
+        external_tool_service,
+        logging_broker,
+        create_random_string):
+    """Every tool the servers declared, described or not, so the callers apply the opt-in."""
+    # given
+    random_tools = (
+        McpTool(create_random_string(), create_random_string()),
+        McpTool(create_random_string(), ""))
+
+    expected_tools = random_tools
+    external_tool_service.retrieve_tools.return_value = random_tools
+
+    # when
+    actual_tools = await retrieval_orchestration_service.retrieve_remote_tools()
+
+    # then
+    assert actual_tools == expected_tools
+    assert external_tool_service.mock_calls == [call.retrieve_tools()]
+    assert skill_service.mock_calls == []
+    assert knowledge_service.mock_calls == []
+    assert logging_broker.mock_calls == []
