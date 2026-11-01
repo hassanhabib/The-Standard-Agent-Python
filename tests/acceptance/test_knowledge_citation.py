@@ -167,3 +167,20 @@ async def test_should_not_cite_knowledge_whose_source_is_unknown():
 
     # then
     assert actual_result == _ANSWER
+
+
+async def test_should_not_cite_a_run_that_did_not_answer():
+    # given: the knowledge is recalled, then the Gate refuses the task
+    async def gate(gate_prompt, input):
+        return "refuse: out of scope"
+
+    agent = (_grounded_agent(_answering(_ANSWER))
+        .on_gate(gate)
+        .cite_knowledge())
+
+    # when
+    actual_outcome = await agent.run("what is the refund window?")
+
+    # then
+    assert actual_outcome.status == AgentStatus.REFUSED
+    assert "Source:" not in actual_outcome.result
