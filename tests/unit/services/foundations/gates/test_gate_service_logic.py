@@ -5,6 +5,8 @@
 
 from unittest.mock import call
 
+import pytest
+
 
 async def test_should_screen(
         gate_service, classifier_broker, logging_broker, create_random_string):
@@ -22,4 +24,22 @@ async def test_should_screen(
     # then
     assert actual_verdict == expected_verdict
     assert classifier_broker.mock_calls == [call.classify(input_input)]
+    assert logging_broker.mock_calls == []
+
+
+@pytest.mark.parametrize("verdict", ["allow", "refuse", "refuse: asks for credentials"])
+async def test_should_return_verdict_verbatim_on_screen(
+        verdict, gate_service, classifier_broker, logging_broker, create_random_string):
+
+    # given
+    random_input = create_random_string()
+    expected_verdict = verdict
+    classifier_broker.classify.return_value = verdict
+
+    # when
+    actual_verdict = await gate_service.screen(random_input)
+
+    # then
+    assert actual_verdict == expected_verdict
+    assert classifier_broker.mock_calls == [call.classify(random_input)]
     assert logging_broker.mock_calls == []
