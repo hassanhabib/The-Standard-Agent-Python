@@ -105,3 +105,37 @@ async def test_should_skip_what_is_not_its_answer_and_answer_the_pings_of_the_se
     assert pong["id"] == 2
     assert isinstance(pong["result"], dict)
     assert pong.get("method") is None
+
+
+async def test_should_call_a_tool_with_its_arguments_and_read_every_kind_of_content():
+    # given: a tool that answers with text, an embedded resource and a link
+    def respond(message):
+        method = message.get("method")
+
+        if method == "initialize":
+            return answer_initialize(message)
+
+        if method == "tools/call":
+            return answer(
+                message,
+                '{"jsonrpc":"2.0","id":{id},"result":{"content":['
+                + '{"type":"text","text":"student: "},'
+                + '{"type":"resource","resource":{"uri":"students://1","text":"Hassan"}},'
+                + '{"type":"resource_link","uri":"file:///1.json","name":"record"}]}}')
+
+        return []
+
+    server = ScriptedStdioServer(respond)
+    broker = create_broker(server)
+
+    # when
+    actual_text = await broker.call("find_student", '{"id":1,"deep":{"n":2}}')
+
+    # then: the arguments travel as the object the model wrote, and nothing returned is dropped
+    call = json.loads(server.lines[-1])
+    assert call["method"] == "tools/call"
+    assert call["params"]["name"] == "find_student"
+    assert call["params"]["arguments"]["id"] == 1
+    assert call["params"]["arguments"]["deep"]["n"] == 2
+
+    assert actual_text == "student: Hassan[resource_link record: file:///1.json]"
