@@ -20,7 +20,7 @@ class InternalToolService:
         return await self.tool_broker.has(name)
 
     async def run(self, name: str, input: str) -> str:
-        raise NotImplementedError
+        return await self.tool_broker.run(name, input)
 
     async def compensate(self, name: str, input: str, outcome: str) -> str:
         """Undoes what a tool did, where the tool knows how (SPEC.md 4.9).
