@@ -374,3 +374,18 @@ async def test_should_read_every_kind_of_content_as_text_the_brain_can_use():
     # then: nothing the tool returned is silently dropped
     assert actual_text == (
         "owed: 12[resource_link statement: file:///statement.pdf][image image/png]")
+
+
+async def test_should_read_structured_content_when_a_text_block_is_absent():
+    # given: a tool answering only with structured content
+    server = ScriptedServerHandler.answering(
+        '{"jsonrpc":"2.0","id":1,"result":{"content":[],'
+        + '"structuredContent":{"account":"42","owed":12}}}')
+
+    broker = create_broker(server)
+
+    # when
+    actual_text = await broker.call("lookup", "{}")
+
+    # then
+    assert actual_text == '{"account":"42","owed":12}'
