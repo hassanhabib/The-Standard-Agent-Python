@@ -5,12 +5,11 @@
 
 from abc import ABC, abstractmethod
 
+from standard_agents.models.foundations.skills.skill import Skill
 
-# Two primitives rather than one "select every skill": reading a folder of skills is iteration,
-# and iteration belongs to the foundation service, not the broker.
+
+# A skill source yields discrete skills, not one pre-composed blob (SPEC.md 4.1, 4.2), so the
+# service can order, select and index them.
 class ISkillBroker(ABC):
     @abstractmethod
-    async def select_skill_names(self) -> list[str]: ...
-
-    @abstractmethod
-    async def select_skill_content(self, skill_name: str) -> str: ...
+    async def select_skills(self) -> list[Skill]: ...

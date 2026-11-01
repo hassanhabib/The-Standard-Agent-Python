@@ -48,7 +48,7 @@ class TestDataOrchestrationServiceExceptionsRecall(DataOrchestrationServiceTests
                 + "fix the errors and try again.",
             inner_exception=some_inner_exception)
 
-        self.skill_service_mock.retrieve_all_skills.return_value = self.create_random_string()
+        self.skill_service_mock.retrieve_skills.return_value = self.create_random_string()
         self.memory_service_mock.retrieve_all_memories.return_value = []
 
         self.knowledge_service_mock.retrieve_knowledge.side_effect = (
@@ -88,7 +88,7 @@ class TestDataOrchestrationServiceExceptionsRecall(DataOrchestrationServiceTests
             message="Data orchestration dependency error occurred, contact support.",
             inner_exception=some_inner_exception)
 
-        self.skill_service_mock.retrieve_all_skills.side_effect = dependency_exception
+        self.skill_service_mock.retrieve_skills.side_effect = dependency_exception
 
         # when
         with pytest.raises(DataOrchestrationDependencyException) as actual_exception:
@@ -115,7 +115,7 @@ class TestDataOrchestrationServiceExceptionsRecall(DataOrchestrationServiceTests
             message="Data orchestration service error occurred, contact support.",
             inner_exception=failed_data_orchestration_service_exception)
 
-        self.skill_service_mock.retrieve_all_skills.side_effect = service_error
+        self.skill_service_mock.retrieve_skills.side_effect = service_error
 
         # when
         with pytest.raises(DataOrchestrationServiceException) as actual_exception:

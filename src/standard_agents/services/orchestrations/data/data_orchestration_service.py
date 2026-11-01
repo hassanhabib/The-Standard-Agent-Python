@@ -52,7 +52,7 @@ class DataOrchestrationService(IDataOrchestrationService):
     async def recall(self, context: AgentContext) -> AgentContext:
         async def returning_context_function() -> AgentContext:
             validate_context(context)
-            skills = await self.skill_service.retrieve_all_skills()
+            skills = await self.skill_service.retrieve_skills("")
             memories = await self.memory_service.retrieve_all_memories()
             knowledge = await self.knowledge_service.retrieve_knowledge(context.prompt)
 
