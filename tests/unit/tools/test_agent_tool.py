@@ -64,3 +64,19 @@ async def test_should_apply_handoff_template_on_execute(nested_agent, create_ran
     # then
     assert actual_output == random_answer
     assert nested_agent.mock_calls == [call.run(expected_handoff_prompt, cancellation=ANY)]
+
+
+def test_should_expose_description_and_parameters_on_agent_tool(nested_agent):
+    # given
+    description = "Delegates a research question to a specialist."
+    parameters = '{"query":"string"}'
+
+    agent_tool = AgentTool(
+        name="researcher",
+        agent=nested_agent,
+        description=description,
+        parameters=parameters)
+
+    # then
+    assert agent_tool.description == description
+    assert agent_tool.parameters == parameters
