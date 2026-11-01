@@ -23,7 +23,7 @@ class Xeption(Exception):
         self.__cause__ = inner_exception
 
     def upsert_data_list(self, key: str, value: str) -> None:
-        raise NotImplementedError
+        self.data.setdefault(key, []).append(value)
 
     def add_data(self, data: dict[str, list[str]]) -> None:
         raise NotImplementedError
