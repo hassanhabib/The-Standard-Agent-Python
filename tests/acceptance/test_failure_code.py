@@ -89,3 +89,17 @@ async def test_should_report_an_exhausted_budget_as_budget_exhausted():
     assert outcome.failure is not None
     assert outcome.failure.code == AgentFailureCodes.BUDGET_EXHAUSTED
     assert outcome.failure.message == outcome.result
+
+
+async def test_should_report_a_run_out_of_turns_as_turns_exhausted():
+    # given
+    agent = _agent_that_loops(lambda turn: "ACTION: nonexistent_tool: keep going").max_turns(2)
+
+    # when
+    outcome = await agent.run("loop forever")
+
+    # then: still WORKING, because the run stopped mid-work, and now with the code that says so
+    assert outcome.status is AgentStatus.WORKING
+    assert outcome.failure is not None
+    assert outcome.failure.code == AgentFailureCodes.TURNS_EXHAUSTED
+    assert outcome.failure.message == outcome.result
