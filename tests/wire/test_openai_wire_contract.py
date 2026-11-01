@@ -157,3 +157,13 @@ async def test_should_throw_http_request_exception_on_a_failed_status(status_cod
 
     # then: a native exception, for the foundation above to localize
     assert raised.value.status_code == status_code
+
+
+async def test_should_throw_json_exception_on_a_malformed_body():
+    # given: a 200 that is not JSON (a proxy's HTML page, a truncated stream)
+    server = ScriptedServerHandler.answering("<html>bad gateway</html>", media_type="text/html")
+    broker = create_broker(server)
+
+    # when, then
+    with pytest.raises(json.JSONDecodeError):
+        await broker.generate(CONVERSATION, TOOLS)
