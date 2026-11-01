@@ -95,7 +95,7 @@ class StdioMcpBroker(McpBroker):
 
             self._connect = connect_to_streams
         else:
-            process_arguments = list(arguments)
+            process_arguments = list(arguments) if arguments is not None else []
 
             async def connect_to_process() -> tuple[ServerOutput, ServerInput]:
                 server_process = await _start_server_process(
