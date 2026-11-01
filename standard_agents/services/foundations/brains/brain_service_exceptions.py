@@ -34,6 +34,29 @@ async def try_catch(
         raise await create_and_log_critical_dependency_exception(
             logging_broker,
             failed_brain_dependency_exception)
+    # A model that loaded but failed while generating (out of memory, a bad tensor) may be
+    # transient.
+    except RuntimeError as runtime_error:
+        failed_brain_dependency_exception = FailedBrainDependencyException(
+            message="Failed brain dependency error occurred, contact support.",
+            inner_exception=runtime_error)
+
+        raise await create_and_log_dependency_exception(
+            logging_broker,
+            failed_brain_dependency_exception)
+
+
+async def create_and_log_dependency_exception(
+    logging_broker: ILoggingBroker,
+    exception: Xeption) -> BrainDependencyException:
+
+    brain_dependency_exception = BrainDependencyException(
+        message="Brain dependency error occurred, contact support.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(brain_dependency_exception)
+
+    return brain_dependency_exception
 
 
 async def create_and_log_critical_dependency_exception(
