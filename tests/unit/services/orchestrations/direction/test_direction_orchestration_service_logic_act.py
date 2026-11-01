@@ -78,22 +78,23 @@ class TestDirectionOrchestrationServiceLogicAct(DirectionOrchestrationServiceTes
 
         assert self.return_service_mock.mock_calls == []
 
-    # A brain that names a tool the agent does not have is told so, and the run goes on: the next
-    # turn can pick a real tool or answer. Acting on a name nobody registered never happens.
-    def test_should_act_by_observing_that_an_unknown_tool_is_not_available(self) -> None:
+    # SPEC.md 4.3: an act on a tool the agent does not own goes out across the boundary, and what
+    # comes back is an observation like any tool's, with the run still working.
+    def test_should_act_by_calling_out_for_a_tool_the_agent_does_not_own(self) -> None:
         # given
         random_tool_name = self.create_random_string()
         input_context = self.create_random_context(random_tool_name)
+        returned_outcome = self.create_random_string()
 
         expected_context = dataclasses.replace(
             copy.deepcopy(input_context),
             observations=input_context.observations + (
-                f"There is no tool named '{random_tool_name}'. "
-                + "Use a tool from the catalog, or give a FINAL answer.",),
-            result="",
+                f"{random_tool_name} returned: {returned_outcome}",),
+            result=returned_outcome,
             status=AgentStatus.WORKING)
 
         self.internal_tool_service_mock.handles.return_value = False
+        self.external_tool_service_mock.call.return_value = returned_outcome
 
         # when
         actual_context = asyncio.run(self.direction_orchestration_service.act(input_context))
@@ -103,6 +104,10 @@ class TestDirectionOrchestrationServiceLogicAct(DirectionOrchestrationServiceTes
 
         assert self.internal_tool_service_mock.mock_calls == [
             call.handles(random_tool_name)
+        ]
+
+        assert self.external_tool_service_mock.mock_calls == [
+            call.call(random_tool_name, input_context.payload)
         ]
 
         assert self.return_service_mock.mock_calls == []
