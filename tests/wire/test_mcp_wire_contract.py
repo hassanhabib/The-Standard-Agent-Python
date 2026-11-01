@@ -144,3 +144,34 @@ async def test_should_accept_json_and_an_event_stream_on_every_request():
         media_types = media_types_of(request)
         assert "application/json" in media_types
         assert "text/event-stream" in media_types
+
+
+async def test_should_read_the_reply_from_an_event_stream():
+    # given: a server answering as the official SDKs do: an event stream, where a notification
+    # may arrive before the response it carries
+    server = ScriptedServerHandler.answering(
+        "event: message\n"
+        + 'data: {"jsonrpc":"2.0","method":"notifications/message",'
+        + '"params":{"level":"info","data":"listing"}}\n'
+        + "\n"
+        + "event: message\n"
+        + 'data: {"jsonrpc":"2.0","id":1,"result":{"tools":[{"name":"find_student",'
+        + '"description":"Finds a student by their id.",'
+        + '"inputSchema":{"type":"object","properties":{"id":{"type":"integer"}}}}]}}\n'
+        + "\n",
+        media_type="text/event-stream")
+
+    broker = create_broker(server)
+
+    expected_tools = [
+        McpTool(
+            name="find_student",
+            description="Finds a student by their id.",
+            input_schema_json='{"type":"object","properties":{"id":{"type":"integer"}}}')
+    ]
+
+    # when
+    actual_tools = await broker.list_tools()
+
+    # then: the response is found past the notification, the schema whole
+    assert actual_tools == expected_tools
