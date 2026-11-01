@@ -38,3 +38,23 @@ async def test_should_throw_validation_exception_on_measure_if_prompt_is_null(
         call.log_error(same_exception_as(expected_usage_validation_exception))]
 
     assert usage_broker.mock_calls == []
+
+
+async def test_should_throw_validation_exception_on_measure_if_completion_is_null(
+        usage_service, usage_broker, logging_broker, same_exception_as, create_random_string):
+
+    # given
+    expected_usage_validation_exception = _usage_validation_exception(
+        "Invalid usage, completion is required. Please correct the error and try again.")
+
+    # when
+    with pytest.raises(UsageValidationException) as raised:
+        await usage_service.measure(prompt=create_random_string(), completion=None)
+
+    # then
+    assert raised.value.same_exception_as(expected_usage_validation_exception)
+
+    assert logging_broker.mock_calls == [
+        call.log_error(same_exception_as(expected_usage_validation_exception))]
+
+    assert usage_broker.mock_calls == []
