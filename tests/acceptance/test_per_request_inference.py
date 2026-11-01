@@ -72,3 +72,24 @@ async def test_should_hold_the_answer_to_the_request_schema_when_no_contract_is_
 
     # then: the malformed draft was revised against the schema the request asked for
     assert actual_result == '{"city":"Paris"}'
+
+
+# Configuration is a ceiling, not a suggestion (design 4). The first draft matches the REQUEST's
+# shape exactly, and is still revised, because a configured Contract discards the request's
+# schema outright. Never merged, never partially honored: the model is constrained to one schema
+# and validated against that same schema, which is what makes the
+# constrained-to-A-validated-against-B loop unreachable.
+async def test_should_discard_the_request_schema_when_a_contract_is_configured():
+    # given: a configured Contract requiring "city", a request asking for "name"
+    agent = (_agent_with(_brain_answering('FINAL: {"name":"Paris"}', 'FINAL: {"city":"Paris"}'))
+        .contract('{"type":"object","required":["city"]}'))
+
+    request = PromptRequest(
+        prompt="capital of France, as JSON",
+        response_schema_json='{"type":"object","required":["name"]}')
+
+    # when
+    actual_result = await agent.process_prompt(request)
+
+    # then: configured won; the draft shaped like the request was sent back
+    assert actual_result == '{"city":"Paris"}'
