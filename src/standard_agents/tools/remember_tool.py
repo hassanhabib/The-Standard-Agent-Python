@@ -6,13 +6,31 @@
 from __future__ import annotations
 
 import json
+import warnings
 from collections.abc import Awaitable, Callable
+from typing import Protocol
 
 from standard_agents.tools.tool import Tool
 
 
+class _RemembersMemories(Protocol):
+    """What the obsolete form was handed: something with a remember routine, a memory service."""
+
+    async def remember(self, memory: str) -> None:
+        ...
+
+
 class RememberTool(Tool):
-    def __init__(self, remember: Callable[[str], Awaitable[None]]) -> None:
+    def __init__(self, remember: Callable[[str], Awaitable[None]] | _RemembersMemories) -> None:
+        if not callable(remember):
+            warnings.warn(
+                "Pass the remember routine itself: a tool holds a function, not a service. "
+                + "This alias keeps working.",
+                DeprecationWarning,
+                stacklevel=2)
+
+            remember = remember.remember
+
         self._remember = remember
 
     @property
