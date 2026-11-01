@@ -46,11 +46,25 @@ class SessionService:
 
     async def record_session(self, session: AgentSession) -> None:
         """Writes the conversation back, replacing what was there."""
-        await self.session_broker.upsert_session(session)
+        async with _handling_exceptions(self.logging_broker):
+            _validate_session(session)
+
+            await self.session_broker.upsert_session(session)
 
 
 def _validate_session_id(session_id: str | None) -> None:
     if not session_id or session_id.isspace():
+        raise InvalidSessionException(
+            message="Invalid session. Please correct the error and try again.")
+
+
+def _validate_session(session: AgentSession | None) -> None:
+    """Rejects a missing session, or one with no id.
+
+    A session with no id cannot be read back, so writing one loses the conversation silently: the
+    next prompt finds nothing and the agent forgets, with no error anywhere to explain it.
+    """
+    if session is None or not session.id or session.id.isspace():
         raise InvalidSessionException(
             message="Invalid session. Please correct the error and try again.")
 
