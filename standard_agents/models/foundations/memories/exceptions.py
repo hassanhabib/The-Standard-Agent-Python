@@ -14,3 +14,13 @@ class FailedMemoryDependencyException(Xeption):
 class MemoryDependencyException(Xeption):
     def __init__(self, message: str, inner_exception: Xeption | None) -> None:
         super().__init__(message, inner_exception)
+
+
+class FailedMemoryServiceException(Xeption):
+    def __init__(self, message: str, inner_exception: BaseException | None) -> None:
+        super().__init__(message, inner_exception)
+
+
+class MemoryServiceException(Xeption):
+    def __init__(self, message: str, inner_exception: Xeption | None) -> None:
+        super().__init__(message, inner_exception)

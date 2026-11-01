@@ -10,7 +10,9 @@ import pytest
 
 from standard_agents.models.foundations.memories.exceptions import (
     FailedMemoryDependencyException,
-    MemoryDependencyException)
+    FailedMemoryServiceException,
+    MemoryDependencyException,
+    MemoryServiceException)
 from tests.unit.services.foundations.memories.memory_service_tests import MemoryServiceTests
 
 
@@ -41,3 +43,30 @@ class TestMemoryServiceExceptionsRetrieveAll(MemoryServiceTests):
 
         assert self.memory_broker_mock.mock_calls == [call.select_all_memories()]
         self.assert_logged_once("log_critical", expected_memory_dependency_exception)
+
+    def test_should_raise_service_exception_on_retrieve_all_if_service_error_occurs_and_log_it(
+        self) -> None:
+
+        # given
+        service_error = Exception(self.create_random_string())
+
+        failed_memory_service_exception = FailedMemoryServiceException(
+            message="Failed memory service error occurred, contact support.",
+            inner_exception=service_error)
+
+        expected_memory_service_exception = MemoryServiceException(
+            message="Memory service error occurred, contact support.",
+            inner_exception=failed_memory_service_exception)
+
+        self.memory_broker_mock.select_all_memories.side_effect = service_error
+
+        # when
+        with pytest.raises(MemoryServiceException) as actual_memory_service_exception:
+            asyncio.run(self.memory_service.retrieve_all_memories())
+
+        # then
+        assert expected_memory_service_exception.same_exception_as(
+            actual_memory_service_exception.value)
+
+        assert self.memory_broker_mock.mock_calls == [call.select_all_memories()]
+        self.assert_logged_once("log_error", expected_memory_service_exception)
