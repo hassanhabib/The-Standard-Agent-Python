@@ -333,3 +333,57 @@ async def test_should_remember_a_grant_for_the_same_tool_and_scope_within_the_ru
     # question twice is how they stop reading it
     assert asked == 1
     assert tool.writes == 2
+
+
+class _WireTransferTool(Tool):
+    def __init__(self) -> None:
+        self.transfers = 0
+
+    @property
+    def name(self) -> str:
+        return "wire_transfer"
+
+    @property
+    def description(self) -> str:
+        return "Moves money."
+
+    # Deliberately no scope_of: this is the shape of every tool that does not implement it,
+    # which includes every tool that arrives over MCP.
+    async def execute(self, input: str) -> str:
+        self.transfers += 1
+
+        return "paid"
+
+
+# Gap 7, found in the 2026-08-23 sweep. The grant key is the tool AND the scope, exactly, but
+# scope_of defaults to empty, so for any tool that names no scope (every MCP tool among them) the
+# key collapsed to the tool name alone: approving a $10 transfer silently approved the $10,000
+# one later in the same run. An act with no named scope cannot be matched to a later one
+# "exactly", so nothing may be remembered and each act is asked about; an identical repeat is
+# already replayed by run-once before approval is reached.
+async def test_should_ask_again_when_the_tool_names_no_scope():
+    # given: a tool with no scope_of, proposing two very different acts
+    tool = _WireTransferTool()
+    asked = 0
+
+    async def approve(effect):
+        nonlocal asked
+        asked += 1
+
+        return ApprovalDecision.APPROVED
+
+    agent = (_agent_acting(
+        tool,
+        "ACTION: wire_transfer: 10 to bob",
+        "ACTION: wire_transfer: 10000 to mallory",
+        "FINAL: done")
+            .require_approval("wire_transfer")
+            .on_approval(approve))
+
+    # when
+    await agent.process_prompt("settle up")
+
+    # then: approving ten dollars is not approving ten thousand; with no scope to match exactly,
+    # every act of the tool is its own question
+    assert asked == 2
+    assert tool.transfers == 2
