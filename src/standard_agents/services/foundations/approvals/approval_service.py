@@ -25,4 +25,6 @@ class ApprovalService:
 
     async def request_approval(self, effect: AgentEffect) -> ApprovalDecision:
         """Asks an authority to permit this act. PENDING is not consent (SPEC.md 4.9)."""
-        raise NotImplementedError
+        # PENDING must survive the trip untouched. Turning an unanswered request into anything
+        # else here is the one mistake that would let silence look like consent.
+        return await self.approval_broker.request(effect)
