@@ -40,11 +40,13 @@ class DataCoordinationService:
     async def recall(self, context: AgentContext) -> AgentContext:
         system_prompt = await self.retrieval_service.retrieve_instructions(context.route)
         memories = await self.recollection_service.recall_memories()
+        knowledge = await self.retrieval_service.retrieve_grounding(context.prompt)
+        passages = (knowledge_result.text for knowledge_result in knowledge)
 
         return dataclasses.replace(
             context,
             system_prompt=system_prompt,
-            observations=(*context.observations, *memories))
+            observations=(*context.observations, *memories, *passages))
 
     async def remember(self, memory: str) -> None:
         raise NotImplementedError
