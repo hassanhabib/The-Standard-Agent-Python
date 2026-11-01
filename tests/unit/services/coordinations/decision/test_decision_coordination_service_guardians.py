@@ -147,3 +147,23 @@ async def test_should_feed_rejected_draft_back_as_observation_on_think(
     # then
     assert len(actual_context.observations) == 1
     assert "a poor answer" in actual_context.observations[0]
+
+
+async def test_should_not_judge_on_think_if_direction_is_tool(
+        decision_coordination_service,
+        brain_service,
+        judge_service,
+        create_random_agent_context,
+        setup_gate_allows):
+
+    # given
+    input_context = create_random_agent_context()
+    setup_gate_allows()
+    brain_service.generate.return_value = "ACTION: calculator: 1+1"
+
+    # when
+    await decision_coordination_service.think(input_context)
+
+    # then
+    assert judge_service.evaluate.mock_calls == []
+    assert judge_service.mock_calls == []
