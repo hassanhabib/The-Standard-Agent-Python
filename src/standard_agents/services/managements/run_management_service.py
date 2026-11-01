@@ -225,6 +225,11 @@ class RunManagementService:
             # Turns ran out with the loop still WORKING: no answer was ever delivered, and the
             # last tool output is not one.
             if context.status is AgentStatus.WORKING:
+                # Working, not Responded: the run stopped mid-work, and the span says so the
+                # same way the caller is told.
+                self.telemetry_broker.record_run_outcome(
+                    _status_name(context.status), run_prompt_tokens, run_completion_tokens)
+
                 return AgentOutcome(_TURNS_EXHAUSTED_MESSAGE, context.status)
 
             if context.status is AgentStatus.REVISING:
