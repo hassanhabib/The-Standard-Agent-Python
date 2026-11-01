@@ -216,3 +216,21 @@ async def test_should_advertise_only_described_tools_natively():
     assert all(
         definition.description is not None and definition.description.strip() != ""
         for definition in captured_tools[0])
+
+
+async def test_should_report_native_usage_for_the_budget():
+    # given: a model that reports what it cost, and a budget smaller than that
+    tool = _CalculatorTool()
+
+    agent = (_agent_with(tool, lambda tools, turn: GenerationResult(
+            tool_calls=(ModelToolCall("call_1", "calculator", '{"expression":"1+1"}'),),
+            prompt_tokens=500,
+            completion_tokens=500))
+        .max_turns(10)
+        .budget(max_tokens=900))
+
+    # when
+    actual_result = await agent.process_prompt("loop")
+
+    # then: reported usage is what the budget measures, not an estimate
+    assert "token budget" in actual_result
