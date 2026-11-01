@@ -55,7 +55,11 @@ class BrainService:
             *,
             inference: ResolvedInference | None = None) -> AsyncIterator[str]:
 
-        async for token in self.generator_broker.generate_stream(system_prompt, user_prompt):
+        async with _handling_stream_exceptions(self.logging_broker):
+            _validate_user_prompt(user_prompt)
+            tokens = self.generator_broker.generate_stream(system_prompt, user_prompt)
+
+        async for token in tokens:
             yield token
 
 
@@ -67,6 +71,15 @@ def _validate_user_prompt(user_prompt: str | None) -> None:
 
 @asynccontextmanager
 async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[None]:
+    try:
+        yield
+    except InvalidBrainException as invalid_brain_exception:
+        raise await _create_and_log_validation_exception(
+            logging_broker, invalid_brain_exception)
+
+
+@asynccontextmanager
+async def _handling_stream_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[None]:
     try:
         yield
     except InvalidBrainException as invalid_brain_exception:
