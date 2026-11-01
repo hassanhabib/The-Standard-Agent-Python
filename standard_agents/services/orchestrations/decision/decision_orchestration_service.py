@@ -3,17 +3,23 @@
 # Licensed under the The Standard Software License (TSSL)
 # ---------------------------------------------------------------
 
+import dataclasses
+
 from standard_agents.brokers.loggings.ilogging_broker import ILoggingBroker
 from standard_agents.models.orchestrations.agents.agent_context import AgentContext
+from standard_agents.models.orchestrations.agents.agent_status import AgentStatus
 from standard_agents.services.foundations.brains.ibrain_service import IBrainService
 from standard_agents.services.foundations.gates.igate_service import IGateService
 from standard_agents.services.foundations.judges.ijudge_service import IJudgeService
 from standard_agents.services.orchestrations.decision.decision_orchestration_service_protocol import (
     build_user_message,
     interpret,
-    is_final_answer)
+    is_final_answer,
+    revision_feedback)
 from standard_agents.services.orchestrations.decision.idecision_orchestration_service import (
     IDecisionOrchestrationService)
+
+MINIMUM_ACCEPTABLE_SCORE = 0.3
 
 
 class DecisionOrchestrationService(IDecisionOrchestrationService):
@@ -38,6 +44,18 @@ class DecisionOrchestrationService(IDecisionOrchestrationService):
         if is_final_answer(decided) is False:
             return decided
 
-        await self.judge_service.evaluate(context.prompt, decided.payload)
+        judgement = await self.judge_service.evaluate(context.prompt, decided.payload)
 
-        return decided
+        if judgement.score >= MINIMUM_ACCEPTABLE_SCORE:
+            return decided
+
+        # A rejected draft is never delivered. The brain sees why on its next turn, and the loop
+        # spends a turn revising rather than acting.
+        await self.logging_broker.log_process(
+            "Decision", f"Judge scored {judgement.score:.2f}: rejected, revising")
+
+        return dataclasses.replace(
+            context,
+            observations=context.observations + (
+                revision_feedback(judgement, decided.payload),),
+            status=AgentStatus.REVISING)

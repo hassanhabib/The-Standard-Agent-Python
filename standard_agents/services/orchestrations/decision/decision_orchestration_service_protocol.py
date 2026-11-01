@@ -5,6 +5,7 @@
 
 import dataclasses
 
+from standard_agents.models.foundations.judges.judgement import Judgement
 from standard_agents.models.orchestrations.agents.agent_context import AgentContext
 
 ACTION_PREFIX = "ACTION:"
@@ -66,6 +67,12 @@ def interpret(context: AgentContext, reply: str) -> AgentContext:
         payload=answer,
         narration=narration,
         raw_reply=reply)
+
+
+def revision_feedback(judgement: Judgement, draft: str) -> str:
+    return (
+        f"A previous draft was rejected on review: {judgement.reason}. "
+        + f"The draft was: {draft}")
 
 
 def is_final_answer(context: AgentContext) -> bool:
