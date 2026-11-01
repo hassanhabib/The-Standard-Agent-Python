@@ -10,12 +10,14 @@ killed immediately after the transfer went out, and the process that picked the 
 afterwards.
 """
 
+import asyncio
 from collections import deque
 from unittest.mock import create_autospec
 
 from standard_agents.brokers.effects.file_effect_ledger_broker import FileEffectLedgerBroker
 from standard_agents.brokers.knowledges.knowledge_broker import KnowledgeBroker
 from standard_agents.brokers.memories.memory_broker import MemoryBroker
+from standard_agents.brokers.sessions.file_session_broker import FileSessionBroker
 from standard_agents.brokers.skills.skill_broker import SkillBroker
 from standard_agents.standard_agent import StandardAgent
 from standard_agents.tools.tool import Tool
@@ -93,3 +95,22 @@ async def test_should_not_repeat_an_effect_after_the_run_was_interrupted(tmp_pat
     # then: the resumed run kept the interrupted run's identity, so the effect is replayed
     assert resumed_tool.execution_count == 0
     assert actual_result == "already paid"
+
+
+async def test_should_record_the_run_on_the_session_before_any_work(tmp_path):
+    # given: a run cancelled before it starts, which never reaches the end of the loop and is
+    # deliberately never written back as an answer
+    tool = _CountingTool()
+    cancellation = asyncio.Event()
+    cancellation.set()
+
+    await (_new_process(tmp_path, tool, "ACTION: wire_transfer: 10000")
+        .process_prompt("pay the invoice", session_id="invoice-91", cancellation=cancellation))
+
+    # when
+    session_broker = FileSessionBroker(str(tmp_path / "sessions"))
+    actual_session = await session_broker.select_session("invoice-91")
+
+    # then: an identity recorded only on success is one the failure case can never use
+    assert actual_session is not None
+    assert actual_session.run_id != ""
