@@ -8,7 +8,11 @@
 # agent the fluent code composes. Tools and callables stay code; JSON reaches everything that is
 # data.
 
+import itertools
+import json
+import os
 import re
+import sys
 
 import pytest
 
@@ -20,6 +24,8 @@ from standard_agents.models.clients.agents.exceptions import (
 from standard_agents.models.foundations.knowledges.knowledge_result import KnowledgeResult
 from standard_agents.standard_agent import StandardAgent
 from standard_agents.tools.tool import Tool
+
+STUDENTS_SERVER_PATH = os.path.join(os.path.dirname(__file__), "students_mcp_server.py")
 
 
 async def test_should_compose_an_agent_from_json(tmp_path, monkeypatch):
@@ -294,3 +300,42 @@ def test_should_compose_every_data_expressible_capability_from_json():
 
     # then
     assert agent is not None
+
+
+async def test_should_start_an_mcp_server_process_from_json(tmp_path, monkeypatch):
+    # given: a server entry that is a command rather than a URL, in the builder's words and in
+    # the words MCP clients' own configuration files already use (args, env), so a server's
+    # published setup pastes in unchanged
+    monkeypatch.chdir(tmp_path)
+    command = json.dumps(sys.executable)
+    server_path = json.dumps(STUDENTS_SERVER_PATH)
+
+    document = f"""
+    {{
+      "mcp": [
+        {{ "command": {command}, "arguments": [{server_path}, "fall"],
+           "environmentVariables": {{ "STUDENTS_SCHOOL": "Redmond High" }} }},
+        {{ "command": {command}, "args": [{server_path}, "spring"],
+           "env": {{ "STUDENTS_SCHOOL": "Kent Meridian" }}, "timeoutSeconds": 20 }}
+      ]
+    }}
+    """
+
+    observed_prompts = []
+    turns = itertools.count(1)
+
+    async def brain(system_prompt, user_prompt):
+        if next(turns) == 1:
+            return "ACTION: find_student: 1"
+
+        observed_prompts.append(user_prompt)
+
+        return "FINAL: done"
+
+    agent = StandardAgent.from_json(document).on_brain(brain)
+
+    # when
+    await agent.process_prompt("who is student 1?")
+
+    # then: the first-registered process owns the name, started as the document said
+    assert "student 1 is Hassan, at Redmond High, for the fall term" in observed_prompts[-1]
