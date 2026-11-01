@@ -132,3 +132,24 @@ async def test_should_set_intent_to_respond_on_think_if_final(
 
     # then
     assert actual_context.intent == "Respond"
+
+
+async def test_should_treat_non_protocol_reply_as_answer_on_think(
+        decision_coordination_service,
+        brain_service,
+        create_random_agent_context,
+        setup_gate_allows,
+        setup_judge_approves):
+
+    # given
+    input_context = create_random_agent_context()
+    setup_gate_allows()
+    setup_judge_approves()
+    brain_service.generate.return_value = "just an answer, no prefix"
+
+    # when
+    actual_context = await decision_coordination_service.think(input_context)
+
+    # then
+    assert actual_context.direction_type == "ReturnResponse"
+    assert actual_context.payload == "just an answer, no prefix"
