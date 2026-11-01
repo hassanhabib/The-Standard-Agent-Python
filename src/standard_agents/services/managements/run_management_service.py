@@ -163,6 +163,7 @@ class RunManagementService:
 
         context = AgentContext(prompt=request.prompt)
         context = await self.data_coordination_service.recall(context)
+        context = await self.decision_coordination_service.think(context)
         context = await self.direction_coordination_service.act(context)
 
         return AgentOutcome(context.result, context.status)
