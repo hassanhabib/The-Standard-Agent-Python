@@ -108,3 +108,23 @@ async def test_should_unwind_performed_effects_in_reverse_order_when_the_run_fai
     # then: the charge is reversed before the booking it paid for
     assert ledger == ["do:book_flight", "do:charge_card", "undo:charge_card", "undo:book_flight"]
     assert "Unwound 2 of 2 effects." in actual_result
+
+
+async def test_should_report_effects_that_could_not_be_undone():
+    # given: one tool knows how to reverse itself and one does not
+    ledger: list[str] = []
+
+    agent = (_agent_that_runs(
+            [_ReversibleTool("book_flight", ledger), _IrreversibleTool("send_email", ledger)],
+            "ACTION: book_flight: LHR-JFK",
+            "ACTION: send_email: your ticket is confirmed")
+        .max_turns(2)
+        .compensate_on_failure())
+
+    # when
+    actual_result = await agent.process_prompt("book me a flight")
+
+    # then: silence is not reversal; the caller is told what stands
+    assert "Unwound 1 of 2 effects." in actual_result
+    assert "'send_email' could not be undone; the effect stands." in actual_result
+    assert "undo:send_email" not in ledger
