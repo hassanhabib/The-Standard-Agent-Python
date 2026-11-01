@@ -63,3 +63,29 @@ async def test_should_not_advertise_or_recall_memory_when_composed_without_memor
     assert _REMEMBERED_FACT not in seen_by_brain
     assert "remember" not in seen_by_brain
     assert memory_broker.select_memories.mock_calls == []
+
+
+async def test_should_advertise_and_recall_memory_by_default():
+    # given: the unamended one-user default
+    memory_broker = _memory_holding(_REMEMBERED_FACT)
+    seen_by_brain = ""
+
+    async def brain(system_prompt, user_prompt):
+        nonlocal seen_by_brain
+        seen_by_brain = system_prompt + "\n" + user_prompt
+
+        return "FINAL: done"
+
+    agent = (StandardAgent()
+        .use_knowledge(_empty_knowledge())
+        .on_skills(_persona)
+        .use_memory(memory_broker)
+        .on_brain(brain))
+
+    # when
+    await agent.process_prompt("hello")
+
+    # then
+    assert _REMEMBERED_FACT in seen_by_brain
+    assert "remember" in seen_by_brain
+    assert memory_broker.select_memories.mock_calls == [call()]
