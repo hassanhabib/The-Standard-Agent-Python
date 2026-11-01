@@ -6,8 +6,9 @@
 from __future__ import annotations
 
 import dataclasses
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Mapping
 from contextlib import asynccontextmanager
+from typing import TypeVar
 
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.models.coordinations.directions.perimeter_policy import PerimeterPolicy
@@ -51,6 +52,8 @@ _RETURN_RESPONSE_DIRECTION = "ReturnResponse"
 _REFUSE_DIRECTION = "Refuse"
 _AWAIT_INPUT_DIRECTION = "AwaitInput"
 
+_Value = TypeVar("_Value")
+
 
 class DirectionCoordinationService:
     """The Direction nature: two regions, and the order between them.
@@ -76,10 +79,12 @@ class DirectionCoordinationService:
         """
         standing_orders = policy if policy is not None else PerimeterPolicy()
 
+        # Tool names compare as the C# compares them, OrdinalIgnoreCase, so every per-tool
+        # mapping and set is keyed by the folded name.
         self.permission_mode = standing_orders.mode
-        self.declared_risk = standing_orders.declared_risk
-        self.tool_risk = standing_orders.tool_risk
-        self.tool_scope = standing_orders.tool_scope
+        self.declared_risk = _by_folded_name(standing_orders.declared_risk)
+        self.tool_risk = _by_folded_name(standing_orders.tool_risk)
+        self.tool_scope = _by_folded_name(standing_orders.tool_scope)
         self.explicitly_permits = standing_orders.explicitly_permits
 
         # Asked once per act rather than captured once at composition, because who is acting
@@ -89,9 +94,13 @@ class DirectionCoordinationService:
         self.perimeter_service = perimeter_service
         self.execution_service = execution_service
         self.logging_broker = logging_broker
-        self.irreversible_tool_names = frozenset(standing_orders.irreversible_tools)
+        self.irreversible_tool_names = frozenset(
+            _fold_ordinal_ignore_case(name) for name in standing_orders.irreversible_tools)
+
         self.enforce_selection = standing_orders.enforce_selection
-        self.advertised_tool_names = frozenset(standing_orders.advertised_tools)
+
+        self.advertised_tool_names = frozenset(
+            _fold_ordinal_ignore_case(name) for name in standing_orders.advertised_tools)
 
     async def act(self, context: AgentContext) -> AgentContext:
         async with _handling_exceptions(self.logging_broker):
@@ -206,7 +215,7 @@ class DirectionCoordinationService:
             and self._scope_for(exchange.tool_name, exchange.arguments_json) == scope)
 
     def _risk_level_for(self, tool_name: str) -> RiskLevel:
-        tool_declared = self.tool_risk.get(tool_name)
+        tool_declared = self.tool_risk.get(_fold_ordinal_ignore_case(tool_name))
 
         if tool_declared is not None and tool_declared is not RiskLevel.SAFE:
             return tool_declared
@@ -218,7 +227,7 @@ class DirectionCoordinationService:
 
         The framework never parses arguments: only the tool knows what its own arguments mean.
         """
-        scope_of = self.tool_scope.get(tool_name)
+        scope_of = self.tool_scope.get(_fold_ordinal_ignore_case(tool_name))
 
         return scope_of(arguments) if scope_of is not None else ""
 
@@ -299,20 +308,46 @@ def _observed(context: AgentContext, output: str, replayed: bool = False) -> Age
 
 
 def _is_terminal(direction_type: str) -> bool:
-    return direction_type in (
-        _RETURN_RESPONSE_DIRECTION,
-        _REFUSE_DIRECTION,
-        _AWAIT_INPUT_DIRECTION)
+    return (
+        _equals_ignoring_case(direction_type, _RETURN_RESPONSE_DIRECTION)
+        or _equals_ignoring_case(direction_type, _REFUSE_DIRECTION)
+        or _equals_ignoring_case(direction_type, _AWAIT_INPUT_DIRECTION))
 
 
 def _to_terminal_status(direction_type: str) -> AgentStatus:
-    if direction_type == _REFUSE_DIRECTION:
+    if _equals_ignoring_case(direction_type, _REFUSE_DIRECTION):
         return AgentStatus.REFUSED
 
-    if direction_type == _AWAIT_INPUT_DIRECTION:
+    if _equals_ignoring_case(direction_type, _AWAIT_INPUT_DIRECTION):
         return AgentStatus.AWAITING_INPUT
 
     return AgentStatus.RESPONDED
+
+
+def _by_folded_name(entries: Mapping[str, _Value]) -> dict[str, _Value]:
+    """A per-tool mapping keyed as StringComparer.OrdinalIgnoreCase keys it."""
+    return {_fold_ordinal_ignore_case(name): value for name, value in entries.items()}
+
+
+def _equals_ignoring_case(left: str, right: str) -> bool:
+    """string.Equals(left, right, StringComparison.OrdinalIgnoreCase)."""
+    return _fold_ordinal_ignore_case(left) == _fold_ordinal_ignore_case(right)
+
+
+def _fold_ordinal_ignore_case(value: str) -> str:
+    """Fold a string the way .NET's StringComparer.OrdinalIgnoreCase compares it.
+
+    Characters compare by their simple uppercase mapping. Python's str.upper() applies full
+    mappings (U+00DF becomes "SS"), so each character is uppercased on its own and kept as it
+    is when its mapping expands.
+    """
+    folded: list[str] = []
+
+    for character in value:
+        candidate = character.upper()
+        folded.append(candidate if len(candidate) == 1 else character)
+
+    return "".join(folded)
 
 
 def _validate_context(context: AgentContext | None) -> None:
