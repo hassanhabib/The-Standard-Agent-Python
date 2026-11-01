@@ -172,3 +172,29 @@ async def test_should_compose_core_profile_agent_on_process_prompt_without_mcp_c
 
     # then
     assert actual_result == "composed"
+
+
+async def test_should_recover_from_unknown_tool_without_mcp_configured(
+        create_skill_broker,
+        create_generator_broker,
+        allowing_classifier_broker,
+        passing_verifier_broker,
+        empty_memory_broker,
+        empty_knowledge_broker):
+
+    # given: the Brain calls a tool that does not exist, then answers
+    agent = (StandardAgent()
+        .use_skills(create_skill_broker(Skill(content="skills")))
+        .use_generator(create_generator_broker(
+            "ACTION: weather: today",
+            "FINAL: could not get weather"))
+        .use_gate(allowing_classifier_broker)
+        .use_judge(passing_verifier_broker)
+        .use_memory(empty_memory_broker)
+        .use_knowledge(empty_knowledge_broker))
+
+    # when
+    actual_result = await agent.process_prompt(prompt="weather today?")
+
+    # then
+    assert actual_result == "could not get weather"
