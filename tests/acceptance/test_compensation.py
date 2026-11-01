@@ -154,3 +154,21 @@ async def test_should_not_compensate_effects_that_were_never_performed():
     # then: a denied effect was never performed, so there is nothing of it to undo
     assert ledger == ["do:book_flight", "undo:book_flight"]
     assert "Unwound 1 of 1 effects." in actual_result
+
+
+async def test_should_not_unwind_a_run_that_delivered_an_answer():
+    # given: the run performs an effect and then answers, which is a completed run
+    ledger: list[str] = []
+
+    agent = (_agent_that_runs(
+            [_ReversibleTool("book_flight", ledger)],
+            "ACTION: book_flight: LHR-JFK",
+            "FINAL: booked")
+        .compensate_on_failure())
+
+    # when
+    actual_result = await agent.process_prompt("book me a flight")
+
+    # then
+    assert actual_result == "booked"
+    assert ledger == ["do:book_flight"]
