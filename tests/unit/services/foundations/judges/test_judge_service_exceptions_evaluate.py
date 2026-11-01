@@ -10,6 +10,8 @@ import pytest
 
 from standard_agents.models.foundations.judges.exceptions import (
     FailedJudgeDependencyException,
+    InvalidJudgementException,
+    JudgeDependencyValidationException,
     FailedJudgeServiceException,
     JudgeDependencyException,
     JudgeServiceException)
@@ -92,3 +94,38 @@ class TestJudgeServiceExceptionsEvaluate(JudgeServiceTests):
         ]
 
         self.assert_logged_once("log_error", expected_judge_service_exception)
+
+    # SPEC.md 4.2: the score is a number between 0.0 and 1.0, and the Judge validates its range.
+    # A verifier that answers outside it handed back something invalid, which is the dependency's
+    # fault, not the caller's.
+    @pytest.mark.parametrize("out_of_range_score", ["-0.1", "1.01", "7"])
+    def test_should_raise_dependency_validation_exception_on_evaluate_if_score_is_out_of_range_and_log_it(
+        self,
+        out_of_range_score: str) -> None:
+
+        # given
+        input_judge_prompt = self.create_random_string()
+        input_task = self.create_random_string()
+        input_candidate = self.create_random_string()
+
+        invalid_judgement_exception = InvalidJudgementException(
+            message="Invalid judgement. Please correct the errors and try again.")
+
+        invalid_judgement_exception.upsert_data_list(
+            "score",
+            "Value must be between 0.0 and 1.0")
+
+        expected_exception = JudgeDependencyValidationException(
+            message="Judge dependency validation error occurred, fix the errors and try again.",
+            inner_exception=invalid_judgement_exception)
+
+        self.verifier_broker_mock.verify.return_value = f"SCORE: {out_of_range_score}\nREASON: x"
+
+        # when
+        with pytest.raises(JudgeDependencyValidationException) as actual_exception:
+            asyncio.run(
+                self.judge_service.evaluate(input_judge_prompt, input_task, input_candidate))
+
+        # then
+        assert expected_exception.same_exception_as(actual_exception.value)
+        self.assert_logged_once("log_error", expected_exception)
