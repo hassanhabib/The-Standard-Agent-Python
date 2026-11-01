@@ -7,10 +7,15 @@
 # these tests hold MCP servers and skill sources to the same rule: a second registration must not
 # silently unplug the first.
 
+import itertools
+import os
+import sys
 from unittest.mock import ANY, call
 
 from standard_agents.models.brokers.mcps.mcp_tool import McpTool
 from standard_agents.standard_agent import StandardAgent
+
+STUDENTS_SERVER_PATH = os.path.join(os.path.dirname(__file__), "students_mcp_server.py")
 
 
 async def test_should_route_across_multiple_mcp_servers_by_tool_name(
@@ -44,3 +49,36 @@ async def test_should_route_across_multiple_mcp_servers_by_tool_name(
         call.call("alpha", ANY)]
 
     assert second_server.call.call_count == 0
+
+
+async def test_should_start_an_mcp_server_process_and_call_its_tool(
+        empty_memory_broker,
+        empty_knowledge_broker):
+
+    # given: a real MCP server process the agent starts itself, with an argument and an
+    # environment variable it must pass through
+    observed_prompts = []
+    turns = itertools.count(1)
+
+    async def brain(system_prompt, user_prompt):
+        if next(turns) == 1:
+            return "ACTION: find_student: 1"
+
+        observed_prompts.append(user_prompt)
+
+        return "FINAL: done"
+
+    agent = (StandardAgent()
+        .use_memory(empty_memory_broker)
+        .use_knowledge(empty_knowledge_broker)
+        .mcp_process(
+            command=sys.executable,
+            arguments=[STUDENTS_SERVER_PATH, "fall"],
+            environment_variables={"STUDENTS_SCHOOL": "Redmond High"})
+        .on_brain(brain))
+
+    # when
+    await agent.process_prompt("who is student 1?")
+
+    # then: the tool was found in the process's catalog, called, and its answer came back
+    assert "student 1 is Hassan, at Redmond High, for the fall term" in observed_prompts[-1]
