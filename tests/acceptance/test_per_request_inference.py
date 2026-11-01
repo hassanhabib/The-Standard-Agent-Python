@@ -20,6 +20,7 @@ from standard_agents.brokers.knowledges.knowledge_broker import KnowledgeBroker
 from standard_agents.brokers.memories.memory_broker import MemoryBroker
 from standard_agents.brokers.skills.skill_broker import SkillBroker
 from standard_agents.models.brokers.generators.resolved_inference import ResolvedInference
+from standard_agents.models.clients.agents.agent_stream_event_type import AgentStreamEventType
 from standard_agents.models.clients.agents.prompt_request import PromptRequest
 from standard_agents.models.foundations.skills.skill import Skill
 from standard_agents.standard_agent import StandardAgent
@@ -265,3 +266,27 @@ async def test_should_serve_concurrent_heterogeneous_requests_from_one_compositi
             if f"task-{temperature}" in user_prompt and inference.temperature == temperature]
 
         assert len(matching_calls) == 1
+
+
+# Graceful degradation is a property (design 5): this broker never opts in, and the streamed
+# answer is STILL held to shape, because the guardian validates and revises on the streamed path
+# exactly as on the batched one.
+async def test_should_hold_a_streamed_answer_to_the_request_schema():
+    # given: a brain whose first streamed draft breaks the requested shape
+    agent = _agent_with(_brain_answering("FINAL: Paris", 'FINAL: {"city":"Paris"}'))
+
+    request = PromptRequest(
+        prompt="capital of France, as JSON",
+        response_schema_json='{"type":"object","required":["city"]}')
+
+    # when
+    events = [stream_event async for stream_event in agent.process_prompt_stream(request)]
+
+    # then: what streamed out as the answer is the revised draft, and only that
+    responses = [
+        stream_event.content
+        for stream_event in events
+        if stream_event.type is AgentStreamEventType.RESPONSE]
+
+    assert len(responses) == 1
+    assert responses[0] == '{"city":"Paris"}'
