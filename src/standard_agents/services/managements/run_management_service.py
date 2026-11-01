@@ -22,6 +22,7 @@ from standard_agents.models.coordinations.agents.agent_budget import AgentBudget
 from standard_agents.models.coordinations.agents.principal_resolver import PrincipalResolver
 from standard_agents.models.coordinations.agents.tool_narration import ToolNarration
 from standard_agents.models.coordinations.agents.tool_selector import ToolSelector
+from standard_agents.models.orchestrations.agents.agent_context import AgentContext
 from standard_agents.services.coordinations.data.data_coordination_service import (
     DataCoordinationService)
 from standard_agents.services.coordinations.decision.decision_coordination_service import (
@@ -124,7 +125,11 @@ class RunManagementService:
             session_id: str = "",
             cancellation: asyncio.Event | None = None) -> str:
         """The run's answer, or the reason there is not one."""
-        raise NotImplementedError
+        outcome = await self._run(
+            PromptRequest(prompt=prompt, session_id=session_id),
+            cancellation)
+
+        return outcome.result
 
     async def run(
             self,
@@ -150,3 +155,13 @@ class RunManagementService:
             cancellation: asyncio.Event | None = None) -> AgentRunStream:
         """The run's events as they happen, and how it ended once they are read."""
         raise NotImplementedError
+
+    async def _run(
+            self,
+            request: PromptRequest,
+            cancellation: asyncio.Event | None) -> AgentOutcome:
+
+        context = AgentContext(prompt=request.prompt)
+        context = await self.direction_coordination_service.act(context)
+
+        return AgentOutcome(context.result, context.status)
