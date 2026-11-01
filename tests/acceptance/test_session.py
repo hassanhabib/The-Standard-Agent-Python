@@ -10,6 +10,7 @@ is. These pin that distinction: the same session continues across two separate a
 which is the property that makes resumption real rather than incidental.
 """
 
+import asyncio
 from collections.abc import Callable
 from unittest.mock import create_autospec
 
@@ -115,3 +116,31 @@ async def test_should_keep_sessions_separate(tmp_path):
 
     # then: bob never sees alice's exchange
     assert "France" not in captured_prompts[-1]
+
+
+async def test_should_not_record_a_cancelled_run_as_an_answer(tmp_path):
+    # given
+    sessions_path = str(tmp_path / "sessions")
+    cancellation = asyncio.Event()
+    cancellation.set()
+
+    agent = _new_agent(sessions_path, lambda user_prompt: "FINAL: Paris")
+
+    await agent.process_prompt(
+        "what is the capital of France?",
+        session_id="user-9",
+        cancellation=cancellation)
+
+    captured_prompts = []
+
+    next_agent = _new_agent(
+        sessions_path,
+        answer_for=lambda user_prompt: "FINAL: anything",
+        capture=captured_prompts.append)
+
+    # when
+    await next_agent.process_prompt("follow up", session_id="user-9")
+
+    # then: the next prompt is never told the agent said something it never said
+    assert "cancelled" not in captured_prompts[-1]
+    assert "Paris" not in captured_prompts[-1]
