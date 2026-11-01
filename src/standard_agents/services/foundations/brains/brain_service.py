@@ -8,11 +8,13 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+from restfulsense.exceptions import HttpResponseBadRequestException
 from standard_agents.brokers.generators.generator_broker import GeneratorBroker
 from standard_agents.brokers.generators.generator_broker_v1 import GeneratorBrokerV1
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.models.brokers.generators.resolved_inference import ResolvedInference
 from standard_agents.models.foundations.brains.exceptions import (
+    BrainDependencyValidationException,
     BrainValidationException,
     InvalidBrainException)
 
@@ -76,6 +78,14 @@ async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[N
     except InvalidBrainException as invalid_brain_exception:
         raise await _create_and_log_validation_exception(
             logging_broker, invalid_brain_exception)
+    except HttpResponseBadRequestException as http_response_bad_request_exception:
+        invalid_brain_exception = InvalidBrainException(
+            message="Invalid brain request. Please correct the error and try again.")
+
+        invalid_brain_exception.add_data(http_response_bad_request_exception.data)
+
+        raise await _create_and_log_dependency_validation_exception(
+            logging_broker, invalid_brain_exception)
 
 
 @asynccontextmanager
@@ -98,3 +108,16 @@ async def _create_and_log_validation_exception(
     await logging_broker.log_error(brain_validation_exception)
 
     return brain_validation_exception
+
+
+async def _create_and_log_dependency_validation_exception(
+        logging_broker: LoggingBroker,
+        exception: Exception) -> BrainDependencyValidationException:
+
+    brain_dependency_validation_exception = BrainDependencyValidationException(
+        message="Brain dependency validation error occurred, fix the error and try again.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(brain_dependency_validation_exception)
+
+    return brain_dependency_validation_exception
