@@ -172,6 +172,39 @@ class TestStandardAgentRuns:
         assert len(brain_calls) == 2
         assert "too vague" in brain_calls[1]
 
+    # A brain that keeps acting and never answers is stopped at the bound, and the run says it
+    # delivered nothing. Every turn is traced to the log the host chose.
+    def test_should_stop_at_the_turn_limit_and_trace_every_turn(self, tmp_path: Path) -> None:
+        # given
+        input_prompt = create_random_string()
+        log_file = tmp_path.joinpath("log.txt")
+        brain_calls = []
+
+        async def brain(system_prompt: str, user_prompt: str) -> str:
+            brain_calls.append(user_prompt)
+
+            return "ACTION: echo: again"
+
+        expected_outcome = AgentOutcome(
+            result="I ran out of turns before an answer was ready; nothing was delivered.",
+            status=AgentStatus.FAILED)
+
+        agent = (StandardAgent()
+            .tool(EchoTool())
+            .max_turns(2)
+            .log_to(str(log_file))
+            .on_brain(brain))
+
+        # when
+        actual_outcome = asyncio.run(agent.run(input_prompt))
+
+        # then
+        assert actual_outcome == expected_outcome
+        assert len(brain_calls) == 2
+        trace = log_file.read_text(encoding="utf-8")
+        assert "Turn 0" in trace
+        assert "Turn 1" in trace
+
 
 class EchoTool(ITool):
     @property
