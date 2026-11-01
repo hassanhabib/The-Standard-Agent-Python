@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
+from standard_agents.models.brokers.generators.v1.conversation import ToolDefinition
+from standard_agents.models.coordinations.agents.tool_narration import ToolNarration
 from standard_agents.tools.tool import Tool
 
 
@@ -31,6 +33,29 @@ def render_tool_catalog_entries(tools: Iterable[Tool]) -> dict[str, str]:
     return {tool.name: _catalog_line(tool) for tool in advertised(tools)}
 
 
+def render_tool_definitions(tools: Iterable[Tool]) -> list[ToolDefinition]:
+    """The tools a native brain is offered, by the same opt-in the text catalog uses.
+
+    A tool without a description stays callable but unadvertised, so declaring tools as data
+    does not quietly widen what the Brain may reach for.
+    """
+    return [
+        ToolDefinition(tool.name, tool.description, tool.parameters)
+        for tool in advertised(tools)]
+
+
+def render_tool_narrations(tools: Iterable[Tool]) -> dict[str, ToolNarration]:
+    """What each tool declared it says, keyed by name.
+
+    Derived from the tools exactly as risk and scope are: the tool is what knows what its act
+    means in the user's language, and derived data cannot drift.
+    """
+    return {
+        tool.name: ToolNarration(tool.narration_starting, tool.narration_observed)
+        for tool in tools
+        if not _is_blank(tool.narration_starting) or not _is_blank(tool.narration_observed)}
+
+
 def advertised(tools: Iterable[Tool]) -> list[Tool]:
     """What the model may be told about, in ONE place.
 
@@ -42,14 +67,6 @@ def advertised(tools: Iterable[Tool]) -> list[Tool]:
     return [tool for tool in tools if not _is_blank(tool.description)]
 
 
-def _catalog_line(tool: Tool) -> str:
-    return f"- {tool.name} \u2014 {tool.description} parameters: {tool.parameters}"
-
-
-def _is_blank(text: str | None) -> bool:
-    return not text or text.isspace()
-
-
 def compose_guardian_rubric(*parts: str) -> str:
     """A guardian rubric from its parts in order, skipping any that are empty.
 
@@ -58,3 +75,11 @@ def compose_guardian_rubric(*parts: str) -> str:
     whatever the policy above it.
     """
     return "\n\n".join(part for part in parts if not _is_blank(part))
+
+
+def _catalog_line(tool: Tool) -> str:
+    return f"- {tool.name} \u2014 {tool.description} parameters: {tool.parameters}"
+
+
+def _is_blank(text: str | None) -> bool:
+    return not text or text.isspace()

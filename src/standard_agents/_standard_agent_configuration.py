@@ -77,18 +77,18 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
         # handoff calls and the description that advertises it from the same JSON that composes
         # it. Each key preserves the other, so their order cannot matter.
         case "name":
-            agent.identity(value, description=agent.description)
+            agent.identity(_text(value, key), description=agent.description)
 
         case "description":
-            agent.identity(agent.name, description=value)
+            agent.identity(agent.name, description=_text(value, key))
 
         case "brain":
             _shaped(value, key)
 
             agent.brain(
-                value["apiUrl"],
-                value.get("apiKey", ""),
-                value["model"],
+                _text_property(value, key, "apiUrl"),
+                _text_property(value, key, "apiKey", fallback=""),
+                _text_property(value, key, "model"),
                 temperature=_number(value, key, "temperature", 0.7),
                 max_tokens=_positive_whole(value, key, "maxTokens", 1024),
                 timeout_seconds=_positive_whole(value, key, "timeoutSeconds", 120))
@@ -97,9 +97,9 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
             _shaped(value, key)
 
             agent.native_brain(
-                value["apiUrl"],
-                value.get("apiKey", ""),
-                value["model"],
+                _text_property(value, key, "apiUrl"),
+                _text_property(value, key, "apiKey", fallback=""),
+                _text_property(value, key, "model"),
                 temperature=_number(value, key, "temperature", 0.7),
                 max_tokens=_positive_whole(value, key, "maxTokens", 1024))
 
@@ -107,32 +107,38 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
             _shaped(value, key)
 
             agent.native_brain_anthropic(
-                value["apiKey"],
-                value["model"],
+                _text_property(value, key, "apiKey"),
+                _text_property(value, key, "model"),
                 temperature=_number(value, key, "temperature", 0.7),
                 max_tokens=_positive_whole(value, key, "maxTokens", 1024))
 
         case "skills" if isinstance(value, list):
             for source in _listed(value, key):
-                agent.skills(source)
+                agent.skills(_text(source, key))
 
         case "skills":
-            agent.skills(value)
+            agent.skills(_text(value, key))
 
         case "knowledge" if isinstance(value, dict):
             _shaped(value, key)
 
             agent.knowledge(
-                value["path"],
-                pattern=value.get("pattern", "*.md"),
+                _text_property(value, key, "path"),
+                pattern=_text_property(value, key, "pattern", fallback="*.md"),
                 max_results=_positive_whole(value, key, "maxResults", 3),
                 min_score=_number(value, key, "minScore", 0.0))
 
         case "knowledge":
-            agent.knowledge(value)
+            agent.knowledge(_text(value, key))
+
+        # A document that wants no memory says so with one key: a hosted agent is the whole
+        # document, and a hosted memory is one memory for every caller.
+        case "memory" if isinstance(value, bool):
+            if not value:
+                agent.without_memory()
 
         case "memory":
-            agent.memory(value)
+            agent.memory(_text(value, key))
 
         case "mcp" if isinstance(value, list):
             for server in _listed(value, key):
@@ -146,35 +152,35 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
                 _apply_fleet_member(agent, member, key)
 
         case "agents":
-            agent.agents(value)
+            agent.agents(_text(value, key))
 
         case "gate":
             _shaped(value, key)
 
             agent.gate(
-                value["apiUrl"],
-                value.get("apiKey", ""),
-                value["model"],
+                _text_property(value, key, "apiUrl"),
+                _text_property(value, key, "apiKey", fallback=""),
+                _text_property(value, key, "model"),
                 temperature=_number(value, key, "temperature", 0.0),
                 max_tokens=_positive_whole(value, key, "maxTokens", 16),
                 timeout_seconds=_positive_whole(value, key, "timeoutSeconds", 30))
 
         case "ruleGate":
-            agent.rule_gate(*_listed(value, key))
+            agent.rule_gate(*_listed_texts(value, key))
 
         case "judge":
             _shaped(value, key)
 
             agent.judge(
-                value["apiUrl"],
-                value.get("apiKey", ""),
-                value["model"],
+                _text_property(value, key, "apiUrl"),
+                _text_property(value, key, "apiKey", fallback=""),
+                _text_property(value, key, "model"),
                 temperature=_number(value, key, "temperature", 0.0),
                 max_tokens=_positive_whole(value, key, "maxTokens", 16),
                 timeout_seconds=_positive_whole(value, key, "timeoutSeconds", 30))
 
         case "ruleJudge":
-            agent.rule_judge(*_listed(value, key))
+            agent.rule_judge(*_listed_texts(value, key))
 
         # The contract is itself a JSON schema, so it rides embedded rather than as an escaped
         # string a form author would have to hand-quote.
@@ -182,21 +188,22 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
             agent.contract("{}" if value is None else json.dumps(value, separators=(",", ":")))
 
         case "constitution":
-            agent.constitution(value)
+            agent.constitution(_text(value, key))
 
         case "consumption":
-            agent.consumption(value)
+            agent.consumption(_text(value, key))
 
         case "redact" if isinstance(value, dict):
             _shaped(value, key)
 
             agent.redact(*(
                 RedactionRule(
-                    label=_shaped(rule, "redact.rules")["label"],
-                    pattern=rule["pattern"])
+                    label=_text_property(
+                        _shaped(rule, "redact.rules"), "redact.rules", "label"),
+                    pattern=_text_property(rule, "redact.rules", "pattern"))
                 for rule in _listed(value.get("rules"), "redact.rules")))
 
-        case "redact" if value:
+        case "redact" if _truth(value, key):
             agent.redact()
 
         case "redact":
@@ -220,41 +227,44 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
             raise InvalidAgentConfigurationException(message=_citation_refusal(key))
 
         case "allowTools":
-            agent.allow_tools(*value)
+            agent.allow_tools(*_texts(value, key))
 
         case "permissions":
-            agent.permissions(_named(PermissionMode, value, key))
+            agent.permissions(_named(PermissionMode, _text(value, key), key))
 
         case "risk":
             for level_name, tool_names in _listed_entries(value, key).items():
-                agent.risk(_named(RiskLevel, level_name, key), *tool_names)
+                agent.risk(_named(RiskLevel, level_name, key), *_texts(tool_names, key))
 
         case "requireApproval":
-            agent.require_approval(*_listed(value, key))
+            agent.require_approval(*_listed_texts(value, key))
 
         case "logTo" if isinstance(value, dict):
             _shaped(value, key)
 
             agent.log_to(
-                value["path"],
-                verbosity=_named(TraceVerbosity, value.get("verbosity", "Full"), key))
+                _text_property(value, key, "path"),
+                verbosity=_named(
+                    TraceVerbosity,
+                    _text_property(value, key, "verbosity", fallback="Full"),
+                    key))
 
         case "logTo":
-            agent.log_to(value)
+            agent.log_to(_text(value, key))
 
         case "audit":
-            agent.audit(value)
+            agent.audit(_text(value, key))
 
-        case "auditPayloads" if value:
+        case "auditPayloads" if _truth(value, key):
             agent.audit_payloads()
 
         case "auditPayloads":
             pass
 
         case "telemetry" if isinstance(value, str):
-            agent.telemetry(agent_name=value)
+            agent.telemetry(agent_name=_text(value, key))
 
-        case "telemetry" if value:
+        case "telemetry" if _truth(value, key):
             agent.telemetry()
 
         case "telemetry":
@@ -263,19 +273,21 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
         case "sessions" if isinstance(value, dict):
             _shaped(value, key)
 
-            agent.sessions(value["path"], max_history_turns=_positive_whole(value, key, "maxHistoryTurns", 20))
+            agent.sessions(
+                _text_property(value, key, "path"),
+                max_history_turns=_positive_whole(value, key, "maxHistoryTurns", 20))
 
         case "sessions":
-            agent.sessions(value)
+            agent.sessions(_text(value, key))
 
         case "effectLedger":
-            agent.effect_ledger(value)
+            agent.effect_ledger(_text(value, key))
 
         case "effectLeaseSeconds":
             agent.effect_lease(
                 timedelta(seconds=_positive_number(_number_value(value, key), key)))
 
-        case "screenToolOutput" if value:
+        case "screenToolOutput" if _truth(value, key):
             agent.screen_tool_output()
 
         case "screenToolOutput":
@@ -303,7 +315,7 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
         case "resilience":
             agent.resilience(retries=_non_negative(_whole(value, key), key))
 
-        case "compensateOnFailure" if value:
+        case "compensateOnFailure" if _truth(value, key):
             agent.compensate_on_failure()
 
         case "compensateOnFailure":
@@ -323,7 +335,7 @@ def _apply_fleet_member(agent: StandardAgent, member: Any, key: str) -> None:
     # identity included, because the document IS the agent. An inline member must be named: a
     # handoff calls agents by name, and a nameless agent is one the brain could never call.
     if not isinstance(member, dict):
-        agent.agents(member)
+        agent.agents(_text(member, key))
 
         return
 
@@ -383,10 +395,10 @@ def _apply_mcp_server(agent: StandardAgent, server: Any, key: str) -> None:
         _shaped(server, key)
 
         agent.mcp_process(
-            server["command"],
-            arguments=_mcp_arguments(server),
-            environment_variables=_mcp_environment_variables(server),
-            working_directory=server.get("workingDirectory"),
+            _text_property(server, key, "command"),
+            arguments=_mcp_arguments(server, key),
+            environment_variables=_mcp_environment_variables(server, key),
+            working_directory=_optional_text(server, "workingDirectory"),
             timeout_seconds=_positive_whole(server, key, "timeoutSeconds", 30))
 
         return
@@ -395,37 +407,51 @@ def _apply_mcp_server(agent: StandardAgent, server: Any, key: str) -> None:
         _shaped(server, key)
 
         agent.mcp(
-            server["endpointUrl"],
-            relative_url=server.get("relativeUrl", ""),
+            _text_property(server, key, "endpointUrl"),
+            relative_url=_text_property(server, key, "relativeUrl", fallback=""),
             timeout_seconds=_positive_whole(server, key, "timeoutSeconds", 30),
-            bearer_token=server.get("bearerToken"),
-            api_key=server.get("apiKey"),
-            api_key_header=server.get("apiKeyHeader", "X-Api-Key"))
+            bearer_token=_optional_text(server, "bearerToken"),
+            api_key=_optional_text(server, "apiKey"),
+            api_key_header=_text_property(server, key, "apiKeyHeader", fallback="X-Api-Key"))
 
         return
 
-    agent.mcp(server)
+    agent.mcp(_text(server, key))
 
 
 
 # A process server takes the builder's words, or the words MCP clients' own configuration files
 # already use, so a server's published setup pastes in unchanged.
-def _mcp_arguments(server: dict[str, Any]) -> list[str]:
+def _mcp_arguments(server: dict[str, Any], key: str) -> list[str]:
     arguments = server.get("arguments")
 
     if arguments is None:
         arguments = server.get("args")
 
-    return [] if arguments is None else list(arguments)
+    if arguments is None:
+        return []
+
+    if not isinstance(arguments, list):
+        raise InvalidAgentConfigurationException(message=f"'{key}' arguments must be an array.")
+
+    return [_text(argument, key) for argument in arguments]
 
 
-def _mcp_environment_variables(server: dict[str, Any]) -> dict[str, str] | None:
+def _mcp_environment_variables(server: dict[str, Any], key: str) -> dict[str, str] | None:
     environment_variables = server.get("environmentVariables")
 
     if environment_variables is None:
         environment_variables = server.get("env")
 
-    return None if environment_variables is None else dict(environment_variables)
+    if environment_variables is None:
+        return None
+
+    if not isinstance(environment_variables, dict):
+        raise InvalidAgentConfigurationException(
+            message=f"'{key}' environment variables must be an object.")
+
+    return {name: _text(value, key) for name, value in environment_variables.items()}
+
 
 def _shaped(node: Any, key: str) -> dict[str, Any]:
     """A section, once its shape is checked against the schema's table (F-24).
@@ -447,6 +473,76 @@ def _shaped(node: Any, key: str) -> dict[str, Any]:
                     + ", ".join(properties) + "."))
 
     return node
+
+
+def _text(node: Any, key: str) -> str:
+    if not isinstance(node, str):
+        raise InvalidAgentConfigurationException(message=f"'{key}' must be a string.")
+
+    return node
+
+
+def _text_property(
+        node: Any,
+        key: str,
+        document_property: str,
+        fallback: str | None = None) -> str:
+
+    value = node.get(document_property) if isinstance(node, dict) else None
+
+    if value is None:
+        if fallback is None:
+            raise InvalidAgentConfigurationException(
+                message=f"'{key}' needs a '{document_property}'.")
+
+        return fallback
+
+    if not isinstance(value, str):
+        raise InvalidAgentConfigurationException(
+            message=f"'{key}.{document_property}' must be a string.")
+
+    return value
+
+
+def _optional_text(node: Any, document_property: str) -> str | None:
+    value = node.get(document_property) if isinstance(node, dict) else None
+
+    if value is None or isinstance(value, str):
+        return value
+
+    # Not a document refusal in the C# either: GetValue<string> on a value of another kind
+    # throws InvalidOperationException, which is a RuntimeError here.
+    raise RuntimeError(
+        "The requested operation requires an element of type 'String', but the target element "
+        + f"has type '{_kind_of(value)}'.")
+
+
+def _texts(node: Any, key: str) -> list[str]:
+    if not isinstance(node, list):
+        raise InvalidAgentConfigurationException(message=f"'{key}' must be an array.")
+
+    return [_text(item, key) for item in node]
+
+
+def _listed_texts(node: Any, key: str) -> list[str]:
+    return [_text(item, key) for item in _listed(node, key)]
+
+
+def _truth(node: Any, key: str) -> bool:
+    if not isinstance(node, bool):
+        raise InvalidAgentConfigurationException(message=f"'{key}' must be true or false.")
+
+    return node
+
+
+def _kind_of(value: Any) -> str:
+    if isinstance(value, bool):
+        return "True" if value else "False"
+
+    if isinstance(value, (int, float)):
+        return "Number"
+
+    return "Array" if isinstance(value, list) else "Object"
 
 
 def _listed(node: Any, key: str) -> list[Any]:
