@@ -167,3 +167,26 @@ async def test_should_not_judge_on_think_if_direction_is_tool(
     # then
     assert judge_service.evaluate.mock_calls == []
     assert judge_service.mock_calls == []
+
+
+async def test_should_screen_prompt_and_judge_draft_on_think(
+        decision_coordination_service,
+        gate_service,
+        brain_service,
+        judge_service,
+        create_random_agent_context,
+        setup_gate_allows,
+        setup_judge_approves):
+
+    # given
+    input_context = create_random_agent_context()
+    setup_gate_allows()
+    setup_judge_approves()
+    brain_service.generate.return_value = "FINAL: the draft"
+
+    # when
+    await decision_coordination_service.think(input_context)
+
+    # then
+    assert gate_service.screen.mock_calls.count(call(input_context.prompt)) == 1
+    assert judge_service.evaluate.mock_calls.count(call(ANY, "the draft")) == 1
