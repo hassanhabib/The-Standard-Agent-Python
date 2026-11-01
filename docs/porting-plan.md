@@ -72,9 +72,14 @@ live in `src/xeptions` and `src/restfulsense`, and the wheel must not ship them 
 - Type hints that do not hold: `AnthropicGeneratorBrokerV1(api_key: str)` accepts None, the MCP
   tool list models type fields that may be None as non-optional, and `HttpMcpBroker._post`
   returns `tuple[Any, str]` where a `type[T]` gives `T` (Phase 4).
-- `AgentRun.started_on` defaults to `datetime(1, 1, 1)`, .NET's `default(DateTimeOffset)`;
-  whether None can stand in without changing a trace line is decided with the trace tests
-  (Phase 3, traces).
+- Resolved with the trace tests (Phase 3): `AgentRun.started_on` keeps its default of
+  `datetime(1, 1, 1, tzinfo=timezone.utc)`, .NET's `default(DateTimeOffset)`. On a composed
+  agent every outcome line follows the run's reset, which stamps the start, so the default is
+  never read there and None would change nothing. It is read when the logging broker writes an
+  outcome for a run it never reset (its detached fallback run, a broker driven outside the
+  loop): C# writes the milliseconds elapsed since year one, about 6.4e13 in 2026, and so does
+  this port. None would make that line raise a `TypeError`, or need a branch that writes
+  something else, so the default stays.
 - The direction coordination records a tool failure on the ledger as `str(exception)`, which is
   empty for a bare `Exception()`; .NET's message there is "Exception of type 'System.Exception'
   was thrown." (Phase 3, the effect ledger).
