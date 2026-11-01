@@ -97,3 +97,26 @@ async def test_should_carry_the_risk_the_tool_declares():
 
     # then: the tool declares its own risk, and SENSITIVE must be reachable at all
     assert seen_risk == RiskLevel.SENSITIVE
+
+
+# Gap 2. Permission was per tool NAME. "May write files" is not "may write files under /project",
+# and nothing in the model could express the difference.
+async def test_should_carry_the_scope_the_tool_is_about_to_touch():
+    # given
+    tool = _WriteFileTool()
+    seen_scope = None
+
+    async def authorize(effect):
+        nonlocal seen_scope
+        seen_scope = effect.scope
+
+        return AuthorizationDecision.allow()
+
+    agent = (_agent_acting(tool, "ACTION: write_file: /project/a.txt hello", "FINAL: done")
+        .on_policy(authorize))
+
+    # when
+    await agent.process_prompt("write it")
+
+    # then
+    assert seen_scope == "/project/a.txt"
