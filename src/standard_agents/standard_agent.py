@@ -47,6 +47,7 @@ from standard_agents.models.clients.agents.agent_outcome import AgentOutcome
 from standard_agents.models.clients.agents.agent_stream_event import AgentStreamEvent
 from standard_agents.models.clients.agents.inference_settings import InferenceSettings
 from standard_agents.models.clients.agents.prompt_request import PromptRequest
+from standard_agents.models.loggings.trace_verbosity import TraceVerbosity
 from standard_agents.services.coordinations.data.data_coordination_service import (
     DataCoordinationService)
 from standard_agents.services.coordinations.decision.decision_coordination_service import (
@@ -109,6 +110,7 @@ class StandardAgent(Agent):
         self._memory_path = "memory.txt"
         self._knowledge_path = "Knowledge"
         self._log_path = ""
+        self._trace_verbosity = TraceVerbosity.FULL
 
         if api_url is not None or api_key is not None or model is not None:
             self.brain(api_url, api_key, model)
@@ -133,8 +135,14 @@ class StandardAgent(Agent):
 
         return self
 
-    def log_to(self, path: str) -> StandardAgent:
+    def log_to(
+            self,
+            path: str,
+            *,
+            verbosity: TraceVerbosity = TraceVerbosity.FULL) -> StandardAgent:
+
         self._log_path = path
+        self._trace_verbosity = verbosity
 
         return self
 
