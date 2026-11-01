@@ -44,7 +44,7 @@ class DataCoordinationService:
         return dataclasses.replace(
             context,
             system_prompt=system_prompt,
-            observations=tuple(memories))
+            observations=(*context.observations, *memories))
 
     async def remember(self, memory: str) -> None:
         raise NotImplementedError
