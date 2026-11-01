@@ -172,3 +172,18 @@ async def test_should_not_unwind_a_run_that_delivered_an_answer():
     # then
     assert actual_result == "booked"
     assert ledger == ["do:book_flight"]
+
+
+async def test_should_leave_effects_standing_when_compensation_is_not_configured():
+    # given: compensation is off, which is the default
+    ledger: list[str] = []
+
+    agent = _agent_that_runs(
+            [_ReversibleTool("book_flight", ledger)],
+            "ACTION: book_flight: LHR-JFK").max_turns(1)
+
+    # when
+    await agent.process_prompt("book me a flight")
+
+    # then: behavior is exactly as if the section did not exist
+    assert ledger == ["do:book_flight"]
