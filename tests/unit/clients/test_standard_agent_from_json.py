@@ -235,3 +235,62 @@ def test_should_reject_malformed_configuration_json():
     # given . when . then
     with pytest.raises(InvalidAgentConfigurationException):
         StandardAgent.from_json("{ not json at all")
+
+
+# The parity gate: every data-expressible capability, all in one document, must compose. A
+# capability added to the builder without a JSON binding turns red here the moment its key is
+# added below, and the key list below is part of the docs' contract.
+def test_should_compose_every_data_expressible_capability_from_json():
+    # given
+    everything = r"""
+    {
+      "name": "concierge",
+      "description": "Answers anything, hands off what it should not answer.",
+      "brain": { "apiUrl": "https://api.peerllm.com/v1/", "apiKey": "k", "model": "LLooMA2.0",
+                 "temperature": 0.2, "maxTokens": 512, "timeoutSeconds": 60 },
+      "nativeBrain": { "apiUrl": "https://api.peerllm.com/v1/", "apiKey": "k", "model": "m" },
+      "nativeBrainAnthropic": { "apiKey": "k", "model": "claude-sonnet-4-5" },
+      "skills": ["Skills", "MoreSkills"],
+      "knowledge": { "path": "Knowledge", "pattern": "*.md", "maxResults": 3, "minScore": 0.1 },
+      "memory": "memory.txt",
+      "mcp": [
+        "https://mcp.example/",
+        { "endpointUrl": "https://locked.example/", "timeoutSeconds": 20,
+          "bearerToken": "token", "apiKey": "key", "apiKeyHeader": "X-Api-Key" }
+      ],
+      "agents": [
+        "Fleet",
+        { "name": "billing", "description": "Handles refunds and invoices.", "maxTurns": 2 }
+      ],
+      "gate": { "apiUrl": "https://api.peerllm.com/v1/", "apiKey": "k", "model": "m" },
+      "ruleGate": ["password", "ssn"],
+      "judge": { "apiUrl": "https://api.peerllm.com/v1/", "apiKey": "k", "model": "m" },
+      "ruleJudge": ["Sources:"],
+      "contract": { "type": "object", "required": ["amount"] },
+      "constitution": "Constitution/ethics.md",
+      "consumption": "Constitution/consuming-skills.md",
+      "redact": { "rules": [ { "label": "TICKET", "pattern": "INC-\\d{6}" } ] },
+      "maxTurns": 5,
+      "allowTools": ["calculator", "write_file:/project/"],
+      "permissions": "Ask",
+      "risk": { "irreversible": ["wire_transfer"], "sensitive": ["write_file"] },
+      "requireApproval": ["wire_transfer"],
+      "logTo": { "path": "log.txt", "verbosity": "Natures" },
+      "audit": "audit.jsonl",
+      "telemetry": "form-built-agent",
+      "sessions": { "path": "sessions", "maxHistoryTurns": 10 },
+      "effectLedger": "ledger",
+      "screenToolOutput": true,
+      "budget": { "maxTokens": 50000, "maxCostUsd": 0.25,
+                  "maxWallClockSeconds": 30, "costPerThousandTokens": 0.002 },
+      "usage": { "charactersPerToken": 3.5 },
+      "resilience": { "retries": 3 },
+      "compensateOnFailure": true
+    }
+    """
+
+    # when
+    agent = StandardAgent.from_json(everything)
+
+    # then
+    assert agent is not None
