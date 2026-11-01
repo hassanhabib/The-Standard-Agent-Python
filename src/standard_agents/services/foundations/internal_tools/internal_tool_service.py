@@ -43,7 +43,10 @@ class InternalToolService:
 
         Returns what was done, or an empty string when the tool declared no way back.
         """
-        raise NotImplementedError
+        async with _handling_tool_exceptions(self.logging_broker):
+            _validate_name(name)
+
+            return await self.tool_broker.compensate(name, input, outcome)
 
 
 def _validate_name(name: str | None) -> None:
