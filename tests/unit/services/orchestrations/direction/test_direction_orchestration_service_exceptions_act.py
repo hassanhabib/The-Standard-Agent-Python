@@ -9,6 +9,8 @@ import pytest
 
 from xeptions import Xeption
 from standard_agents.models.foundations.external_tools.exceptions import (
+    ExternalToolDependencyException,
+    ExternalToolServiceException,
     ExternalToolValidationException)
 from standard_agents.models.foundations.internal_tools.exceptions import (
     InternalToolDependencyException,
@@ -60,7 +62,9 @@ class TestDirectionOrchestrationServiceExceptionsAct(DirectionOrchestrationServi
 
     @pytest.mark.parametrize("dependency_exception_type", [
         InternalToolDependencyException,
-        InternalToolServiceException
+        InternalToolServiceException,
+        ExternalToolDependencyException,
+        ExternalToolServiceException
     ])
     def test_should_raise_dependency_exception_on_act_if_dependency_error_occurs_and_log_it(
         self,
