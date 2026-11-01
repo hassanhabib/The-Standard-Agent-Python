@@ -142,3 +142,58 @@ async def test_should_advertise_caller_tools_beside_configured_ones_natively():
     # then
     assert any(tool.name == "calculator" for tool in broker.captured_tools)
     assert any(tool.name == "send_email" for tool in broker.captured_tools)
+
+
+class _CountingCalculatorTool(Tool):
+    def __init__(self) -> None:
+        self.execution_count = 0
+
+    @property
+    def name(self) -> str:
+        return "calculator"
+
+    @property
+    def description(self) -> str:
+        return "Evaluates arithmetic."
+
+    @property
+    def parameters(self) -> str:
+        return "{}"
+
+    async def execute(self, input: str) -> str:
+        self.execution_count += 1
+
+        return "4183"
+
+
+# Name collision resolved by the perimeter rule (design 6.1): configured wins, and unambiguously.
+# A caller declaring a tool named like the deployment's own cannot shadow it. The call means the
+# configured tool, executed locally, under every configured control.
+async def test_should_let_the_configured_tool_keep_its_name():
+    # given: the caller claims "calculator" for itself
+    tool = _CountingCalculatorTool()
+    call = 0
+
+    async def brain(system_prompt, user_prompt):
+        nonlocal call
+        call += 1
+
+        return "ACTION: calculator: 47*89" if call == 1 else "FINAL: 4183"
+
+    agent = _agent_with(brain).tool(tool)
+
+    request = PromptRequest(
+        prompt="what is 47 times 89?",
+        caller_tools=(
+            ToolDefinition(
+                name="calculator",
+                description="The caller's own calculator.",
+                parameters_json="{}"),))
+
+    # when
+    outcome = await agent.run(request)
+
+    # then: executed here, not returned to the caller
+    assert tool.execution_count == 1
+    assert outcome.status is AgentStatus.RESPONDED
+    assert outcome.result == "4183"
