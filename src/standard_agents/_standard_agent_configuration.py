@@ -223,7 +223,7 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
             agent.permissions(_named(PermissionMode, value, key))
 
         case "risk":
-            for level_name, tool_names in value.items():
+            for level_name, tool_names in _listed_entries(value, key).items():
                 agent.risk(_named(RiskLevel, level_name, key), *tool_names)
 
         case "requireApproval":
@@ -439,6 +439,12 @@ def _shaped(node: Any, key: str) -> dict[str, Any]:
 
     return node
 
+
+def _listed_entries(node: Any, key: str) -> dict[str, Any]:
+    if not isinstance(node, dict):
+        raise InvalidAgentConfigurationException(message=f"'{key}' must be an object.")
+
+    return node
 
 # A limit of zero or less composes as if it were set and never binds (or, in max_turns' case, is
 # quietly clamped). The document refuses it by name instead.
