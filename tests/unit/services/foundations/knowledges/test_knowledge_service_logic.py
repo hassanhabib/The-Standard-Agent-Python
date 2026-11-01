@@ -26,3 +26,19 @@ async def test_should_retrieve_knowledge(
     assert list(actual_documents) == expected_documents
     assert knowledge_broker.mock_calls == [call.select_knowledge(input_query)]
     assert logging_broker.mock_calls == []
+
+
+async def test_should_retrieve_no_knowledge_on_retrieve_knowledge_if_nothing_matches(
+        knowledge_service, knowledge_broker, logging_broker, create_random_string):
+
+    # given
+    random_query = create_random_string()
+    knowledge_broker.select_knowledge.return_value = []
+
+    # when
+    actual_documents = await knowledge_service.retrieve_knowledge(random_query)
+
+    # then
+    assert not actual_documents
+    assert knowledge_broker.mock_calls == [call.select_knowledge(random_query)]
+    assert logging_broker.mock_calls == []
