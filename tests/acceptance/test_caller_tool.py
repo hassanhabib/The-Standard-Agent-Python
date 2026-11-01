@@ -23,6 +23,7 @@ from standard_agents.brokers.sessions.file_session_broker import FileSessionBrok
 from standard_agents.brokers.skills.skill_broker import SkillBroker
 from standard_agents.models.brokers.generators.v1.conversation import (
     GenerationResult,
+    ModelToolCall,
     ToolDefinition)
 from standard_agents.models.clients.agents.prompt_request import PromptRequest
 from standard_agents.models.foundations.skills.skill import Skill
@@ -197,3 +198,36 @@ async def test_should_let_the_configured_tool_keep_its_name():
     assert tool.execution_count == 1
     assert outcome.status is AgentStatus.RESPONDED
     assert outcome.result == "4183"
+
+
+class _YieldingNativeBroker(GeneratorBrokerV1):
+    async def generate(self, messages, tools, *, inference=None):
+        return GenerationResult(
+            tool_calls=(
+                ModelToolCall(
+                    id="call_9",
+                    name="send_email",
+                    arguments_json='{"to":"jane@acme.com"}'),))
+
+
+# A stateless deployment has no session, and the client owns the transcript: the exposed
+# protocol this seam exists for (docs/per-request-inference.md 6.2). The pending call must
+# therefore reach the caller on the OUTCOME itself, carrying the id the model minted, or the
+# exposer cannot render the yield at all.
+async def test_should_hand_the_caller_their_call_on_the_outcome_without_a_session():
+    # given: no sessions configured, a native brain that wants the caller's tool
+    agent = _bare_agent().use_native_brain(_YieldingNativeBroker())
+
+    request = PromptRequest(
+        prompt="email jane the report",
+        caller_tools=(_send_email_tool(),))
+
+    # when
+    outcome = await agent.run(request)
+
+    # then: the call itself, on the outcome, with the model's own id
+    assert outcome.status is AgentStatus.AWAITING_INPUT
+    assert outcome.pending_effect is not None
+    assert outcome.pending_effect.tool_name == "send_email"
+    assert outcome.pending_effect.call_id == "call_9"
+    assert "jane@acme.com" in outcome.pending_effect.arguments
