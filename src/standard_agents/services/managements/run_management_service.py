@@ -22,6 +22,7 @@ from standard_agents.models.clients.agents.agent_stream_event import AgentStream
 from standard_agents.models.clients.agents.prompt_request import PromptRequest
 from standard_agents.models.coordinations.agents.agent_budget import AgentBudget
 from standard_agents.models.coordinations.agents.exceptions import (
+    AgentCoordinationDependencyException,
     AgentCoordinationValidationException,
     InvalidAgentException)
 from standard_agents.models.coordinations.agents.principal_resolver import PrincipalResolver
@@ -29,6 +30,9 @@ from standard_agents.models.coordinations.agents.tool_narration import ToolNarra
 from standard_agents.models.coordinations.agents.tool_selector import ToolSelector
 from standard_agents.models.orchestrations.agents.agent_context import AgentContext
 from standard_agents.models.orchestrations.agents.agent_status import AgentStatus
+from standard_agents.models.orchestrations.agents.exceptions import (
+    AgentOrchestrationDependencyException,
+    AgentOrchestrationServiceException)
 from standard_agents.services.coordinations.data.data_coordination_service import (
     DataCoordinationService)
 from standard_agents.services.coordinations.decision.decision_coordination_service import (
@@ -225,6 +229,19 @@ async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[N
     except InvalidAgentException as invalid_agent_exception:
         raise await _create_and_log_validation_exception(
             logging_broker, invalid_agent_exception)
+    except (
+            AgentOrchestrationDependencyException,
+            AgentOrchestrationServiceException) as dependency_exception:
+
+        raise await _create_and_log_dependency_exception(
+            logging_broker, _local_exception(dependency_exception))
+
+
+def _local_exception(categorized_exception: Xeption) -> Xeption | None:
+    """The local exception a categorized exception wraps, when it is one."""
+    inner_exception = categorized_exception.inner_exception
+
+    return inner_exception if isinstance(inner_exception, Xeption) else None
 
 
 async def _create_and_log_validation_exception(
@@ -238,3 +255,16 @@ async def _create_and_log_validation_exception(
     await logging_broker.log_error(agent_coordination_validation_exception)
 
     return agent_coordination_validation_exception
+
+
+async def _create_and_log_dependency_exception(
+        logging_broker: LoggingBroker,
+        exception: Xeption | None) -> AgentCoordinationDependencyException:
+
+    agent_coordination_dependency_exception = AgentCoordinationDependencyException(
+        message="Agent coordination dependency error occurred, contact support.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(agent_coordination_dependency_exception)
+
+    return agent_coordination_dependency_exception
