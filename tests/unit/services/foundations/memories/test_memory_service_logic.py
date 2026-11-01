@@ -121,3 +121,27 @@ async def test_should_remember_by_appending_to_memory_file(
         call.append_all_lines(memory_path, (input_memory,))]
 
     assert logging_broker.mock_calls == []
+
+
+async def test_should_remember_concurrently_to_file_without_losing_a_memory(
+        tmp_path, logging_broker):
+    """Every fact stored at once is in the file afterwards, whole and once.
+
+    Found in the 2026-09-04 principal review (F-05): the file append was not serialized, so
+    simultaneous remembers, the shape a hosted singleton meets when several callers store a fact
+    at once, could collide on the file and fail, or interleave.
+    """
+    # given
+    memory_path = str(tmp_path / "memory.txt")
+    file_memory_service = MemoryService(
+        file_broker=LocalFileBroker(), memory_path=memory_path, logging_broker=logging_broker)
+
+    memories = [f"fact number {index}" for index in range(32)]
+
+    # when
+    await asyncio.gather(*(file_memory_service.remember(memory) for memory in memories))
+
+    # then
+    remembered_memories = (tmp_path / "memory.txt").read_text(encoding="utf-8").splitlines()
+    assert sorted(remembered_memories) == sorted(memories)
+    assert logging_broker.mock_calls == []
