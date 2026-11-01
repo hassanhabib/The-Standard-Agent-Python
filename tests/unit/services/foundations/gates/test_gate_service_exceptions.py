@@ -11,7 +11,9 @@ from restfulsense import (
     HttpRequestException,
     HttpResponseBadRequestException,
     HttpResponseForbiddenException,
+    HttpResponseInternalServerErrorException,
     HttpResponseNotFoundException,
+    HttpResponseServiceUnavailableException,
     HttpResponseUnauthorizedException,
     HttpResponseUrlNotFoundException)
 from standard_agents.models.foundations.gates.exceptions import (
@@ -94,3 +96,32 @@ async def test_should_throw_critical_dependency_exception_on_screen_if_critical_
 
     assert logging_broker.mock_calls == [
         call.log_critical(same_exception_as(expected_gate_dependency_exception))]
+
+
+@pytest.mark.parametrize(
+    "dependency_exception",
+    [HttpResponseInternalServerErrorException(), HttpResponseServiceUnavailableException()],
+    ids=["internal-server-error", "service-unavailable"])
+async def test_should_throw_dependency_exception_on_screen_if_dependency_error_occurs_and_log_it(
+        dependency_exception,
+        gate_service,
+        classifier_broker,
+        logging_broker,
+        same_exception_as,
+        create_random_string):
+
+    # given
+    random_input = create_random_string()
+    expected_gate_dependency_exception = _gate_dependency_exception(dependency_exception)
+    classifier_broker.classify.side_effect = dependency_exception
+
+    # when
+    with pytest.raises(GateDependencyException) as raised:
+        await gate_service.screen(random_input)
+
+    # then
+    assert raised.value.same_exception_as(expected_gate_dependency_exception)
+    assert classifier_broker.mock_calls == [call.classify(random_input)]
+
+    assert logging_broker.mock_calls == [
+        call.log_error(same_exception_as(expected_gate_dependency_exception))]
