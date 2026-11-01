@@ -53,3 +53,32 @@ class TestDataOrchestrationServiceLogicRecall(DataOrchestrationServiceTests):
         ]
 
         assert self.logging_broker_mock.mock_calls == []
+
+    # SPEC.md 4.2: the skill catalog is advertised where Data asks for it, at a skills marker, the
+    # way tools are at a tools marker; absent the marker it is never fetched or shown.
+    def test_should_recall_the_skill_catalog_where_the_skills_ask_for_it(self) -> None:
+        # given
+        input_context = self.create_random_context()
+        random_instructions = self.create_random_string()
+        returned_skills = random_instructions + "\n{{skills}}"
+        returned_catalog = "- " + self.create_random_string()
+
+        expected_context = dataclasses.replace(
+            copy.deepcopy(input_context),
+            system_prompt=random_instructions + "\n" + returned_catalog)
+
+        self.skill_service_mock.retrieve_skills.return_value = returned_skills
+        self.skill_service_mock.retrieve_skill_catalog.return_value = returned_catalog
+        self.memory_service_mock.retrieve_all_memories.return_value = []
+        self.knowledge_service_mock.retrieve_knowledge.return_value = []
+
+        # when
+        actual_context = asyncio.run(self.data_orchestration_service.recall(input_context))
+
+        # then
+        assert actual_context == expected_context
+
+        assert self.skill_service_mock.mock_calls == [
+            call.retrieve_skills(""),
+            call.retrieve_skill_catalog()
+        ]
