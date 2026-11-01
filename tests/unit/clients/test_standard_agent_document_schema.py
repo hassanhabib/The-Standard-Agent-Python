@@ -11,6 +11,8 @@
 
 import json
 
+import pytest
+
 from standard_agents.standard_agent import StandardAgent
 
 
@@ -27,3 +29,19 @@ def test_should_emit_a_closed_schema_for_the_document():
     assert document_schema["type"] == "object"
     assert document_schema["additionalProperties"] is False
     assert len(document_schema["properties"]) > 30
+
+
+def test_should_compose_every_example_the_schema_carries(tmp_path, monkeypatch):
+    # given: each key's example, as the schema shows it to an editor
+    monkeypatch.chdir(tmp_path)
+    properties = schema()["properties"]
+
+    for key, description in properties.items():
+        example = description["examples"][0]
+        document = json.dumps({key: example})
+
+        # when . then: an example the builder refuses is a lie in the editor
+        try:
+            StandardAgent.from_json(document)
+        except Exception as exception:
+            pytest.fail(f"the schema's example for '{key}' must compose: {exception!r}")
