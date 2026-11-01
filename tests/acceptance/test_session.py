@@ -11,7 +11,7 @@ which is the property that makes resumption real rather than incidental.
 """
 
 import asyncio
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from unittest.mock import create_autospec
 
 import pytest
@@ -20,9 +20,15 @@ from standard_agents.brokers.knowledges.knowledge_broker import KnowledgeBroker
 from standard_agents.brokers.memories.memory_broker import MemoryBroker
 from standard_agents.brokers.sessions.file_session_broker import FileSessionBroker
 from standard_agents.brokers.skills.skill_broker import SkillBroker
+from standard_agents.models.brokers.generators.v1.conversation import (
+    ConversationMessage,
+    GenerationResult,
+    MessageRole,
+    ModelToolCall)
 from standard_agents.models.coordinations.agents.exceptions import (
     AgentCoordinationValidationException)
 from standard_agents.standard_agent import StandardAgent
+from standard_agents.tools.tool import Tool
 
 
 def _new_agent(
@@ -222,3 +228,108 @@ async def test_should_keep_every_turn_when_prompts_run_concurrently_in_one_sessi
 
     assert session is not None
     assert sorted(turn.prompt for turn in session.history) == sorted(prompts)
+
+
+class _CalculatorTool(Tool):
+    @property
+    def name(self) -> str:
+        return "calculator"
+
+    @property
+    def description(self) -> str:
+        return "Evaluates arithmetic."
+
+    @property
+    def parameters(self) -> str:
+        return '{"type":"object","properties":{"expression":{"type":"string"}}}'
+
+    async def execute(self, input: str) -> str:
+        return "4183"
+
+
+def _new_native_agent(
+        sessions_path: str,
+        tool: Tool,
+        reply: Callable[[Sequence[ConversationMessage]], GenerationResult]) -> StandardAgent:
+
+    skill_broker = create_autospec(SkillBroker, instance=True)
+    skill_broker.select_skills.return_value = []
+
+    memory_broker = create_autospec(MemoryBroker, instance=True)
+    memory_broker.select_memories.return_value = []
+
+    knowledge_broker = create_autospec(KnowledgeBroker, instance=True)
+    knowledge_broker.select_knowledge.return_value = []
+
+    async def generate(messages, tools):
+        return reply(messages)
+
+    return (StandardAgent()
+        .use_skills(skill_broker)
+        .use_memory(memory_broker)
+        .use_knowledge(knowledge_broker)
+        .tool(tool)
+        .on_native_brain(generate)
+        .sessions(sessions_path))
+
+
+def _calculating_once_then_answering(conversations: list):
+    """A native brain that asks for the calculator on its first call and answers after that,
+    keeping the conversation it was handed on its third call: the follow-up prompt's."""
+    brain_calls = 0
+
+    def reply(messages):
+        nonlocal brain_calls
+        call = brain_calls
+        brain_calls += 1
+
+        if call == 0:
+            return GenerationResult(tool_calls=(
+                ModelToolCall("call_7", "calculator", '{"expression":"47*89"}'),))
+
+        if call == 2:
+            conversations.append(messages)
+
+        return GenerationResult(content="4183")
+
+    return reply
+
+
+# A session that forgets its tool work is wrong in the same way a session that forgets an answer
+# would be. AgentTurn carries a prompt and an answer and nothing else, so the call the agent made
+# on the first prompt and the result it acted on are dropped at the save and can never be
+# recalled: the next prompt is told what the agent said, never what it did in order to be able to
+# say it. The conversation the Brain sees on the follow-up must still carry the assistant's
+# request and the tool's answer against the id that asked for it, which is the one thing narrated
+# prose cannot express (SPEC.md 4.11, SPEC.md 6).
+async def test_should_carry_a_tool_exchange_across_prompts_in_one_session(tmp_path):
+    # given
+    follow_up_conversations = []
+
+    agent = _new_native_agent(
+        str(tmp_path / "sessions"),
+        _CalculatorTool(),
+        _calculating_once_then_answering(follow_up_conversations))
+
+    # when
+    await agent.process_prompt("what is 47 times 89?", session_id="user-13")
+    await agent.process_prompt("how did you get that?", session_id="user-13")
+
+    # then: the follow-up still carries the call and the answer that names it
+    follow_up_conversation = follow_up_conversations[-1] if follow_up_conversations else []
+
+    request = next(
+        (message for message in follow_up_conversation
+            if message.role is MessageRole.ASSISTANT and message.tool_calls),
+        None)
+
+    answer = next(
+        (message for message in follow_up_conversation if message.role is MessageRole.TOOL),
+        None)
+
+    assert request is not None
+    assert request.tool_calls[0].id == "call_7"
+
+    assert answer is not None
+    assert answer.tool_call_id == "call_7"
+    assert answer.content == "4183"
