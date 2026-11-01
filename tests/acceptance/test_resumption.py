@@ -208,3 +208,30 @@ async def test_should_remember_the_act_the_session_is_waiting_on(tmp_path):
     assert "10000" in actual_session.pending_effect.arguments
     assert actual_session.pending_effect.idempotency_key != ""
     assert actual_session.pending_effect.approval_required is True
+
+
+async def test_should_forget_the_held_act_once_it_is_no_longer_waiting(tmp_path):
+    # given: an act held for approval, so the session genuinely carries one
+    tool = _CountingTool()
+    session_broker = FileSessionBroker(str(tmp_path / "sessions"))
+
+    await (_new_process(tmp_path, tool, "ACTION: wire_transfer: 10000")
+        .require_approval("wire_transfer")
+        .on_approval(_pending)
+        .process_prompt("pay the invoice", session_id="invoice-101"))
+
+    while_held = await session_broker.select_session("invoice-101")
+    assert while_held.pending_effect is not None
+
+    # when: the authority permits it and the run finishes
+    await (_new_process(tmp_path, _CountingTool(), "ACTION: wire_transfer: 10000", "FINAL: paid")
+        .require_approval("wire_transfer")
+        .on_approval(_approved)
+        .process_prompt("yes, approve it", session_id="invoice-101"))
+
+    after_approval = await session_broker.select_session("invoice-101")
+
+    # then: a session that is waiting on nothing says so. Carrying the act past the pause would
+    # offer an authority an act the agent has already performed.
+    assert after_approval.status == AgentStatus.RESPONDED
+    assert after_approval.pending_effect is None
