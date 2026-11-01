@@ -13,9 +13,11 @@ from unittest.mock import create_autospec
 
 import pytest
 
+from standard_agents.brokers.approvals.approval_broker import ApprovalBroker
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.brokers.policies.policy_broker import PolicyBroker
 from standard_agents.models.orchestrations.effects.agent_effect import AgentEffect
+from standard_agents.services.foundations.approvals.approval_service import ApprovalService
 from standard_agents.services.foundations.policies.policy_service import PolicyService
 from xeptions import Xeption
 
@@ -39,6 +41,11 @@ def policy_broker() -> PolicyBroker:
 
 
 @pytest.fixture
+def approval_broker() -> ApprovalBroker:
+    return create_autospec(ApprovalBroker, instance=True)
+
+
+@pytest.fixture
 def logging_broker() -> LoggingBroker:
     return create_autospec(LoggingBroker, instance=True)
 
@@ -46,6 +53,11 @@ def logging_broker() -> LoggingBroker:
 @pytest.fixture
 def policy_service(policy_broker, logging_broker) -> PolicyService:
     return PolicyService(policy_broker=policy_broker, logging_broker=logging_broker)
+
+
+@pytest.fixture
+def approval_service(approval_broker, logging_broker) -> ApprovalService:
+    return ApprovalService(approval_broker=approval_broker, logging_broker=logging_broker)
 
 
 @pytest.fixture
