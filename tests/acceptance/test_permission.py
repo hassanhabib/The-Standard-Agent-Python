@@ -178,3 +178,27 @@ async def test_should_ask_before_an_act_that_was_never_explicitly_permitted():
     # not
     assert asked == 1
     assert tool.writes == 0
+
+
+async def test_should_not_ask_about_an_act_that_was_explicitly_permitted():
+    # given
+    tool = _WriteFileTool()
+    asked = 0
+
+    async def approve(effect):
+        nonlocal asked
+        asked += 1
+
+        return ApprovalDecision.APPROVED
+
+    agent = (_agent_acting(tool, "ACTION: write_file: /project/a.txt hello", "FINAL: done")
+        .permissions(PermissionMode.ASK)
+        .allow_tools("write_file:/project")
+        .on_approval(approve))
+
+    # when
+    await agent.process_prompt("write it")
+
+    # then: an explicit permission is the answer to the question
+    assert asked == 0
+    assert tool.writes == 1
