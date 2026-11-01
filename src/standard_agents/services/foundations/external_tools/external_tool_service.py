@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Sequence
 
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
@@ -37,5 +38,21 @@ class ExternalToolService:
 
 
 def _to_arguments_json(input: str) -> str:
-    """The text as the one argument a schema-less tool understands."""
+    """The JSON object of arguments the wire takes.
+
+    A native call already wrote one, and it goes over exactly as written; the text protocol
+    produces plain text, which travels as the one argument a schema-less tool understands.
+    Forcing every call into that one argument was what left typed, multi-property tools
+    uncallable (principal review 2026-09-04, F-03).
+    """
+    if _is_json_object(input):
+        return input
+
     return mcp_json.to_json_string({_INPUT_ARGUMENT_NAME: input})
+
+
+def _is_json_object(input: str) -> bool:
+    try:
+        return isinstance(mcp_json.parse(input), dict)
+    except json.JSONDecodeError:
+        return False
