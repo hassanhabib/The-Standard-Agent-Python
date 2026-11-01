@@ -107,7 +107,13 @@ class EffectLedgerService:
 
     async def record_compensation(self, idempotency_key: str, detail: str) -> None:
         """Records that the act was undone, and how."""
-        raise NotImplementedError
+        record = await self.effect_ledger_broker.select_record(idempotency_key)
+
+        await self.effect_ledger_broker.update_record(dataclasses.replace(
+            record,
+            state=EffectState.COMPENSATED,
+            detail=detail,
+            recorded_on=self.time_broker.get_current_date_time()))
 
     async def _update(
             self,
