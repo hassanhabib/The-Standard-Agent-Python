@@ -11,6 +11,7 @@ from collections.abc import Sequence
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.models.brokers.mcps.mcp_tool import McpTool
 from standard_agents.models.brokers.sessions.agent_session import AgentSession
+from standard_agents.models.foundations.knowledges.knowledge_result import KnowledgeResult
 from standard_agents.models.orchestrations.agents.agent_context import AgentContext
 from standard_agents.services.orchestrations.data.recollections \
     .recollection_orchestration_service import RecollectionOrchestrationService
@@ -46,7 +47,8 @@ class DataCoordinationService:
         return dataclasses.replace(
             context,
             system_prompt=system_prompt,
-            observations=(*context.observations, *memories, *passages))
+            observations=(*context.observations, *memories, *passages),
+            grounding_sources=_with_grounding_sources(context.grounding_sources, knowledge))
 
     async def remember(self, memory: str) -> None:
         raise NotImplementedError
@@ -59,3 +61,18 @@ class DataCoordinationService:
 
     async def retrieve_remote_tools(self) -> Sequence[McpTool]:
         raise NotImplementedError
+
+
+def _with_grounding_sources(
+        grounding_sources: tuple[str, ...],
+        knowledge: Sequence[KnowledgeResult]) -> tuple[str, ...]:
+    """Each source once, in the order first recalled, and never an empty one.
+
+    A passage whose origin is unknown can never be cited (SPEC.md 3.2, 3.7). Recall runs every
+    turn, so what an earlier turn recalled is already here and keeps its place.
+    """
+    recalled_sources = (
+        knowledge_result.source for knowledge_result in knowledge
+        if knowledge_result.source and not knowledge_result.source.isspace())
+
+    return tuple(dict.fromkeys((*grounding_sources, *recalled_sources)))
