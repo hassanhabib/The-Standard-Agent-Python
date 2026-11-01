@@ -14,6 +14,7 @@ import asyncio
 from collections import deque
 from unittest.mock import create_autospec
 
+from standard_agents.brokers.approvals.approval_broker import ApprovalDecision
 from standard_agents.brokers.effects.file_effect_ledger_broker import FileEffectLedgerBroker
 from standard_agents.brokers.knowledges.knowledge_broker import KnowledgeBroker
 from standard_agents.brokers.memories.memory_broker import MemoryBroker
@@ -43,6 +44,14 @@ class _CountingTool(Tool):
         self.execution_count += 1
 
         return "transfer complete"
+
+
+async def _pending(effect):
+    return ApprovalDecision.PENDING
+
+
+async def _approved(effect):
+    return ApprovalDecision.APPROVED
 
 
 def _new_process(working_path, tool: _CountingTool, *replies: str) -> StandardAgent:
@@ -114,3 +123,33 @@ async def test_should_record_the_run_on_the_session_before_any_work(tmp_path):
     # then: an identity recorded only on success is one the failure case can never use
     assert actual_session is not None
     assert actual_session.run_id != ""
+
+
+async def test_should_perform_a_held_act_once_the_authority_approves_it(tmp_path):
+    # given: the first process proposes the transfer and the authority has not answered yet
+    tool = _CountingTool()
+
+    held = await (_new_process(tmp_path, tool, "ACTION: wire_transfer: 10000")
+        .require_approval("wire_transfer")
+        .on_approval(_pending)
+        .process_prompt("pay the invoice", session_id="invoice-95"))
+
+    assert "waiting for approval" in held
+    assert tool.execution_count == 0
+
+    # when: the authority says yes, and a second process resumes the run
+    resumed_tool = _CountingTool()
+
+    actual_result = await (_new_process(
+        tmp_path,
+        resumed_tool,
+        "ACTION: wire_transfer: 10000",
+        "FINAL: paid")
+            .require_approval("wire_transfer")
+            .on_approval(_approved)
+            .process_prompt("yes, approve it", session_id="invoice-95"))
+
+    # then: a held act is one that still has to be able to happen; an approval that arrives
+    # after the claim was left standing is an approval that can never be used
+    assert resumed_tool.execution_count == 1
+    assert actual_result == "paid"
