@@ -16,7 +16,9 @@ from standard_agents.brokers.memories.memory_broker import MemoryBroker
 from standard_agents.brokers.skills.skill_broker import SkillBroker
 from standard_agents.brokers.verifiers.verifier_broker import VerifierBroker
 from standard_agents.models.foundations.skills.skill import Skill
+from standard_agents.models.orchestrations.effects.risk_level import RiskLevel
 from standard_agents.standard_agent import StandardAgent
+from standard_agents.tools.tool import Tool
 
 
 @pytest.fixture
@@ -126,5 +128,24 @@ def create_fully_stubbed_agent(
             .use_judge(passing_verifier_broker)
             .use_mcp(create_mcp_broker())
             .use_logging(logging_broker))
+
+    return create
+
+
+@pytest.fixture
+def create_tool():
+    """A tool as a loose Moq mock of it answers: what is arranged, and null for the rest."""
+
+    def create(name: str, description: str | None = None, parameters: str | None = None) -> Tool:
+        tool = create_autospec(Tool, instance=True)
+        tool.name = name
+        tool.description = description
+        tool.parameters = parameters
+        tool.risk = RiskLevel.SAFE
+        tool.narration_starting = None
+        tool.narration_observed = None
+        tool.scope_of.return_value = None
+
+        return tool
 
     return create

@@ -254,3 +254,32 @@ async def test_should_use_custom_brain_on_process_prompt(create_skill_broker, em
 
     # then
     assert actual_result == expected_answer
+
+
+async def test_should_advertise_only_described_tools_at_tools_marker_on_process_prompt(
+        create_skill_broker,
+        empty_memory_broker,
+        create_generator_broker,
+        create_tool):
+
+    # given
+    generator_broker = create_generator_broker("FINAL: done")
+    described_tool = create_tool("calculator", "Evaluate arithmetic.", "{}")
+    hidden_tool = create_tool("secret", "")
+
+    agent = (StandardAgent()
+        .use_skills(create_skill_broker(Skill(content="Tools:\n{{tools}}")))
+        .use_memory(empty_memory_broker)
+        .use_generator(generator_broker)
+        .tool(described_tool)
+        .tool(hidden_tool))
+
+    # when
+    await agent.process_prompt(prompt="compute something")
+
+    # then
+    captured_system_prompt = generator_broker.generate.call_args.args[0]
+
+    assert "calculator" in captured_system_prompt
+    assert "secret" not in captured_system_prompt
+    assert "{{tools}}" not in captured_system_prompt
