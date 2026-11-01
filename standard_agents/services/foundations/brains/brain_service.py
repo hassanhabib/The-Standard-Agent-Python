@@ -5,6 +5,9 @@
 
 from standard_agents.brokers.generators.igenerator_broker import IGeneratorBroker
 from standard_agents.brokers.loggings.ilogging_broker import ILoggingBroker
+from standard_agents.services.foundations.brains.brain_service_exceptions import try_catch
+from standard_agents.services.foundations.brains.brain_service_validations import (
+    validate_user_prompt)
 from standard_agents.services.foundations.brains.ibrain_service import IBrainService
 
 
@@ -18,4 +21,9 @@ class BrainService(IBrainService):
         self.logging_broker = logging_broker
 
     async def generate(self, system_prompt: str, user_prompt: str) -> str:
-        return await self.generator_broker.generate(system_prompt, user_prompt)
+        async def returning_string_function() -> str:
+            validate_user_prompt(user_prompt)
+
+            return await self.generator_broker.generate(system_prompt, user_prompt)
+
+        return await try_catch(self.logging_broker, returning_string_function)
