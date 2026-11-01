@@ -301,3 +301,24 @@ async def test_should_start_a_new_session_when_the_server_forgets_the_old_one():
     assert header_of(reinitialize, "Mcp-Session-Id") is None
 
     assert header_of(server.requests[-1], "Mcp-Session-Id") == "session-2"
+
+
+async def test_should_carry_on_without_a_session_when_the_server_has_no_initialize():
+    # given: a server older than the lifecycle: it knows its tools, not initialize
+    server = ScriptedServerHandler(lambda request, body: (
+        ScriptedServerHandler.json(
+            http.HTTPStatus.OK,
+            '{"jsonrpc":"2.0","id":1,"error":{"code":-32601,"message":"Method not found"}}')
+        if '"initialize"' in body
+        else ScriptedServerHandler.json(
+            http.HTTPStatus.OK,
+            '{"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"lookup"}]}}')))
+
+    broker = create_broker(server)
+
+    # when
+    actual_tools = await broker.list_tools()
+
+    # then: its tools still reach the agent, and nothing announces a session that never opened
+    assert [tool.name for tool in actual_tools] == ["lookup"]
+    assert not any("notifications/initialized" in body for body in server.bodies)
