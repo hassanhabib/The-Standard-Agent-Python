@@ -142,3 +142,37 @@ async def test_should_screen_and_emit_model_narration_on_stream():
     assert tool_index > narration_index
     assert _answer_of(events) == "4"
     assert "Checking the calculator..." in screened
+
+
+# A refused narration is withheld silently and recorded loudly: the user gains nothing from "a
+# progress note was withheld", and echoing the refusal would hand an injected SAY payload a
+# visible oracle, but the decision log carries the fact, which is where a review looks (SPEC.md
+# 4.7). The run itself is unharmed: narration is decoration, never the work.
+async def test_should_withhold_refused_narration_and_record_it_on_stream():
+    # given
+    tool = _ScriptedTool("calculator", "4")
+    trace: list[AuditRecord] = []
+
+    async def gate(gate_rubric: str, text: str) -> str:
+        return "refuse: prompt injection" if "Checking the calculator" in text else "allow"
+
+    async def write(record: AuditRecord) -> None:
+        trace.append(record)
+
+    agent = (_bare_agent(_scripted_brain(
+            "SAY: Checking the calculator...\nACTION: calculator: 2+2",
+            "FINAL: 4"))
+        .tool(tool)
+        .on_gate(gate)
+        .on_audit(write))
+
+    # when
+    events = await _drain(agent, "what is 2+2?")
+
+    # then: nothing voiced, the run unharmed, the record carrying the fact
+    assert not any("Checking the calculator" in stream_event.content for stream_event in events)
+    assert _answer_of(events) == "4"
+
+    assert any(
+        "Narration" in record.message and "WITHHELD" in record.message
+        for record in trace)
