@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -41,6 +42,21 @@ class SkillService:
                     selected_skills = routed_skills
 
             return _SKILL_SEPARATOR.join(skill.content for skill in selected_skills)
+
+    async def retrieve_skill_catalog(self) -> str:
+        """One line per described skill, in name order: its name and what it is for."""
+        async with _handling_exceptions(self.logging_broker):
+            skills = await self.skill_broker.select_skills()
+
+            described_skills = sorted(
+                (skill for skill in skills
+                    if skill.description and not skill.description.isspace()),
+                key=_ordinal_name)
+
+            catalog_entries = (
+                f"- {skill.name} \u2014 {skill.description}" for skill in described_skills)
+
+            return os.linesep.join(catalog_entries)
 
 
 def _ordinal_name(skill: Skill) -> bytes:
