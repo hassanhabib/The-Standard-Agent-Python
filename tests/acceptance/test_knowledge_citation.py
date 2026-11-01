@@ -238,3 +238,16 @@ async def test_should_cite_when_the_request_asks_and_the_agent_expressed_no_opin
 
     # then
     assert actual_result.endswith(f"Source: {_REFUNDS_SOURCE}\nSource: {_SHIPPING_SOURCE}")
+
+
+# A deployment that must cite, a regulated answer, cannot be switched off by a caller.
+async def test_should_keep_citing_when_the_deployment_requires_it_and_the_request_declines():
+    # given
+    agent = _grounded_agent(_answering(_ANSWER)).cite_knowledge()
+    request = PromptRequest(prompt="what is the refund window?", cite_knowledge=False)
+
+    # when
+    actual_result = await agent.process_prompt(request)
+
+    # then
+    assert actual_result.endswith(f"Source: {_REFUNDS_SOURCE}\nSource: {_SHIPPING_SOURCE}")
