@@ -41,11 +41,12 @@ class BrainService:
 
         return await self.generator_broker.generate(system_prompt, user_prompt)
 
-    def generate_stream(
+    async def generate_stream(
             self,
             system_prompt: str,
             user_prompt: str,
             *,
             inference: ResolvedInference | None = None) -> AsyncIterator[str]:
 
-        raise NotImplementedError
+        async for token in self.generator_broker.generate_stream(system_prompt, user_prompt):
+            yield token
