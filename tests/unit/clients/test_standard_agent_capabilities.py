@@ -133,3 +133,18 @@ def test_should_only_waive_capability_modes_that_cannot_exist():
         and ":" in capability.waiver
         and len(capability.waiver.split(":")[-1].strip()) > 10
         for capability in actual_waived)
+
+
+# The sharpest hole the sweep found in this file: a capability declared with no Local and no
+# waiver was silently unasserted: the Local row was skipped and the waiver-set equivalence still
+# passed, so the omission was exactly the one nobody sees. Derived, not enumerated: any future
+# row that skips a mode without saying why fails here.
+def test_should_waive_every_mode_it_skips():
+    # given, when
+    silent_omissions = [
+        capability for capability in CAPABILITIES
+        if capability.local is None and capability.waiver is None]
+
+    # then: a mode that genuinely does not apply is waived in code with its reason; an unwaived
+    # omission is the erosion this matrix exists to prevent
+    assert silent_omissions == []
