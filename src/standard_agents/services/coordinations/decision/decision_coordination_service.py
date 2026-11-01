@@ -5,11 +5,13 @@
 
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import AsyncIterator, Callable
 from contextlib import aclosing
 
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.models.clients.agents.agent_stream_event import AgentStreamEvent
+from standard_agents.models.clients.agents.agent_stream_event_type import AgentStreamEventType
 from standard_agents.models.orchestrations.agents.agent_context import AgentContext
 from standard_agents.services.coordinations.decision.decision_stream import DecisionStream
 from standard_agents.services.orchestrations.decision.guardians.guardian_orchestration_service \
@@ -17,6 +19,8 @@ from standard_agents.services.orchestrations.decision.guardians.guardian_orchest
 from standard_agents.services.orchestrations.decision.inferences.inference_orchestration_service \
     import InferenceOrchestrationService
 
+_REFUSE_VERDICT = "refuse"
+_REFUSE_DIRECTION = "Refuse"
 
 class DecisionCoordinationService:
     """The Decision nature: two regions, and the judgment between them.
@@ -62,6 +66,16 @@ class DecisionCoordinationService:
             context: AgentContext,
             set_result: Callable[[AgentContext], None]) -> AsyncIterator[AgentStreamEvent]:
 
+        verdict = await self.guardian_service.screen(context.prompt)
+        refused = await self._refused_by_gate(context, verdict)
+
+        if refused is not None:
+            set_result(refused)
+
+            yield AgentStreamEvent(AgentStreamEventType.STATUS, "gate refused the request")
+
+            return
+
         decided = context
 
         def set_decided(interpreted: AgentContext) -> None:
@@ -75,3 +89,14 @@ class DecisionCoordinationService:
                 yield segment
 
         set_result(decided)
+
+    async def _refused_by_gate(self, context: AgentContext, verdict: str) -> AgentContext | None:
+        """The Gate's refusal, handled once for both doors, or None when the Gate did not refuse."""
+        if not _is_refusal(verdict):
+            return None
+
+        return dataclasses.replace(context, direction_type=_REFUSE_DIRECTION)
+
+
+def _is_refusal(verdict: str) -> bool:
+    return verdict.startswith(_REFUSE_VERDICT)
