@@ -12,7 +12,7 @@ import json
 
 import pytest
 
-from restfulsense.exceptions import HttpRequestException
+from restfulsense.exceptions import HttpRequestException, HttpResponseTooManyRequestsException
 from standard_agents.brokers.generators.openai_generator_broker import OpenAiGeneratorBroker
 from tests.wire.scripted_server_handler import ScriptedServerHandler, header_of
 
@@ -117,3 +117,16 @@ async def test_should_throw_on_a_throttled_stream_before_reading_any_frame():
         await stream()
 
     assert raised.value.status_code == http.HTTPStatus.TOO_MANY_REQUESTS
+
+
+async def test_should_throw_the_typed_rest_exception_on_a_throttled_completion():
+    # given: the batched door rides RESTFulSense, which types the status
+    server = ScriptedServerHandler.answering_with(
+        http.HTTPStatus.TOO_MANY_REQUESTS,
+        '{"error":{"message":"slow down"}}')
+
+    broker = create_broker(server)
+
+    # when, then
+    with pytest.raises(HttpResponseTooManyRequestsException):
+        await broker.generate("be brief", "what is owed?")
