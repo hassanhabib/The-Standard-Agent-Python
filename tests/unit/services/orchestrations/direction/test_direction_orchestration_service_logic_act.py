@@ -48,3 +48,32 @@ class TestDirectionOrchestrationServiceLogicAct(DirectionOrchestrationServiceTes
         ]
 
         assert self.internal_tool_service_mock.mock_calls == []
+
+    def test_should_act_by_running_tool_and_observing_its_outcome(self) -> None:
+        # given
+        random_tool_name = self.create_random_string()
+        input_context = self.create_random_context(random_tool_name)
+        returned_outcome = self.create_random_string()
+
+        expected_context = dataclasses.replace(
+            copy.deepcopy(input_context),
+            observations=input_context.observations + (
+                f"{random_tool_name} returned: {returned_outcome}",),
+            result=returned_outcome,
+            status=AgentStatus.WORKING)
+
+        self.internal_tool_service_mock.handles.return_value = True
+        self.internal_tool_service_mock.run.return_value = returned_outcome
+
+        # when
+        actual_context = asyncio.run(self.direction_orchestration_service.act(input_context))
+
+        # then
+        assert actual_context == expected_context
+
+        assert self.internal_tool_service_mock.mock_calls == [
+            call.handles(random_tool_name),
+            call.run(random_tool_name, input_context.payload)
+        ]
+
+        assert self.return_service_mock.mock_calls == []
