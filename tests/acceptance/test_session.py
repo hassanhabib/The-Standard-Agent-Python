@@ -97,3 +97,21 @@ async def test_should_resume_a_conversation_on_a_different_agent_instance(tmp_pa
 
     # then
     assert "Paris" in captured_prompts[-1]
+
+
+async def test_should_keep_sessions_separate(tmp_path):
+    # given
+    captured_prompts = []
+
+    agent = _new_agent(
+        str(tmp_path / "sessions"),
+        answer_for=lambda user_prompt: "FINAL: Paris",
+        capture=captured_prompts.append)
+
+    await agent.process_prompt("what is the capital of France?", session_id="alice")
+
+    # when: a different conversation entirely
+    await agent.process_prompt("what is the capital of Japan?", session_id="bob")
+
+    # then: bob never sees alice's exchange
+    assert "France" not in captured_prompts[-1]
