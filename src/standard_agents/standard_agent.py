@@ -8,6 +8,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import urllib.parse
 import warnings
 from collections.abc import AsyncIterator, Awaitable, Callable
 from datetime import timedelta
@@ -55,7 +56,9 @@ from standard_agents.brokers.verifiers.verifier_broker import VerifierBroker
 from standard_agents.models.brokers.generators.resolved_inference import ResolvedInference
 from standard_agents.models.clients.agents.agent_outcome import AgentOutcome
 from standard_agents.models.clients.agents.agent_stream_event import AgentStreamEvent
-from standard_agents.models.clients.agents.exceptions import InvalidAgentCompositionException
+from standard_agents.models.clients.agents.exceptions import (
+    InvalidAgentApiUrlException,
+    InvalidAgentCompositionException)
 from standard_agents.models.clients.agents.inference_settings import InferenceSettings
 from standard_agents.models.clients.agents.prompt_request import PromptRequest
 from standard_agents.models.loggings.trace_verbosity import TraceVerbosity
@@ -175,6 +178,8 @@ class StandardAgent(Agent):
             temperature: float | None = None,
             max_tokens: int | None = None,
             timeout_seconds: int = 120) -> StandardAgent:
+
+        _validate_api_url(api_url)
 
         self._brain_settings = InferenceSettings(
             api_url, api_key, model, temperature, max_tokens, timeout_seconds)
@@ -469,3 +474,22 @@ def _read_optional_file(file: FileBroker, path: str) -> str:
     full_path = os.path.join(os.getcwd(), path)
 
     return file.read_file_sync(full_path) if file.file_exists(full_path) else ""
+
+
+def _validate_api_url(api_url: str) -> None:
+    # An endpoint is the base the route is appended to, so its shape is load-bearing. Without the
+    # trailing '/' the route resolves against the parent ('https://host/v1' reaches
+    # 'https://host/chat/completions'), and a base that already names chat/completions reaches
+    # 'v1/chat/chat/completions' (principal review 2026-09-04, F-12). Both fail at the first
+    # prompt with a 404 that blames the provider.
+    endpoint = urllib.parse.urlsplit(api_url)
+    is_absolute_http = endpoint.scheme in ("http", "https") and bool(endpoint.netloc)
+    names_the_route = api_url.rstrip("/").lower().endswith("/chat/completions")
+
+    if not is_absolute_http or not api_url.endswith("/") or names_the_route:
+        raise InvalidAgentApiUrlException(
+            message=(
+                "Invalid agent API URL. An endpoint is the base the route is appended to: an "
+                + "absolute http(s) URL ending with '/', such as "
+                + "https://api.peerllm.com/v1/, that does not name chat/completions "
+                + "itself."))
