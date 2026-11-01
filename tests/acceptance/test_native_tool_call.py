@@ -234,3 +234,49 @@ async def test_should_report_native_usage_for_the_budget():
 
     # then: reported usage is what the budget measures, not an estimate
     assert "token budget" in actual_result
+
+
+# Found in the 2026-09-04 principal review (F-03): native tool definitions were built from local
+# tools only, so a native brain was never told a remote tool existed. A described remote tool is
+# advertised as a native definition carrying its schema, and a native call naming it routes to
+# its server with the arguments as written.
+async def test_should_advertise_described_remote_tools_natively_and_route_the_call():
+    # given
+    weather_schema = '{"type":"object","properties":{"city":{"type":"string"}}}'
+    weather_arguments = '{"city":"Seattle"}'
+    server = create_autospec(McpBroker, instance=True)
+
+    server.list_tools.return_value = [
+        McpTool("weather", "answers weather questions", weather_schema)]
+
+    # A loose Moq mock answers an unarranged call with null.
+    server.call.side_effect = (
+        lambda name, arguments_json:
+            "sunny" if (name, arguments_json) == ("weather", weather_arguments) else None)
+
+    offered_definitions: list[Sequence[ToolDefinition]] = [[]]
+    tool = _CalculatorTool()
+
+    def reply(tools: Sequence[ToolDefinition], turn: int) -> GenerationResult:
+        offered_definitions[0] = tools
+
+        if turn == 0:
+            return GenerationResult(tool_calls=(
+                ModelToolCall(id="call_1", name="weather", arguments_json=weather_arguments),))
+
+        return GenerationResult(content="It is sunny in Seattle.")
+
+    agent = _agent_with(tool, reply).use_mcp(server)
+
+    # when
+    actual_result = await agent.process_prompt("what is the weather in Seattle?")
+
+    # then: the remote tool was offered natively with its schema, and its call reached it
+    assert any(
+        definition.name == "weather"
+        and definition.description == "answers weather questions"
+        and definition.parameters_json == weather_schema
+        for definition in offered_definitions[0])
+
+    assert server.call.await_args_list.count(call("weather", weather_arguments)) == 1
+    assert actual_result == "It is sunny in Seattle."
