@@ -520,3 +520,16 @@ def test_should_throw_invalid_agent_configuration_exception_on_from_json_if_a_co
         document,
         f"'{key}' lists nothing. A control that lists nothing is not a control: remove the "
         + "key, or list what it should hold.")
+
+
+@pytest.mark.parametrize("document", [
+    '{ "citeKnowledge": 1 }',
+    '{ "citeKnowledge": "" }',
+    '{ "citeKnowledge": { "prefix": "Source: " } }',
+])
+def test_should_throw_invalid_agent_configuration_exception_on_from_json_if_citation_is_not_a_flag_or_a_prefix(
+        document):
+
+    should_refuse(
+        document,
+        "'citeKnowledge' must be true, false, or the text each citation line starts with.")
