@@ -6,6 +6,7 @@
 import pytest
 
 from standard_agents.models.clients.agents.exceptions import InvalidAgentCompositionException
+from standard_agents.models.foundations.skills.skill import Skill
 from standard_agents.models.loggings.trace_verbosity import TraceVerbosity
 from standard_agents.standard_agent import StandardAgent
 
@@ -101,3 +102,31 @@ async def test_should_throw_composition_exception_on_process_prompt_if_brain_is_
 
     # then
     assert "no brain" in raised.value.message
+
+
+async def test_should_compose_on_process_prompt_if_generator_is_swapped_without_brain_settings(
+        create_skill_broker,
+        create_generator_broker,
+        allowing_classifier_broker,
+        passing_verifier_broker,
+        empty_memory_broker,
+        empty_knowledge_broker,
+        create_mcp_broker,
+        logging_broker):
+
+    # given
+    agent = (StandardAgent()
+        .use_skills(create_skill_broker(Skill(content="skills")))
+        .use_generator(create_generator_broker("FINAL: ok"))
+        .use_gate(allowing_classifier_broker)
+        .use_judge(passing_verifier_broker)
+        .use_memory(empty_memory_broker)
+        .use_knowledge(empty_knowledge_broker)
+        .use_mcp(create_mcp_broker())
+        .use_logging(logging_broker))
+
+    # when
+    actual_result = await agent.process_prompt(prompt="prompt")
+
+    # then
+    assert actual_result == "ok"
