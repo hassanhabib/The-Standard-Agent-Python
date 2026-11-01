@@ -202,3 +202,30 @@ def test_should_throw_invalid_agent_configuration_exception_on_from_json_if_cost
 
     # then
     assert raised.value.same_exception_as(expected_invalid_agent_configuration_exception)
+
+
+# The document reaches the same verb code does, so the same URL shape is refused, and the refusal
+# names the entry, because the author is looking at a JSON file, not a stack trace.
+def test_should_throw_invalid_agent_configuration_exception_on_from_json_if_brain_api_url_is_invalid():
+    # given
+    invalid_agent_api_url_exception = InvalidAgentApiUrlException(
+        message=(
+            "Invalid agent API URL. An endpoint is the base the route is appended to: an "
+            + "absolute http(s) URL ending with '/', such as "
+            + "https://api.peerllm.com/v1/, that does not name chat/completions "
+            + "itself."))
+
+    expected_invalid_agent_configuration_exception = InvalidAgentConfigurationException(
+        message=(
+            "The 'brain' entry's 'apiUrl' is not an endpoint base the route can be "
+            + "appended to. " + invalid_agent_api_url_exception.message),
+        inner_exception=invalid_agent_api_url_exception)
+
+    # when
+    with pytest.raises(InvalidAgentConfigurationException) as raised:
+        StandardAgent.from_json(
+            '{ "brain": { "apiUrl": "http://localhost:11434/v1/chat/completions", '
+            + '"apiKey": "k", "model": "m" } }')
+
+    # then
+    assert raised.value.same_exception_as(expected_invalid_agent_configuration_exception)
