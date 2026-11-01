@@ -48,6 +48,9 @@ class DirectionOrchestrationService(IDirectionOrchestrationService):
     # Return to the caller when the decision ends the run; otherwise act through a tool the agent
     # owns, and let the next turn see what came of it.
     async def act_on(self, context: AgentContext) -> AgentContext:
+        if context.direction_type == "":
+            return context
+
         terminal_status = TERMINAL_STATUSES.get(context.direction_type.lower())
 
         if terminal_status is not None:

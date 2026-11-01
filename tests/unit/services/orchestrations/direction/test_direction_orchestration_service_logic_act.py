@@ -106,3 +106,18 @@ class TestDirectionOrchestrationServiceLogicAct(DirectionOrchestrationServiceTes
         ]
 
         assert self.return_service_mock.mock_calls == []
+
+    # A turn whose draft the Judge sent back decided nothing; there is nothing to route, so the
+    # turn ends as it came, still working, and no foundation is asked anything.
+    def test_should_act_on_nothing_when_nothing_was_decided(self) -> None:
+        # given
+        input_context = self.create_random_context("")
+        expected_context = copy.deepcopy(input_context)
+
+        # when
+        actual_context = asyncio.run(self.direction_orchestration_service.act(input_context))
+
+        # then
+        assert actual_context == expected_context
+        assert self.internal_tool_service_mock.mock_calls == []
+        assert self.return_service_mock.mock_calls == []
