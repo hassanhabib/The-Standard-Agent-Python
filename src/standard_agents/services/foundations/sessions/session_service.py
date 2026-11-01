@@ -81,6 +81,9 @@ async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[N
     except InvalidSessionException as invalid_session_exception:
         raise await _create_and_log_validation_exception(
             logging_broker, invalid_session_exception)
+    except (FileNotFoundError, NotADirectoryError, PermissionError) as critical_error:
+        raise await _create_and_log_critical_dependency_exception(
+            logging_broker, critical_error)
     except DBConcurrencyException as db_concurrency_exception:
         stale_session_exception = StaleSessionException(
             message="The session was written by another prompt since it was read; "
@@ -104,6 +107,16 @@ async def _create_and_log_validation_exception(
     await logging_broker.log_error(session_validation_exception)
 
     return session_validation_exception
+
+
+async def _create_and_log_critical_dependency_exception(
+        logging_broker: LoggingBroker,
+        exception: Exception) -> SessionDependencyException:
+
+    session_dependency_exception = _create_dependency_exception(exception)
+    await logging_broker.log_critical(session_dependency_exception)
+
+    return session_dependency_exception
 
 
 async def _create_and_log_dependency_validation_exception(
