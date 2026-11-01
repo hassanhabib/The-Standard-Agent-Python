@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 from collections.abc import Sequence
 
@@ -29,6 +30,12 @@ class MemoryService:
         self.memory_path = memory_path
         self.logging_broker = logging_broker
 
+        # Appends are serialized: two callers remembering at once write to the file at the same
+        # moment and one memory can be lost (principal review 2026-09-04, F-05). Per instance,
+        # because the file is per instance; a store shared across processes is a memory
+        # broker's job, not this file's.
+        self._memory_file_lock = asyncio.Lock()
+
     async def recall_memories(self) -> Sequence[str]:
         if self.file_broker is not None:
             return await self._select_memories_from_file(self.file_broker)
@@ -48,5 +55,6 @@ class MemoryService:
         return await file_broker.read_all_lines(self.memory_path)
 
     async def _insert_memory_into_file(self, file_broker: FileBroker, memory: str) -> None:
-        file_broker.create_directory(os.path.dirname(self.memory_path))
-        await file_broker.append_all_lines(self.memory_path, (memory,))
+        async with self._memory_file_lock:
+            file_broker.create_directory(os.path.dirname(self.memory_path))
+            await file_broker.append_all_lines(self.memory_path, (memory,))
