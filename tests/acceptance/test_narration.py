@@ -206,3 +206,30 @@ async def test_should_voice_tool_narration_floor_when_model_says_nothing_on_stre
     assert starting_index > -1
     assert observed_index > starting_index
     assert tool_index > observed_index
+
+
+# Model narration beats the template for the pre-act slot: the model's grounded prose is the
+# ceiling, the tool's template only the floor. The observed slot is never overridden: a SAY line
+# speaks for the act, not for its outcome.
+async def test_should_prefer_model_narration_over_tool_template_on_stream():
+    # given
+    agent = (_bare_agent(_scripted_brain(
+            "SAY: Let me check the calculator...\nACTION: calculator: 2+2",
+            "FINAL: 4"))
+        .tool(_NarratingTool()))
+
+    # when
+    events = await _drain(agent, "what is 2+2?")
+
+    # then
+    assert any(
+        stream_event.type is AgentStreamEventType.NARRATION
+        and stream_event.content == "Let me check the calculator..."
+        for stream_event in events)
+
+    assert not any("Searching with" in stream_event.content for stream_event in events)
+
+    assert any(
+        stream_event.type is AgentStreamEventType.NARRATION
+        and stream_event.content == "Got results from calculator."
+        for stream_event in events)
