@@ -8,7 +8,8 @@ from standard_agents.brokers.tools.itool_broker import IToolBroker
 from standard_agents.services.foundations.internal_tools.iinternal_tool_service import (
     IInternalToolService)
 from standard_agents.services.foundations.internal_tools.internal_tool_service_exceptions import (
-    try_catch_returning_boolean)
+    try_catch_returning_boolean,
+    try_catch_returning_string)
 from standard_agents.services.foundations.internal_tools.internal_tool_service_validations import (
     validate_name)
 
@@ -29,3 +30,11 @@ class InternalToolService(IInternalToolService):
             return await self.tool_broker.has(name)
 
         return await try_catch_returning_boolean(self.logging_broker, returning_boolean_function)
+
+    async def run(self, name: str, input: str) -> str:
+        async def returning_string_function() -> str:
+            validate_name(name)
+
+            return await self.tool_broker.run(name, input)
+
+        return await try_catch_returning_string(self.logging_broker, returning_string_function)

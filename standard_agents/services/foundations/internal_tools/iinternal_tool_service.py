@@ -9,3 +9,6 @@ from abc import ABC, abstractmethod
 class IInternalToolService(ABC):
     @abstractmethod
     async def handles(self, name: str) -> bool: ...
+
+    @abstractmethod
+    async def run(self, name: str, input: str) -> str: ...
