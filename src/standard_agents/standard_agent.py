@@ -48,6 +48,7 @@ from standard_agents.brokers.usages.ratio_usage_broker import RatioUsageBroker
 from standard_agents.brokers.usages.usage_broker import UsageBroker
 from standard_agents.brokers.verifiers.not_configured_verifier_broker import (
     NotConfiguredVerifierBroker)
+from standard_agents.brokers.verifiers.function_verifier_broker import FunctionVerifierBroker
 from standard_agents.brokers.verifiers.verifier_broker import VerifierBroker
 from standard_agents.models.brokers.generators.resolved_inference import ResolvedInference
 from standard_agents.models.clients.agents.agent_outcome import AgentOutcome
@@ -56,7 +57,11 @@ from standard_agents.models.clients.agents.exceptions import InvalidAgentComposi
 from standard_agents.models.clients.agents.inference_settings import InferenceSettings
 from standard_agents.models.clients.agents.prompt_request import PromptRequest
 from standard_agents.models.loggings.trace_verbosity import TraceVerbosity
-from standard_agents.prompts.guardian_prompts import gate_contract, gate_policy
+from standard_agents.prompts.guardian_prompts import (
+    gate_contract,
+    gate_policy,
+    judge_contract,
+    judge_policy)
 from standard_agents.services.coordinations.data.data_coordination_service import (
     DataCoordinationService)
 from standard_agents.services.coordinations.decision.decision_coordination_service import (
@@ -117,6 +122,7 @@ class StandardAgent(Agent):
         self._usage_broker: UsageBroker = RatioUsageBroker()
         self._brain_settings: InferenceSettings | None = None
         self._local_gate_screen: Callable[[str, str], Awaitable[str]] | None = None
+        self._local_judge_evaluate: Callable[[str, str], Awaitable[str]] | None = None
         self._memory_path = "memory.txt"
         self._knowledge_path = "Knowledge"
         self._log_path = ""
@@ -178,6 +184,11 @@ class StandardAgent(Agent):
 
     def on_gate(self, screen: Callable[[str, str], Awaitable[str]]) -> StandardAgent:
         self._local_gate_screen = screen
+
+        return self
+
+    def on_judge(self, evaluate: Callable[[str, str], Awaitable[str]]) -> StandardAgent:
+        self._local_judge_evaluate = evaluate
 
         return self
 
@@ -284,9 +295,14 @@ class StandardAgent(Agent):
         else:
             classifier = NotConfiguredClassifierBroker()
 
-        verifier = (
-            self._verifier_broker if self._verifier_broker is not None
-            else NotConfiguredVerifierBroker())
+        judge_rubric = compose_guardian_rubric("", judge_policy(), judge_contract())
+
+        if self._verifier_broker is not None:
+            verifier = self._verifier_broker
+        elif self._local_judge_evaluate is not None:
+            verifier = FunctionVerifierBroker(self._local_judge_evaluate, judge_rubric)
+        else:
+            verifier = NotConfiguredVerifierBroker()
 
         tool_broker = InMemoryToolBroker(all_tools)
 
