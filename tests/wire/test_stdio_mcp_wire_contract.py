@@ -71,3 +71,37 @@ async def test_should_initialize_over_standard_input_before_the_first_request():
 
     assert all("\n" not in line for line in server.lines)
     assert actual_tools == expected_tools
+
+
+async def test_should_skip_what_is_not_its_answer_and_answer_the_pings_of_the_server():
+    # given: a server that, before answering, logs a line to its output, sends a notification,
+    # and pings the client with an id that collides with the client's own
+    def respond(message):
+        method = message.get("method")
+
+        if method == "initialize":
+            return answer_initialize(message)
+
+        if method == "tools/list":
+            return answer(
+                message,
+                "server ready on stdio",
+                '{"jsonrpc":"2.0","method":"notifications/message","params":{"level":"info"}}',
+                '{"jsonrpc":"2.0","id":{id},"method":"ping"}',
+                '{"jsonrpc":"2.0","id":{id},"result":{"tools":[{"name":"find_student"}]}}')
+
+        return []
+
+    server = ScriptedStdioServer(respond)
+    broker = create_broker(server)
+
+    # when
+    actual_tools = await broker.list_tools()
+
+    # then: the answer is found past the noise, and the ping was answered
+    assert [tool.name for tool in actual_tools] == ["find_student"]
+
+    pong = json.loads(server.lines[-1])
+    assert pong["id"] == 2
+    assert isinstance(pong["result"], dict)
+    assert pong.get("method") is None
