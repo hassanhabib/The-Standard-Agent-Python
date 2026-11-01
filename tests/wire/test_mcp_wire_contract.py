@@ -414,3 +414,22 @@ async def test_should_ask_the_token_provider_on_every_request():
     # then: the provider wins over the static token, and every request asked again
     assert header_of(server.requests[0], "Authorization") == "Bearer token-1"
     assert header_of(server.requests[1], "Authorization") == "Bearer token-2"
+
+
+# No C# twin: IsResponse reads event data as blank with string.IsNullOrWhiteSpace, which does
+# not count U+001C to U+001F as white space, so an event carrying only a file separator is
+# parsed, and JsonNode.Parse refuses it, before any later event is read.
+async def test_should_throw_json_exception_on_an_event_whose_data_is_a_file_separator():
+    # given
+    server = ScriptedServerHandler.answering(
+        "data: \x1c\n"
+        + "\n"
+        + 'data: {"jsonrpc":"2.0","id":1,"result":{"tools":[{"name":"lookup"}]}}\n'
+        + "\n",
+        media_type="text/event-stream")
+
+    broker = create_broker(server)
+
+    # when, then
+    with pytest.raises(json.JSONDecodeError):
+        await broker.list_tools()
