@@ -136,6 +136,9 @@ async def _handling_stream_exceptions(logging_broker: LoggingBroker) -> AsyncIte
     except HttpRequestException as http_request_exception:
         raise await _create_and_log_unreachable_exception(
             logging_broker, http_request_exception)
+    except Exception as exception:
+        raise await _create_and_log_service_exception(
+            logging_broker, _create_failed_service_exception(exception))
 
 
 async def _create_and_log_validation_exception(
