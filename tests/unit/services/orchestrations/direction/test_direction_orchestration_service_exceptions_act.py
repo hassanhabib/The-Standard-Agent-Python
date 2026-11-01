@@ -8,6 +8,8 @@ import asyncio
 import pytest
 
 from xeptions import Xeption
+from standard_agents.models.foundations.external_tools.exceptions import (
+    ExternalToolValidationException)
 from standard_agents.models.foundations.internal_tools.exceptions import (
     InternalToolDependencyException,
     InternalToolServiceException,
@@ -25,6 +27,7 @@ from tests.unit.services.orchestrations.direction.direction_orchestration_servic
 class TestDirectionOrchestrationServiceExceptionsAct(DirectionOrchestrationServiceTests):
     @pytest.mark.parametrize("dependency_validation_exception_type", [
         InternalToolValidationException,
+        ExternalToolValidationException,
         ReturnValidationException
     ])
     def test_should_raise_dependency_validation_exception_on_act_if_dependency_validation_error_occurs_and_log_it(
