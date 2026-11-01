@@ -114,3 +114,41 @@ async def test_should_record_outcome(
         call.update_record(expected_record)]
 
     assert logging_broker.mock_calls == []
+
+
+async def test_should_record_failure(
+        effect_ledger_service,
+        effect_ledger_broker,
+        time_broker,
+        logging_broker,
+        create_random_string,
+        create_random_effect,
+        create_random_date_time,
+        create_in_flight_record):
+
+    # given: the tool threw; the act's fate is unknown and the record says so
+    random_effect = create_random_effect()
+    random_detail = create_random_string()
+    claimed_on = create_random_date_time()
+    recorded_on = claimed_on + timedelta(seconds=3)
+    in_flight_record = create_in_flight_record(random_effect, claimed_on)
+
+    expected_record = dataclasses.replace(
+        in_flight_record,
+        state=EffectState.FAILED,
+        outcome=None,
+        detail=random_detail,
+        recorded_on=recorded_on)
+
+    time_broker.get_current_date_time.return_value = recorded_on
+    effect_ledger_broker.select_record.return_value = in_flight_record
+
+    # when
+    await effect_ledger_service.record_failure(random_effect, random_detail)
+
+    # then
+    assert effect_ledger_broker.mock_calls == [
+        call.select_record(random_effect.idempotency_key),
+        call.update_record(expected_record)]
+
+    assert logging_broker.mock_calls == []
