@@ -45,3 +45,22 @@ async def test_should_propagate_on_execute_if_nested_agent_throws(nested_agent):
 
     # then
     assert str(raised.value) == "inner agent failed"
+
+
+async def test_should_apply_handoff_template_on_execute(nested_agent, create_random_string):
+    # given
+    random_input = create_random_string()
+    random_answer = create_random_string()
+    handoff = "You are a researcher. Research this and report: {input}"
+    expected_handoff_prompt = f"You are a researcher. Research this and report: {random_input}"
+
+    nested_agent.run.return_value = AgentOutcome(random_answer, AgentStatus.RESPONDED)
+
+    agent_tool = AgentTool(name="researcher", agent=nested_agent, handoff=handoff)
+
+    # when
+    actual_output = await agent_tool.execute(random_input)
+
+    # then
+    assert actual_output == random_answer
+    assert nested_agent.mock_calls == [call.run(expected_handoff_prompt, cancellation=ANY)]
