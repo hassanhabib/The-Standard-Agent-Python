@@ -9,8 +9,10 @@ from xeptions import Xeption
 from standard_agents.brokers.loggings.ilogging_broker import ILoggingBroker
 from standard_agents.models.foundations.brains.exceptions import (
     BrainDependencyException,
+    BrainServiceException,
     BrainValidationException,
     FailedBrainDependencyException,
+    FailedBrainServiceException,
     InvalidBrainException)
 
 
@@ -44,6 +46,27 @@ async def try_catch(
         raise await create_and_log_dependency_exception(
             logging_broker,
             failed_brain_dependency_exception)
+    except Exception as exception:
+        failed_brain_service_exception = FailedBrainServiceException(
+            message="Failed brain service error occurred, contact support.",
+            inner_exception=exception)
+
+        raise await create_and_log_service_exception(
+            logging_broker,
+            failed_brain_service_exception)
+
+
+async def create_and_log_service_exception(
+    logging_broker: ILoggingBroker,
+    exception: Xeption) -> BrainServiceException:
+
+    brain_service_exception = BrainServiceException(
+        message="Brain service error occurred, contact support.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(brain_service_exception)
+
+    return brain_service_exception
 
 
 async def create_and_log_dependency_exception(
