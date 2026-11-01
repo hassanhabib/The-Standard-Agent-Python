@@ -8,8 +8,12 @@
 # response variants and the failure modes of the real wire could drift unseen. These run the
 # real broker against a scripted protocol server and read the bytes.
 
+import http
 import json
 
+import pytest
+
+from restfulsense.exceptions import HttpRequestException
 from standard_agents.brokers.generators.openai_generator_broker_v1 import OpenAiGeneratorBrokerV1
 from standard_agents.models.brokers.generators.v1.conversation import (
     ConversationMessage,
@@ -135,3 +139,21 @@ async def test_should_read_an_answer_without_usage_as_zero_tokens():
 
     # then: reported, not estimated: zero says "the provider did not say"
     assert actual_result == expected_result
+
+
+@pytest.mark.parametrize("status_code", [
+    http.HTTPStatus.TOO_MANY_REQUESTS,
+    http.HTTPStatus.INTERNAL_SERVER_ERROR,
+    http.HTTPStatus.UNAUTHORIZED,
+])
+async def test_should_throw_http_request_exception_on_a_failed_status(status_code):
+    # given: the provider refusing, throttling or failing
+    server = ScriptedServerHandler.answering_with(status_code, '{"error":{"message":"no"}}')
+    broker = create_broker(server)
+
+    # when
+    with pytest.raises(HttpRequestException) as raised:
+        await broker.generate(CONVERSATION, TOOLS)
+
+    # then: a native exception, for the foundation above to localize
+    assert raised.value.status_code == status_code
