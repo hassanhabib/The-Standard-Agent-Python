@@ -194,3 +194,32 @@ async def test_should_not_deny_an_undescribed_tool():
     # then
     assert undescribed.executions == 1
     assert result == "done"
+
+
+# Caller tools are the caller's own vocabulary and are never subject to selection (SPEC.md
+# 4.15): under enforcement, a call naming one still goes back to the caller as a pending effect,
+# classified before the perimeter, so there is nothing here to deny.
+async def test_should_never_deny_a_caller_tool():
+    # given: enforcement on and an offering of nothing; the brain names the CALLER's tool
+    agent = (_agent_with(
+            lambda messages, tools: GenerationResult(
+                content="",
+                tool_calls=(ModelToolCall("call_9", "send_email", '{"to":"jane"}'),)))
+        .on_select_tools(_selecting())
+        .enforce_selection())
+
+    request = PromptRequest(
+        prompt="email jane the report",
+        caller_tools=(
+            ToolDefinition(
+                name="send_email",
+                description="Sends an email from the caller's own outbox.",
+                parameters_json="{}"),))
+
+    # when
+    outcome = await agent.run(request)
+
+    # then: the run paused for the caller rather than denying or refusing
+    assert outcome.status is AgentStatus.AWAITING_INPUT
+    assert outcome.pending_effect is not None
+    assert outcome.pending_effect.tool_name == "send_email"
