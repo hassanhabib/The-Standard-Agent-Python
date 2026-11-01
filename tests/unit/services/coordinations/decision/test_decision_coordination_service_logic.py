@@ -372,3 +372,33 @@ async def test_should_stream_answer_draft_as_thinking_on_think_stream(
     assert streamed_draft == "Hello there!"
     assert decision_stream.result.direction_type == "ReturnResponse"
     assert decision_stream.result.payload == "Hello there!"
+
+
+async def test_should_stream_tool_reasoning_as_thinking_on_think_stream(
+        decision_coordination_service,
+        brain_service,
+        judge_service,
+        create_random_agent_context,
+        setup_gate_allows,
+        to_async_stream,
+        drain):
+
+    # given
+    input_context = create_random_agent_context()
+    setup_gate_allows()
+    brain_service.generate_stream.return_value = to_async_stream("ACTION: cal", "culator: 2+2")
+
+    # when
+    decision_stream = decision_coordination_service.think_stream(input_context)
+    actual_events = await drain(decision_stream)
+
+    # then
+    assert any(
+        stream_event.type is AgentStreamEventType.THINKING for stream_event in actual_events)
+
+    assert not any(
+        stream_event.type is AgentStreamEventType.RESPONSE for stream_event in actual_events)
+
+    assert decision_stream.result.direction_type == "calculator"
+    assert decision_stream.result.payload == "2+2"
+    assert judge_service.evaluate.mock_calls == []
