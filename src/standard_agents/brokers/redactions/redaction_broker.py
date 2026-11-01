@@ -6,17 +6,14 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import Mapping, MutableMapping
 
 
-class IToolBroker(ABC):
+class RedactionBroker(ABC):
     @abstractmethod
-    async def has(self, name: str) -> bool:
+    def redact(self, text: str, vault: MutableMapping[str, str]) -> str:
         ...
 
     @abstractmethod
-    async def run(self, name: str, input: str) -> str:
-        ...
-
-    @abstractmethod
-    async def compensate(self, name: str, input: str, outcome: str) -> str:
+    def rehydrate(self, text: str, vault: Mapping[str, str]) -> str:
         ...

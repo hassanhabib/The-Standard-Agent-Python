@@ -9,7 +9,7 @@ import json
 import os
 from typing import Any
 
-from standard_agents.brokers.effects.ieffect_ledger_broker import IEffectLedgerBroker
+from standard_agents.brokers.effects.effect_ledger_broker import EffectLedgerBroker
 from standard_agents.models.brokers.effects.effect_record import EffectRecord
 
 # JsonSerializerOptions.MaxDepth's default.
@@ -36,7 +36,7 @@ _DATE_TIME_OFFSET_KEYS = frozenset({"claimedOn", "leaseUntil", "recordedOn"})
 # process (SPEC.md 4.9). Local and single-process by design: the atomic claim is the file
 # system's create-new, which one machine honours; a fleet shares a ledger through
 # use_effect_ledger.
-class FileEffectLedgerBroker(IEffectLedgerBroker):
+class FileEffectLedgerBroker(EffectLedgerBroker):
     def __init__(self, ledger_path: str) -> None:
         self._ledger_path = os.path.abspath(ledger_path)
 

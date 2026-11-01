@@ -8,10 +8,10 @@ from __future__ import annotations
 import hashlib
 from typing import Callable
 
-from standard_agents.brokers.audits.iaudit_broker import IAuditBroker
-from standard_agents.brokers.loggings.ilogging_broker import ILoggingBroker
-from standard_agents.brokers.redactions.iredaction_broker import IRedactionBroker
-from standard_agents.brokers.times.itime_broker import ITimeBroker
+from standard_agents.brokers.audits.audit_broker import AuditBroker
+from standard_agents.brokers.loggings.logging_broker import LoggingBroker
+from standard_agents.brokers.redactions.redaction_broker import RedactionBroker
+from standard_agents.brokers.times.time_broker import TimeBroker
 from standard_agents.models.brokers.audits.audit_kind import AuditKind
 from standard_agents.models.brokers.audits.audit_policy import AuditPolicy
 from standard_agents.models.brokers.audits.audit_record import AuditRecord
@@ -31,13 +31,13 @@ from standard_agents.models.loggings.agent_step import AgentStep
 # never the payload) and the payload itself only when the deployment opted in, as the configured
 # redaction leaves it. Redact protects the model boundary; this is the same rule at the audit
 # boundary.
-class AuditingLoggingBroker(ILoggingBroker):
+class AuditingLoggingBroker(LoggingBroker):
     def __init__(
             self,
-            logging_broker: ILoggingBroker,
-            audit_broker: IAuditBroker,
-            time_broker: ITimeBroker,
-            redaction_broker: IRedactionBroker,
+            logging_broker: LoggingBroker,
+            audit_broker: AuditBroker,
+            time_broker: TimeBroker,
+            redaction_broker: RedactionBroker,
             policy: AuditPolicy,
             principal: Callable[[], str | None] | None = None) -> None:
 

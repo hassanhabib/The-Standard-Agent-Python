@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Iterable
 
-from standard_agents.brokers.approvals.iapproval_broker import ApprovalDecision, IApprovalBroker
+from standard_agents.brokers.approvals.approval_broker import ApprovalDecision, ApprovalBroker
 from standard_agents.models.orchestrations.effects.agent_effect import AgentEffect
 
 
@@ -15,7 +15,7 @@ from standard_agents.models.orchestrations.effects.agent_effect import AgentEffe
 # approver wired in, the honest answer is PENDING: the act is held, not performed. An agent that
 # treated "nobody answered" as consent would be worse than one with no approval at all, because
 # the control would read as present while granting everything.
-class RequireApprovalBroker(IApprovalBroker):
+class RequireApprovalBroker(ApprovalBroker):
     # The list's work happens in composition, where it decides WHICH acts require approval at
     # all (DirectionCoordinationService.requires_approval). By the time a request reaches this
     # broker the question is always "may this act run?", asked for a listed tool or for an act

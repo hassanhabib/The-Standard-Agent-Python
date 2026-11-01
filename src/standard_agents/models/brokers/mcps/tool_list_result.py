@@ -17,7 +17,7 @@ _MISSING = object()
 # interprets it, so a server's own vocabulary reaches the model unchanged.
 #
 # Wire names follow JsonNamingPolicy.CamelCase; reads are case-insensitive and null values are
-# omitted on write (WhenWritingNull), as the McpBroker's serializer options leave them.
+# omitted on write (WhenWritingNull), as the HttpMcpBroker's serializer options leave them.
 @dataclass(frozen=True)
 class ToolListEntry:
     name: str

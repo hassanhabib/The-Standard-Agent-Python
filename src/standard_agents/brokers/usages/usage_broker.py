@@ -6,12 +6,12 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Sequence
-
-from standard_agents.models.foundations.skills.skill import Skill
 
 
-class ISkillBroker(ABC):
+# The liaison to whatever knows how to count tokens: a tokenizer in the box, a provider's own
+# counting endpoint, or a vocabulary shipped with a model.
+class UsageBroker(ABC):
+    # How many tokens the given text occupies. Returns 0 for empty text.
     @abstractmethod
-    async def select_skills(self) -> Sequence[Skill]:
+    async def count_tokens(self, text: str) -> int:
         ...

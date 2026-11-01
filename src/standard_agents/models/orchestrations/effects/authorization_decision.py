@@ -3,6 +3,8 @@
 # Licensed under the The Standard Software License (TSSL)
 # ---------------------------------------------------------------
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 
@@ -13,10 +15,10 @@ class AuthorizationDecision:
     permitted: bool
     reason: str
 
-    @staticmethod
-    def allow() -> "AuthorizationDecision":
-        return AuthorizationDecision(permitted=True, reason="")
+    @classmethod
+    def allow(cls) -> AuthorizationDecision:
+        return cls(permitted=True, reason="")
 
-    @staticmethod
-    def deny(reason: str) -> "AuthorizationDecision":
-        return AuthorizationDecision(permitted=False, reason=reason)
+    @classmethod
+    def deny(cls, reason: str) -> AuthorizationDecision:
+        return cls(permitted=False, reason=reason)

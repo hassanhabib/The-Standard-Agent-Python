@@ -7,14 +7,14 @@ from __future__ import annotations
 
 from typing import Awaitable, Callable
 
-from standard_agents.brokers.effects.ieffect_ledger_broker import IEffectLedgerBroker
+from standard_agents.brokers.effects.effect_ledger_broker import EffectLedgerBroker
 from standard_agents.models.brokers.effects.effect_record import EffectRecord
 
 
 # The Custom mode of the ledger: the four primitives as your own delegates, usually over the
 # store your transactions already commit to, since an act and the note that it happened want to
 # commit together.
-class FunctionEffectLedgerBroker(IEffectLedgerBroker):
+class FunctionEffectLedgerBroker(EffectLedgerBroker):
     def __init__(
             self,
             insert_claim: Callable[[EffectRecord], Awaitable[bool]],

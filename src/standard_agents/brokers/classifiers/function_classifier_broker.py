@@ -7,10 +7,10 @@ from __future__ import annotations
 
 from typing import Awaitable, Callable
 
-from standard_agents.brokers.classifiers.iclassifier_broker import IClassifierBroker
+from standard_agents.brokers.classifiers.classifier_broker import ClassifierBroker
 
 
-class FunctionClassifierBroker(IClassifierBroker):
+class FunctionClassifierBroker(ClassifierBroker):
     def __init__(
         self,
         screen: Callable[[str, str], Awaitable[str]],

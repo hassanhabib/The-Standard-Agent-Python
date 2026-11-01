@@ -11,7 +11,7 @@ from datetime import timedelta
 from typing import Awaitable, Callable, TypeVar
 
 from restfulsense.exceptions import HttpRequestException
-from standard_agents.brokers.resiliences.iresilience_broker import IResilienceBroker
+from standard_agents.brokers.resiliences.resilience_broker import ResilienceBroker
 from xeptions import Xeption
 
 T = TypeVar("T")
@@ -26,7 +26,7 @@ T = TypeVar("T")
 # The rule is narrow on purpose: a dependency failure is the network having a bad moment, so it
 # is worth another attempt. A validation failure is the request being wrong, so retrying it
 # will fail identically and only spends the budget.
-class RetryResilienceBroker(IResilienceBroker):
+class RetryResilienceBroker(ResilienceBroker):
     def __init__(
         self,
         retries: int = 3,

@@ -7,8 +7,8 @@ from __future__ import annotations
 
 from typing import AsyncIterator, Mapping
 
-from standard_agents.brokers.generators.igenerator_broker import IGeneratorBroker
-from standard_agents.brokers.redactions.iredaction_broker import IRedactionBroker
+from standard_agents.brokers.generators.generator_broker import GeneratorBroker
+from standard_agents.brokers.redactions.redaction_broker import RedactionBroker
 from standard_agents.models.brokers.generators.resolved_inference import ResolvedInference
 
 
@@ -19,11 +19,11 @@ from standard_agents.models.brokers.generators.resolved_inference import Resolve
 # really "three services each remembered to". Wrapping the generator instead makes it true by
 # construction: the service above holds one broker and does not know redaction exists, and a
 # fourth model call added tomorrow cannot forget.
-class RedactingGeneratorBroker(IGeneratorBroker):
+class RedactingGeneratorBroker(GeneratorBroker):
     def __init__(
         self,
-        generator_broker: IGeneratorBroker,
-        redaction_broker: IRedactionBroker) -> None:
+        generator_broker: GeneratorBroker,
+        redaction_broker: RedactionBroker) -> None:
 
         self._generator_broker = generator_broker
         self._redaction_broker = redaction_broker
@@ -34,63 +34,45 @@ class RedactingGeneratorBroker(IGeneratorBroker):
     def honors_request(self) -> bool:
         return self._generator_broker.honors_request
 
-    async def generate(self, system_prompt: str, user_prompt: str) -> str:
-        # The vault is per call. Two prompts share it, so the same value redacts to the same
-        # token in both and the model can still tell they refer to one thing.
+    async def generate(
+            self,
+            system_prompt: str,
+            user_prompt: str,
+            *,
+            inference: ResolvedInference | None = None) -> str:
+        """Redact both prompts, generate, and rehydrate the reply.
+
+        The vault is per call. Two prompts share it, so the same value redacts to the same
+        token in both and the model can still tell they refer to one thing. The inference
+        options travel unredacted: they are knobs and schemas the host or caller wrote, not
+        conversation carrying PII, and a redacted schema would constrain the model to shapes
+        nobody asked for.
+        """
         vault: dict[str, str] = {}
 
         reply = await self._generator_broker.generate(
             self._redaction_broker.redact(system_prompt, vault),
-            self._redaction_broker.redact(user_prompt, vault))
-
-        return self._redaction_broker.rehydrate(reply, vault)
-
-    # The inference options travel unredacted: they are knobs and schemas the host or caller
-    # wrote, not conversation carrying PII, and a redacted schema would constrain the model to
-    # shapes nobody asked for.
-    async def generate_with_inference(
-        self,
-        system_prompt: str,
-        user_prompt: str,
-        inference: ResolvedInference) -> str:
-
-        vault: dict[str, str] = {}
-
-        reply = await self._generator_broker.generate_with_inference(
-            self._redaction_broker.redact(system_prompt, vault),
             self._redaction_broker.redact(user_prompt, vault),
-            inference)
+            inference=inference)
 
         return self._redaction_broker.rehydrate(reply, vault)
 
-    def generate_stream(self, system_prompt: str, user_prompt: str) -> AsyncIterator[str]:
-        return self._generate_stream(system_prompt, user_prompt, inference=None)
-
-    def generate_stream_with_inference(
-        self,
-        system_prompt: str,
-        user_prompt: str,
-        inference: ResolvedInference) -> AsyncIterator[str]:
-
-        return self._generate_stream(system_prompt, user_prompt, inference)
-
-    async def _generate_stream(
-        self,
-        system_prompt: str,
-        user_prompt: str,
-        inference: ResolvedInference | None) -> AsyncIterator[str]:
+    async def generate_stream(
+            self,
+            system_prompt: str,
+            user_prompt: str,
+            *,
+            inference: ResolvedInference | None = None) -> AsyncIterator[str]:
 
         vault: dict[str, str] = {}
 
         redacted_system_prompt = self._redaction_broker.redact(system_prompt, vault)
         redacted_user_prompt = self._redaction_broker.redact(user_prompt, vault)
 
-        tokens = (
-            self._generator_broker.generate_stream(
-                redacted_system_prompt, redacted_user_prompt)
-            if inference is None
-            else self._generator_broker.generate_stream_with_inference(
-                redacted_system_prompt, redacted_user_prompt, inference))
+        tokens = self._generator_broker.generate_stream(
+            redacted_system_prompt,
+            redacted_user_prompt,
+            inference=inference)
 
         # The pending text, as the StringBuilder the C# appends to.
         pending: list[str] = []

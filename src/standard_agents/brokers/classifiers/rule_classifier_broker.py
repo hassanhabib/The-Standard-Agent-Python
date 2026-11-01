@@ -7,13 +7,13 @@ from __future__ import annotations
 
 from typing import Iterable
 
-from standard_agents.brokers.classifiers.iclassifier_broker import IClassifierBroker
+from standard_agents.brokers.classifiers.classifier_broker import ClassifierBroker
 
 _ACCEPT = "accept"
 _NO_CONFLICT = "NONE"
 
 
-class RuleClassifierBroker(IClassifierBroker):
+class RuleClassifierBroker(ClassifierBroker):
     def __init__(self, refuse_patterns: Iterable[str]) -> None:
         self._refuse_patterns = tuple(refuse_patterns)
 

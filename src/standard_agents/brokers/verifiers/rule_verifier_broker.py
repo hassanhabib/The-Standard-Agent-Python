@@ -7,12 +7,12 @@ from __future__ import annotations
 
 from typing import Iterable
 
-from standard_agents.brokers.verifiers.iverifier_broker import IVerifierBroker
+from standard_agents.brokers.verifiers.verifier_broker import VerifierBroker
 
 _PASS = "SCORE: 1.0\nREASON: ok"
 
 
-class RuleVerifierBroker(IVerifierBroker):
+class RuleVerifierBroker(VerifierBroker):
     def __init__(self, required_patterns: Iterable[str]) -> None:
         self._required_patterns = tuple(required_patterns)
 

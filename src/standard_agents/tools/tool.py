@@ -10,7 +10,7 @@ from abc import ABC, abstractmethod
 from standard_agents.models.orchestrations.effects.risk_level import RiskLevel
 
 
-class ITool(ABC):
+class Tool(ABC):
     @property
     @abstractmethod
     def name(self) -> str:

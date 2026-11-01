@@ -8,7 +8,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from standard_agents.brokers.telemetries.activities import Activity, ActivitySource, Meter
-from standard_agents.brokers.telemetries.itelemetry_broker import IDisposable, ITelemetryBroker
+from standard_agents.brokers.telemetries.telemetry_broker import Disposable, TelemetryBroker
 
 SOURCE_NAME = "Standard.Agents"
 
@@ -24,13 +24,13 @@ _operation_duration = _meter.create_histogram("gen_ai.client.operation.duration"
 # everything up; a process that adds nothing pays nothing, because an unobserved source hands
 # back None instead of a span. Attribute and metric names follow the OpenTelemetry GenAI
 # semantic conventions, so a collector that already understands agents understands this one.
-class ActivityTelemetryBroker(ITelemetryBroker):
+class ActivityTelemetryBroker(TelemetryBroker):
     SOURCE_NAME = SOURCE_NAME
 
     def __init__(self, agent_name: str = "standard-agent") -> None:
         self._agent_name = agent_name
 
-    def start_run(self, session_id: str) -> IDisposable | None:
+    def start_run(self, session_id: str) -> Disposable | None:
         run = _activity_source.start_activity(f"invoke_agent {self._agent_name}")
 
         if run is not None:
@@ -42,7 +42,7 @@ class ActivityTelemetryBroker(ITelemetryBroker):
 
         return run
 
-    def start_turn(self, turn: int) -> IDisposable | None:
+    def start_turn(self, turn: int) -> Disposable | None:
         turn_activity = _activity_source.start_activity(f"turn {turn}")
 
         if turn_activity is not None:

@@ -14,7 +14,7 @@ from standard_agents.models.brokers.agents.registered_agent import RegisteredAge
 # The fleet seam: where other agents come from (a folder of agent documents, a provider's
 # registry, a delegate). Registered agents materialize as tools, so a handoff is an act and the
 # perimeter that governs acts governs handoffs.
-class IAgentRegistryBroker(ABC):
+class AgentRegistryBroker(ABC):
     @abstractmethod
     async def select_agents(self) -> Sequence[RegisteredAgent]:
         ...

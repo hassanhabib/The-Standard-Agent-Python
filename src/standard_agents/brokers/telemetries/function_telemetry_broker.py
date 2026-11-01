@@ -8,7 +8,7 @@ from __future__ import annotations
 from types import MappingProxyType
 from typing import Any, Callable, Mapping
 
-from standard_agents.brokers.telemetries.itelemetry_broker import IDisposable, ITelemetryBroker
+from standard_agents.brokers.telemetries.telemetry_broker import Disposable, TelemetryBroker
 
 _EMPTY_ATTRIBUTES: Mapping[str, Any] = MappingProxyType({})
 
@@ -16,16 +16,16 @@ _EMPTY_ATTRIBUTES: Mapping[str, Any] = MappingProxyType({})
 # The Custom mode of the telemetry seam: every boundary the loop crosses arrives at one function
 # as a named event with its attributes, for a pipeline no listener reaches: StatsD, a log
 # shipper, a metrics API of your own.
-class FunctionTelemetryBroker(ITelemetryBroker):
+class FunctionTelemetryBroker(TelemetryBroker):
     def __init__(self, record: Callable[[str, Mapping[str, Any]], None]) -> None:
         self._record = record
 
-    def start_run(self, session_id: str) -> IDisposable | None:
+    def start_run(self, session_id: str) -> Disposable | None:
         self._record("run.start", {"session.id": session_id})
 
         return _Scope(lambda: self._record("run.end", _EMPTY_ATTRIBUTES))
 
-    def start_turn(self, turn: int) -> IDisposable | None:
+    def start_turn(self, turn: int) -> Disposable | None:
         self._record("turn.start", {"turn.index": turn})
 
         return _Scope(lambda: self._record("turn.end", _EMPTY_ATTRIBUTES))

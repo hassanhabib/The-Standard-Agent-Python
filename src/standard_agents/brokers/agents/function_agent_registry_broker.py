@@ -7,13 +7,13 @@ from __future__ import annotations
 
 from typing import Awaitable, Callable, Sequence
 
-from standard_agents.brokers.agents.iagent_registry_broker import IAgentRegistryBroker
+from standard_agents.brokers.agents.agent_registry_broker import AgentRegistryBroker
 from standard_agents.models.brokers.agents.registered_agent import RegisteredAgent
 
 
 # The Custom mode of the fleet seam: your own code decides which agents exist, per selection
 # (a database of tenants' agents, a feature flag, a directory service).
-class FunctionAgentRegistryBroker(IAgentRegistryBroker):
+class FunctionAgentRegistryBroker(AgentRegistryBroker):
     def __init__(self, select: Callable[[], Awaitable[Sequence[RegisteredAgent]]]) -> None:
         self._select = select
 

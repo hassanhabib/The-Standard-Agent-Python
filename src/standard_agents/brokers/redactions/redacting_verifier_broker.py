@@ -5,15 +5,15 @@
 
 from __future__ import annotations
 
-from standard_agents.brokers.redactions.iredaction_broker import IRedactionBroker
-from standard_agents.brokers.verifiers.iverifier_broker import IVerifierBroker
+from standard_agents.brokers.redactions.redaction_broker import RedactionBroker
+from standard_agents.brokers.verifiers.verifier_broker import VerifierBroker
 
 
-class RedactingVerifierBroker(IVerifierBroker):
+class RedactingVerifierBroker(VerifierBroker):
     def __init__(
         self,
-        verifier_broker: IVerifierBroker,
-        redaction_broker: IRedactionBroker) -> None:
+        verifier_broker: VerifierBroker,
+        redaction_broker: RedactionBroker) -> None:
 
         self._verifier_broker = verifier_broker
         self._redaction_broker = redaction_broker

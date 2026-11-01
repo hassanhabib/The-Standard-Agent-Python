@@ -17,7 +17,8 @@ import urllib.request
 from typing import Any, Sequence
 
 from restfulsense.exceptions import HttpRequestException
-from standard_agents.brokers.generators.igenerator_broker_v1 import IGeneratorBrokerV1
+from standard_agents.models.brokers.generators.resolved_inference import ResolvedInference
+from standard_agents.brokers.generators.generator_broker_v1 import GeneratorBrokerV1
 from standard_agents.models.brokers.generators.v1.conversation import (
     ConversationMessage,
     GenerationResult,
@@ -53,7 +54,7 @@ _SHORT_ESCAPES = {
 }
 
 
-# Native tool calling against the Anthropic Messages API: the same IGeneratorBrokerV1 seam as
+# Native tool calling against the Anthropic Messages API: the same GeneratorBrokerV1 seam as
 # the OpenAI-compatible broker, under a different wire shape: system prompts travel as a
 # top-level `system` field, tools carry `input_schema`, the model's choice comes back as
 # `tool_use` content blocks, and a tool's result returns as a `tool_result` block inside a user
@@ -61,7 +62,7 @@ _SHORT_ESCAPES = {
 #
 # Like its sibling, the request is built as a JSON tree: the tool schemas are already JSON the
 # host wrote, and re-modelling them would only give us a second place for them to be wrong.
-class AnthropicGeneratorBrokerV1(IGeneratorBrokerV1):
+class AnthropicGeneratorBrokerV1(GeneratorBrokerV1):
     # handler is the host's handler under this broker's traffic (F-23). The handler is the
     # host's: the opener around it holds nothing of its own.
     def __init__(
@@ -83,9 +84,12 @@ class AnthropicGeneratorBrokerV1(IGeneratorBrokerV1):
         self._max_tokens = max_tokens
 
     async def generate(
-        self,
-        messages: Sequence[ConversationMessage],
-        tools: Sequence[ToolDefinition]) -> GenerationResult:
+            self,
+            messages: Sequence[ConversationMessage],
+            tools: Sequence[ToolDefinition],
+            *,
+            inference: ResolvedInference | None = None) -> GenerationResult:
+        """Generate over the Messages API; inference options are not put on the wire."""
 
         request = self._build_request(messages, tools)
 

@@ -9,7 +9,7 @@ import os
 import unicodedata
 from typing import TYPE_CHECKING, Sequence
 
-from standard_agents.brokers.agents.iagent_registry_broker import IAgentRegistryBroker
+from standard_agents.brokers.agents.agent_registry_broker import AgentRegistryBroker
 from standard_agents.brokers.files.file_enumeration import enumerate_files
 from standard_agents.models.brokers.agents.registered_agent import RegisteredAgent
 
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 # documents StandardAgent.from_json composes), read in path order. A document's name names the
 # agent (the file's own name when absent) and its description advertises it: no description,
 # no advertisement, exactly like a tool.
-class FileAgentRegistryBroker(IAgentRegistryBroker):
+class FileAgentRegistryBroker(AgentRegistryBroker):
     def __init__(self, agents_path: str) -> None:
         self._agents_path = agents_path
 

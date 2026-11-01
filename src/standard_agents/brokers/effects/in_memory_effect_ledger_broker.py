@@ -7,13 +7,13 @@ from __future__ import annotations
 
 import threading
 
-from standard_agents.brokers.effects.ieffect_ledger_broker import IEffectLedgerBroker
+from standard_agents.brokers.effects.effect_ledger_broker import EffectLedgerBroker
 from standard_agents.models.brokers.effects.effect_record import EffectRecord
 
 
 # The built-in ledger: one process, one lifetime. Run-once holds within the instance; nothing
 # here survives it, which is what effect_ledger(path) and use_effect_ledger(...) are for.
-class InMemoryEffectLedgerBroker(IEffectLedgerBroker):
+class InMemoryEffectLedgerBroker(EffectLedgerBroker):
     def __init__(self) -> None:
         # C#: a ConcurrentDictionary; the lock makes each operation atomic, as its operations are.
         self._records_by_key: dict[str, EffectRecord] = {}

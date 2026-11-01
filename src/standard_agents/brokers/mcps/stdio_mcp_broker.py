@@ -19,7 +19,7 @@ from typing import Any, Awaitable, Callable, Iterable, Mapping, Protocol
 
 from restfulsense.exceptions import HttpRequestException
 from standard_agents.brokers.mcps import mcp_json
-from standard_agents.brokers.mcps.imcp_broker import IMcpBroker
+from standard_agents.brokers.mcps.mcp_broker import McpBroker
 from standard_agents.models.brokers.mcps.mcp_tool import McpTool
 
 _JSON_RPC_VERSION = "2.0"
@@ -58,7 +58,7 @@ class ServerInput(Protocol):
         ...
 
 
-class StdioMcpBroker(IMcpBroker):
+class StdioMcpBroker(McpBroker):
     # C# has two constructors: one over an output and an input already open, one that starts the
     # server as a process (on first use, and again on the first use after it exits). Here they
     # are one: pass server_output and server_input, or pass command.

@@ -7,13 +7,13 @@ from __future__ import annotations
 
 from typing import Awaitable, Callable
 
-from standard_agents.brokers.audits.iaudit_broker import IAuditBroker
+from standard_agents.brokers.audits.audit_broker import AuditBroker
 from standard_agents.models.brokers.audits.audit_record import AuditRecord
 
 
 # The Custom mode's substrate: a host-supplied function standing in for a broker, the same shape
 # FunctionGeneratorBroker gives a host-supplied brain.
-class FunctionAuditBroker(IAuditBroker):
+class FunctionAuditBroker(AuditBroker):
     def __init__(self, write: Callable[[AuditRecord], Awaitable[None]]) -> None:
         self._write = write
 

@@ -129,16 +129,14 @@ class AgentRun:
 
             return self._process_index - 1
 
-    # Remembers a guardian verdict for the life of this run, so an unchanged prompt is screened
-    # once rather than once per turn (SPEC.md 4.10).
-    # C#: bool TryGetVerdict(string prompt, out string verdict). Returns (found, verdict), with
-    # verdict None when not found.
-    def try_get_verdict(self, prompt: str) -> tuple[bool, str | None]:
-        with self._verdicts_lock:
-            if prompt in self._verdicts:
-                return True, self._verdicts[prompt]
+    def get_verdict(self, prompt: str) -> str | None:
+        """The guardian verdict this run already gave this prompt, or None.
 
-            return False, None
+        Verdicts are remembered for the life of the run, so an unchanged prompt is screened
+        once rather than once per turn (SPEC.md 4.10).
+        """
+        with self._verdicts_lock:
+            return self._verdicts.get(prompt)
 
     def remember_verdict(self, prompt: str, verdict: str) -> None:
         with self._verdicts_lock:
@@ -208,7 +206,7 @@ class AgentRun:
 
 # Restores whatever run was active before, so a nested agent (the fractal: an agent used as a
 # tool of another agent) returns its caller's run rather than leaving it cleared.
-# C#: the private Scope : IDisposable. dispose() mirrors Dispose(); it is also a context manager.
+# C#: the private Scope : Disposable. dispose() mirrors Dispose(); it is also a context manager.
 class AgentRunScope:
     def __init__(self, enclosing_run: AgentRun | None) -> None:
         self._enclosing_run = enclosing_run

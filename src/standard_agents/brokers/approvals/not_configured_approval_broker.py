@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from standard_agents.brokers.approvals.iapproval_broker import ApprovalDecision, IApprovalBroker
+from standard_agents.brokers.approvals.approval_broker import ApprovalDecision, ApprovalBroker
 from standard_agents.models.orchestrations.effects.agent_effect import AgentEffect
 
 
@@ -15,6 +15,6 @@ from standard_agents.models.orchestrations.effects.agent_effect import AgentEffe
 # here is PermissionMode.ASK with no approver wired in: a host that said "ask about what nothing
 # permitted" and gave nobody to ask. Answering APPROVED there was consent from nobody. Waiting is
 # not consent, and an absent authority is nothing but waiting: PENDING.
-class NotConfiguredApprovalBroker(IApprovalBroker):
+class NotConfiguredApprovalBroker(ApprovalBroker):
     async def request(self, effect: AgentEffect) -> ApprovalDecision:
         return ApprovalDecision.PENDING

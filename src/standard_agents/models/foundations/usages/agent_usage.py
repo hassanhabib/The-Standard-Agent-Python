@@ -3,6 +3,8 @@
 # Licensed under the The Standard Software License (TSSL)
 # ---------------------------------------------------------------
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import ClassVar
 
@@ -25,11 +27,11 @@ class AgentUsage:
     is_estimated: bool
 
     # A call that consumed nothing: the identity for accumulation.
-    none: ClassVar["AgentUsage"]
+    EMPTY: ClassVar[AgentUsage]
 
     @property
     def total_tokens(self) -> int:
         return self.prompt_tokens + self.completion_tokens
 
 
-AgentUsage.none = AgentUsage(prompt_tokens=0, completion_tokens=0, is_estimated=False)
+AgentUsage.EMPTY = AgentUsage(prompt_tokens=0, completion_tokens=0, is_estimated=False)

@@ -9,10 +9,10 @@ import os
 import unicodedata
 from typing import Awaitable, Callable
 
-from standard_agents.brokers.verifiers.iverifier_broker import IVerifierBroker
+from standard_agents.brokers.verifiers.verifier_broker import VerifierBroker
 
 
-class FunctionVerifierBroker(IVerifierBroker):
+class FunctionVerifierBroker(VerifierBroker):
     def __init__(
         self,
         evaluate: Callable[[str, str], Awaitable[str]],

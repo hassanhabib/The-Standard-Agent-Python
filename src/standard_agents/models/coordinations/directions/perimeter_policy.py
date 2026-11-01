@@ -32,7 +32,7 @@ class PerimeterPolicy:
     # C#: an empty dictionary keyed OrdinalIgnoreCase by default.
     tool_risk: Mapping[str, RiskLevel] = field(default_factory=dict)
 
-    # Each tool's own reading of what an act touches (ITool.ScopeOf). The tool is the only thing
+    # Each tool's own reading of what an act touches (Tool.ScopeOf). The tool is the only thing
     # that knows what its arguments mean; the framework never parses them.
     # C#: an empty dictionary keyed OrdinalIgnoreCase by default.
     tool_scope: Mapping[str, Callable[[str], str]] = field(default_factory=dict)

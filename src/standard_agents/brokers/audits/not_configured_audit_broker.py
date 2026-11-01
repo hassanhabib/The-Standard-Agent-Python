@@ -5,12 +5,12 @@
 
 from __future__ import annotations
 
-from standard_agents.brokers.audits.iaudit_broker import IAuditBroker
+from standard_agents.brokers.audits.audit_broker import AuditBroker
 from standard_agents.models.brokers.audits.audit_record import AuditRecord
 
 
 # The default. SPEC.md 4.7: absent configuration no decision log is emitted, no sink is touched,
 # and behavior is exactly as if the section did not exist.
-class NotConfiguredAuditBroker(IAuditBroker):
+class NotConfiguredAuditBroker(AuditBroker):
     async def write(self, record: AuditRecord) -> None:
         return None

@@ -5,15 +5,16 @@
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
 from typing import Sequence
 
+from standard_agents.brokers.memories.memory_broker import MemoryBroker
 
-class IMemoryBroker(ABC):
-    @abstractmethod
+
+# No memory at all: nothing to recall, nowhere to store. What an agent composed without memory
+# reads from, so the foundation keeps one shape rather than growing a nullable dependency.
+class NotConfiguredMemoryBroker(MemoryBroker):
     async def select_memories(self) -> Sequence[str]:
-        ...
+        return []
 
-    @abstractmethod
     async def insert_memory(self, memory: str) -> None:
-        ...
+        pass

@@ -5,84 +5,53 @@
 
 from __future__ import annotations
 
-import os
-import re
+from abc import ABC, abstractmethod
+from enum import Enum
 from typing import Iterable, Sequence
 
-from standard_agents.brokers.files.file_enumeration import enumerate_files
-from standard_agents.brokers.files.ifile_broker import IFileBroker, SearchOption
 
-# StreamReader.ReadLine: a line ends at CR, LF or CRLF.
-_LINE_BREAK = re.compile(r"\r\n|\r|\n")
+# System.IO.SearchOption: whether a file search stays in the folder or descends into every
+# folder beneath it.
+class SearchOption(Enum):
+    TOP_DIRECTORY_ONLY = 0
+    ALL_DIRECTORIES = 1
 
 
-class FileBroker(IFileBroker):
+class FileBroker(ABC):
+    @abstractmethod
     def directory_exists(self, path: str) -> bool:
-        return os.path.isdir(path)
+        ...
 
+    @abstractmethod
     def select_files(
             self,
             path: str,
             search_pattern: str,
             search_option: SearchOption) -> Sequence[str]:
+        ...
 
-        return list(enumerate_files(
-            path,
-            search_pattern,
-            all_directories=search_option is SearchOption.ALL_DIRECTORIES))
-
+    @abstractmethod
     async def read_file(self, path: str) -> str:
-        return _read_all_text(path)
+        ...
 
+    # C#: ReadFile, the synchronous twin of ReadFileAsync. Both would be read_file once the
+    # Async suffix is dropped, so this one keeps its synchrony in its name.
+    @abstractmethod
     def read_file_sync(self, path: str) -> str:
-        return _read_all_text(path)
+        ...
 
+    @abstractmethod
     def file_exists(self, path: str) -> bool:
-        return os.path.isfile(path)
+        ...
 
+    @abstractmethod
     async def read_all_lines(self, path: str) -> Sequence[str]:
-        text = _read_all_text(path)
+        ...
 
-        if text == "":
-            return []
-
-        lines = _LINE_BREAK.split(text)
-
-        if lines[-1] == "":
-            lines.pop()
-
-        return lines
-
+    @abstractmethod
     def create_directory(self, path: str) -> None:
-        os.makedirs(path, exist_ok=True)
+        ...
 
-    # File.AppendAllLines: each line followed by the platform's line ending, UTF-8 without a
-    # byte order mark, the file created when it does not exist.
+    @abstractmethod
     async def append_all_lines(self, path: str, lines: Iterable[str]) -> None:
-        with open(path, "a", encoding="utf-8", newline="") as file:
-            for line in lines:
-                file.write(line + os.linesep)
-
-
-# File.ReadAllText: the encoding a byte order mark names, UTF-8 when there is none, invalid
-# sequences replaced rather than raised, line endings kept as written.
-def _read_all_text(path: str) -> str:
-    with open(path, "rb") as file:
-        data = file.read()
-
-    if data[:2] == b"\xfe\xff":
-        return data[2:].decode("utf-16-be", errors="replace")
-
-    if data[:4] == b"\xff\xfe\x00\x00":
-        return data[4:].decode("utf-32-le", errors="replace")
-
-    if data[:2] == b"\xff\xfe":
-        return data[2:].decode("utf-16-le", errors="replace")
-
-    if data[:3] == b"\xef\xbb\xbf":
-        return data[3:].decode("utf-8", errors="replace")
-
-    if data[:4] == b"\x00\x00\xfe\xff":
-        return data[4:].decode("utf-32-be", errors="replace")
-
-    return data.decode("utf-8", errors="replace")
+        ...

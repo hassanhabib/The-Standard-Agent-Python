@@ -11,7 +11,7 @@ from typing import Awaitable, Callable, TypeVar
 T = TypeVar("T")
 
 
-class IResilienceBroker(ABC):
+class ResilienceBroker(ABC):
     # result_type is the C# type argument T, which Python does not carry at run time: a broker
     # that shapes a result of its own (a fallback) needs to know which protocol is asking.
     @abstractmethod

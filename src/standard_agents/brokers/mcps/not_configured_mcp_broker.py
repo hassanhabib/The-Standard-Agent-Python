@@ -5,11 +5,11 @@
 
 from __future__ import annotations
 
-from standard_agents.brokers.mcps.imcp_broker import IMcpBroker
+from standard_agents.brokers.mcps.mcp_broker import McpBroker
 from standard_agents.models.brokers.mcps.mcp_tool import McpTool
 
 
-class NotConfiguredMcpBroker(IMcpBroker):
+class NotConfiguredMcpBroker(McpBroker):
     async def call(self, name: str, arguments_json: str) -> str:
         return f"[external '{name}' not configured]"
 

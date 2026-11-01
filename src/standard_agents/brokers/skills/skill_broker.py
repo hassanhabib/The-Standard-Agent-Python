@@ -6,13 +6,12 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import Sequence
+
+from standard_agents.models.foundations.skills.skill import Skill
 
 
-class IClassifierBroker(ABC):
+class SkillBroker(ABC):
     @abstractmethod
-    async def classify(self, input: str) -> str:
-        ...
-
-    @abstractmethod
-    async def assess(self, system_prompt: str, input: str) -> str:
+    async def select_skills(self) -> Sequence[Skill]:
         ...

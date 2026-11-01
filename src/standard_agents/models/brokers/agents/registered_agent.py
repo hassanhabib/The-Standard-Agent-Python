@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from standard_agents.i_agent import IAgent
+    from standard_agents.agent import Agent
 
 
 # One agent a registry offers: the name a handoff must use, the description that advertises it
@@ -19,4 +19,4 @@ if TYPE_CHECKING:
 class RegisteredAgent:
     name: str
     description: str
-    agent: IAgent
+    agent: Agent

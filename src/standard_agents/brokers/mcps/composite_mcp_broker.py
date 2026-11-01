@@ -8,7 +8,7 @@ from __future__ import annotations
 import asyncio
 from typing import Iterable
 
-from standard_agents.brokers.mcps.imcp_broker import IMcpBroker
+from standard_agents.brokers.mcps.mcp_broker import McpBroker
 from standard_agents.models.brokers.mcps.mcp_tool import McpTool
 
 
@@ -17,9 +17,9 @@ from standard_agents.models.brokers.mcps.mcp_tool import McpTool
 # deterministic, and the same precedence internal tools already have over external ones.
 # Catalogs are discovered lazily and cached per server on success only, so a server that is
 # down at first use is asked again rather than remembered as empty.
-class CompositeMcpBroker(IMcpBroker):
-    def __init__(self, brokers: Iterable[IMcpBroker]) -> None:
-        self._brokers: list[IMcpBroker] = list(brokers)
+class CompositeMcpBroker(McpBroker):
+    def __init__(self, brokers: Iterable[McpBroker]) -> None:
+        self._brokers: list[McpBroker] = list(brokers)
         self._catalogs: list[list[McpTool] | None] = [None] * len(self._brokers)
         self._discovery_lock = asyncio.Lock()
 
@@ -46,7 +46,7 @@ class CompositeMcpBroker(IMcpBroker):
 
         return union
 
-    async def _resolve(self, name: str) -> IMcpBroker | None:
+    async def _resolve(self, name: str) -> McpBroker | None:
         await self._discover()
 
         for index in range(len(self._brokers)):

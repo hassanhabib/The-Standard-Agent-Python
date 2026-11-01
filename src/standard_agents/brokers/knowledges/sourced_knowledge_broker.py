@@ -12,9 +12,9 @@ from standard_agents.models.foundations.knowledges.knowledge_result import Knowl
 
 
 # The knowledge seam for a source that can say where a passage came from (SPEC.md 4.1). It sits
-# beside IKnowledgeBroker rather than replacing it: a source implements either, and a plain one
+# beside KnowledgeBroker rather than replacing it: a source implements either, and a plain one
 # keeps working, lifted to passages with no known origin.
-class ISourcedKnowledgeBroker(ABC):
+class SourcedKnowledgeBroker(ABC):
     @abstractmethod
     async def select_sourced_knowledge(self, query: str) -> Sequence[KnowledgeResult]:
         ...

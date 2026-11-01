@@ -7,11 +7,11 @@ from __future__ import annotations
 
 from typing import Awaitable, Callable, Sequence
 
-from standard_agents.brokers.memorys.imemory_broker import IMemoryBroker
+from standard_agents.brokers.memories.memory_broker import MemoryBroker
 
 
 # The Custom mode's substrate for memory (SPEC.md 4.8).
-class FunctionMemoryBroker(IMemoryBroker):
+class FunctionMemoryBroker(MemoryBroker):
     def __init__(
             self,
             recall: Callable[[], Awaitable[Sequence[str]]],

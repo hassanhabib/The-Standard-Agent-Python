@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Iterable
 
-from standard_agents.brokers.policies.ipolicy_broker import IPolicyBroker
+from standard_agents.brokers.policies.policy_broker import PolicyBroker
 from standard_agents.models.orchestrations.effects.agent_effect import AgentEffect
 from standard_agents.models.orchestrations.effects.authorization_decision import (
     AuthorizationDecision,
@@ -25,14 +25,14 @@ from standard_agents.models.orchestrations.effects.authorization_decision import
 #
 # The second form exists because "may write files" is not "may write files under /project", and
 # an agent with hands is defined by that difference. The scope is whatever the tool named
-# through ITool.scope_of; the framework never parses arguments, because only the tool knows what
+# through Tool.scope_of; the framework never parses arguments, because only the tool knows what
 # they mean.
 #
 # Matching is a prefix, deliberately, and that boundary is stated rather than discovered: no
 # globs, no regular expressions, no path canonicalisation. A host that needs those supplies a
 # real policy engine through use_policy, and one that needs "/project" not to match
 # "/project-secrets" should say "/project/".
-class AllowListPolicyBroker(IPolicyBroker):
+class AllowListPolicyBroker(PolicyBroker):
     def __init__(self, allowed_entries: Iterable[str]) -> None:
         # Keyed case-insensitively (C#: StringComparer.OrdinalIgnoreCase).
         self._allowed_scopes_by_tool: dict[str, list[str]] = {}

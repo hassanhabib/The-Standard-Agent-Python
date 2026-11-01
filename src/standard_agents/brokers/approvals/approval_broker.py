@@ -23,7 +23,7 @@ class ApprovalDecision(Enum):
     PENDING = 2
 
 
-class IApprovalBroker(ABC):
+class ApprovalBroker(ABC):
     @abstractmethod
     async def request(self, effect: AgentEffect) -> ApprovalDecision:
         ...

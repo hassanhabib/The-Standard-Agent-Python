@@ -5,12 +5,11 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from abc import ABC, abstractmethod
+from datetime import datetime
 
-from standard_agents.brokers.times.itime_broker import ITimeBroker
 
-
-class TimeBroker(ITimeBroker):
-    # DateTimeOffset.UtcNow: an aware datetime at offset zero.
+class TimeBroker(ABC):
+    @abstractmethod
     def get_current_date_time_offset(self) -> datetime:
-        return datetime.now(timezone.utc)
+        ...

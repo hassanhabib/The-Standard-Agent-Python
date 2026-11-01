@@ -3,6 +3,8 @@
 # Licensed under the The Standard Software License (TSSL)
 # ---------------------------------------------------------------
 
+from __future__ import annotations
+
 import dataclasses
 import hashlib
 import unicodedata
@@ -39,31 +41,33 @@ class AgentEffect:
     call_id: str = ""
 
     # What the act is about to touch (a path, a host, an account) as the tool named it
-    # (ITool.ScopeOf). Empty when the tool touches nothing addressable.
+    # (Tool.ScopeOf). Empty when the tool touches nothing addressable.
     scope: str = ""
 
     risk_level: RiskLevel = RiskLevel.SAFE
     approval_required: bool = False
 
     # Identifies this act, so a repeat of the same intent is recognisable as the same act.
-    # Derived, never supplied: see for_.
+    # Derived, never supplied: see create.
     idempotency_key: str = ""
 
-    # Describes an act and derives its key from what the act is: the run, the tool, and a
-    # canonical form of the arguments. The key is deliberately not a parameter (SPEC.md 4.9):
-    # a key the caller or the Brain can choose is a key the model can vary, and run-once
-    # degrades to advisory.
-    # Named for_ because "for" is a Python keyword (C#: AgentEffect.For).
-    @staticmethod
-    def for_(
+    @classmethod
+    def create(
+            cls,
             run_id: str,
             tool_name: str,
             arguments: str,
             risk_level: RiskLevel = RiskLevel.SAFE,
             approval_required: bool = False,
             principal: AgentPrincipal | None = None,
-            scope: str = "") -> "AgentEffect":
-        return AgentEffect(
+            scope: str = "") -> AgentEffect:
+        """Describe an act and derive its key from what the act is.
+
+        The key comes from the run, the tool, and a canonical form of the arguments. It is
+        deliberately not a parameter (SPEC.md 4.9): a key the caller or the Brain can choose is
+        a key the model can vary, and run-once degrades to advisory.
+        """
+        return cls(
             run_id=run_id,
             scope=scope,
 

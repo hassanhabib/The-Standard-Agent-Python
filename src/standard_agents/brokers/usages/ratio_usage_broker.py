@@ -8,7 +8,7 @@ from __future__ import annotations
 import math
 import unicodedata
 
-from standard_agents.brokers.usages.iusage_broker import IUsageBroker
+from standard_agents.brokers.usages.usage_broker import UsageBroker
 
 
 # The Local mode: a tokenizer in the box, so a budget works against any endpoint without asking
@@ -20,7 +20,7 @@ from standard_agents.brokers.usages.iusage_broker import IUsageBroker
 # short one, which is where a flat ratio drifts worst on code and identifiers.
 #
 # A host that needs exactness supplies the provider's own tokenizer through use_usage.
-class RatioUsageBroker(IUsageBroker):
+class RatioUsageBroker(UsageBroker):
     # Four is roughly the average characters-per-token for English BPE vocabularies. It is a
     # ratio and not a rule, which is the whole reason the result is flagged as estimated, and
     # why it is settable, since code and denser-tokenizing languages sit well below it.

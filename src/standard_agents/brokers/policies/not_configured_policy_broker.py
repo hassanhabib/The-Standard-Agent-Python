@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from standard_agents.brokers.policies.ipolicy_broker import IPolicyBroker
+from standard_agents.brokers.policies.policy_broker import PolicyBroker
 from standard_agents.models.orchestrations.effects.agent_effect import AgentEffect
 from standard_agents.models.orchestrations.effects.authorization_decision import (
     AuthorizationDecision,
@@ -14,6 +14,6 @@ from standard_agents.models.orchestrations.effects.authorization_decision import
 
 # The default. SPEC.md 4.9: absent every perimeter control, behavior is exactly as if the
 # section did not exist, so with no policy configured every registered tool is runnable.
-class NotConfiguredPolicyBroker(IPolicyBroker):
+class NotConfiguredPolicyBroker(PolicyBroker):
     async def authorize(self, effect: AgentEffect) -> AuthorizationDecision:
         return AuthorizationDecision.allow()

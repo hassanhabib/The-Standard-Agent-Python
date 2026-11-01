@@ -7,7 +7,8 @@ from __future__ import annotations
 
 from typing import Awaitable, Callable, Sequence
 
-from standard_agents.brokers.generators.igenerator_broker_v1 import IGeneratorBrokerV1
+from standard_agents.models.brokers.generators.resolved_inference import ResolvedInference
+from standard_agents.brokers.generators.generator_broker_v1 import GeneratorBrokerV1
 from standard_agents.models.brokers.generators.v1.conversation import (
     ConversationMessage,
     GenerationResult,
@@ -16,7 +17,7 @@ from standard_agents.models.brokers.generators.v1.conversation import (
 
 # The Custom mode for the V1 seam: a host-supplied conversation handler. Also what a test
 # scripts, which is how native tool calling is certified without a provider.
-class FunctionGeneratorBrokerV1(IGeneratorBrokerV1):
+class FunctionGeneratorBrokerV1(GeneratorBrokerV1):
     def __init__(
         self,
         generate: Callable[
@@ -26,8 +27,10 @@ class FunctionGeneratorBrokerV1(IGeneratorBrokerV1):
         self._generate = generate
 
     async def generate(
-        self,
-        messages: Sequence[ConversationMessage],
-        tools: Sequence[ToolDefinition]) -> GenerationResult:
+            self,
+            messages: Sequence[ConversationMessage],
+            tools: Sequence[ToolDefinition],
+            *,
+            inference: ResolvedInference | None = None) -> GenerationResult:
 
         return await self._generate(messages, tools)

@@ -14,7 +14,7 @@ import threading
 import unicodedata
 from typing import Any, Iterable
 
-from standard_agents.brokers.audits.iaudit_broker import IAuditBroker
+from standard_agents.brokers.audits.audit_broker import AuditBroker
 from standard_agents.models.brokers.audits.audit_record import AuditRecord
 
 # JsonSerializerOptions.MaxDepth's default.
@@ -50,7 +50,7 @@ _LINE_BREAK = re.compile(r"\r\n|\r|\n")
 # it is being written (by a tail, a shipper, a test) and a retained write handle locks those
 # readers out on Windows. The cost of reopening is paid once per record and buys a sink anything
 # can read at any moment.
-class FileAuditBroker(IAuditBroker):
+class FileAuditBroker(AuditBroker):
     def __init__(self, audit_path: str) -> None:
         self._audit_path = os.path.abspath(audit_path)
         self._write_lock = threading.Lock()

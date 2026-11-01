@@ -12,7 +12,7 @@ import threading
 from typing import Any
 
 from standard_agents.brokers.sessions.db_concurrency_exception import DBConcurrencyException
-from standard_agents.brokers.sessions.isession_broker import ISessionBroker
+from standard_agents.brokers.sessions.session_broker import SessionBroker
 from standard_agents.models.brokers.sessions.agent_session import AgentSession
 
 # JsonSerializerOptions.MaxDepth's default.
@@ -42,7 +42,7 @@ _SHORT_ESCAPES = {
 #
 # It is a real store rather than an in-memory one on purpose: SPEC.md 4.11 requires resumption
 # to work from a DIFFERENT process, and an in-memory session cannot demonstrate that.
-class FileSessionBroker(ISessionBroker):
+class FileSessionBroker(SessionBroker):
     def __init__(self, sessions_path: str) -> None:
         self._sessions_path = os.path.abspath(sessions_path)
 

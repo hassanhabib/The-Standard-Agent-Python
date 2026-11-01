@@ -9,7 +9,7 @@ import json
 import unicodedata
 from typing import Any
 
-from standard_agents.brokers.contracts.icontract_broker import IContractBroker
+from standard_agents.brokers.contracts.contract_broker import ContractBroker
 
 # JsonDocumentOptions.MaxDepth's default, which JsonDocument.Parse enforces.
 _MAX_DEPTH = 64
@@ -27,7 +27,7 @@ _MAX_DEPTH = 64
 # completeness is worse than no validator: it would report an answer as conforming to a schema it
 # was never checked against. A host that needs the whole specification supplies a real library
 # through use_contract.
-class RuleContractBroker(IContractBroker):
+class RuleContractBroker(ContractBroker):
     async def validate(self, answer: str, schema: str) -> str | None:
         if _is_null_or_white_space(schema):
             return None

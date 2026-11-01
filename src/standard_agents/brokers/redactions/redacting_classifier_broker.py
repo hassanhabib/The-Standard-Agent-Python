@@ -5,8 +5,8 @@
 
 from __future__ import annotations
 
-from standard_agents.brokers.classifiers.iclassifier_broker import IClassifierBroker
-from standard_agents.brokers.redactions.iredaction_broker import IRedactionBroker
+from standard_agents.brokers.classifiers.classifier_broker import ClassifierBroker
+from standard_agents.brokers.redactions.redaction_broker import RedactionBroker
 
 
 # The Gate screens the raw task, so it sees exactly what redaction exists to hide, and it may
@@ -14,11 +14,11 @@ from standard_agents.brokers.redactions.iredaction_broker import IRedactionBroke
 #
 # The verdict is rehydrated on the way back: a classification carries no data, but a refusal
 # reason quotes the input, and that reason is read by a human.
-class RedactingClassifierBroker(IClassifierBroker):
+class RedactingClassifierBroker(ClassifierBroker):
     def __init__(
         self,
-        classifier_broker: IClassifierBroker,
-        redaction_broker: IRedactionBroker) -> None:
+        classifier_broker: ClassifierBroker,
+        redaction_broker: RedactionBroker) -> None:
 
         self._classifier_broker = classifier_broker
         self._redaction_broker = redaction_broker

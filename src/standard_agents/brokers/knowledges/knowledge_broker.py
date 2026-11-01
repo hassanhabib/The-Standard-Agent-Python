@@ -6,11 +6,10 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import Sequence
 
-from standard_agents.models.brokers.audits.audit_record import AuditRecord
 
-
-class IAuditBroker(ABC):
+class KnowledgeBroker(ABC):
     @abstractmethod
-    async def write(self, record: AuditRecord) -> None:
+    async def select_knowledge(self, query: str) -> Sequence[str]:
         ...

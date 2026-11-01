@@ -5,13 +5,13 @@
 
 from __future__ import annotations
 
-from standard_agents.brokers.sessions.isession_broker import ISessionBroker
+from standard_agents.brokers.sessions.session_broker import SessionBroker
 from standard_agents.models.brokers.sessions.agent_session import AgentSession
 
 
 # The default. SPEC.md 4.11: absent a session, behavior is exactly as if the section did not
 # exist: nothing is loaded, nothing is written, and the agent is stateless prompt to prompt.
-class NotConfiguredSessionBroker(ISessionBroker):
+class NotConfiguredSessionBroker(SessionBroker):
     async def select_session(self, session_id: str) -> AgentSession | None:
         return None
 

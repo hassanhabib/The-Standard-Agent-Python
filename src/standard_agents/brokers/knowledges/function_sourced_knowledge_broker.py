@@ -7,13 +7,13 @@ from __future__ import annotations
 
 from typing import Awaitable, Callable, Sequence
 
-from standard_agents.brokers.knowledges.isourced_knowledge_broker import ISourcedKnowledgeBroker
+from standard_agents.brokers.knowledges.sourced_knowledge_broker import SourcedKnowledgeBroker
 from standard_agents.models.foundations.knowledges.knowledge_result import KnowledgeResult
 
 
 # The Custom mode's substrate for sourced knowledge (SPEC.md 4.8): the host's own retrieval,
 # ranked by the host, saying where each passage came from.
-class FunctionSourcedKnowledgeBroker(ISourcedKnowledgeBroker):
+class FunctionSourcedKnowledgeBroker(SourcedKnowledgeBroker):
     def __init__(
             self,
             retrieve: Callable[[str], Awaitable[Sequence[KnowledgeResult]]]) -> None:

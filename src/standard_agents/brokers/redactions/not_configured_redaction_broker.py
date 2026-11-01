@@ -7,12 +7,12 @@ from __future__ import annotations
 
 from typing import Mapping, MutableMapping
 
-from standard_agents.brokers.redactions.iredaction_broker import IRedactionBroker
+from standard_agents.brokers.redactions.redaction_broker import RedactionBroker
 
 
 # The default. SPEC.md 4.6: redaction is opt-in, and absent it the agent behaves exactly as if
 # the section did not exist: no scanning, no vault, no cost.
-class NotConfiguredRedactionBroker(IRedactionBroker):
+class NotConfiguredRedactionBroker(RedactionBroker):
     def redact(self, text: str, vault: MutableMapping[str, str]) -> str:
         return text
 

@@ -9,7 +9,7 @@ import threading
 from datetime import datetime, timedelta, timezone
 from typing import Awaitable, Callable, TypeVar
 
-from standard_agents.brokers.resiliences.iresilience_broker import IResilienceBroker
+from standard_agents.brokers.resiliences.resilience_broker import ResilienceBroker
 from standard_agents.models.brokers.generators.v1.conversation import GenerationResult
 
 T = TypeVar("T")
@@ -27,10 +27,10 @@ _NEVER = datetime.min.replace(tzinfo=timezone.utc)
 #
 # The circuit closes again after a cool-down, so a provider that recovers is used again without
 # anyone restarting anything.
-class FallbackResilienceBroker(IResilienceBroker):
+class FallbackResilienceBroker(ResilienceBroker):
     def __init__(
         self,
-        primary: IResilienceBroker,
+        primary: ResilienceBroker,
         alternative: Callable[[], Awaitable[str]] | None = None,
         failures_before_open: int = 3,
         cool_down: timedelta | None = None,

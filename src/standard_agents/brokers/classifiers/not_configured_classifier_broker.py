@@ -5,13 +5,13 @@
 
 from __future__ import annotations
 
-from standard_agents.brokers.classifiers.iclassifier_broker import IClassifierBroker
+from standard_agents.brokers.classifiers.classifier_broker import ClassifierBroker
 
 _ALLOW = "allow"
 _NO_CONFLICT = "NONE"
 
 
-class NotConfiguredClassifierBroker(IClassifierBroker):
+class NotConfiguredClassifierBroker(ClassifierBroker):
     async def classify(self, input: str) -> str:
         return _ALLOW
 

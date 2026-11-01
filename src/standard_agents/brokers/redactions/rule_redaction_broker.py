@@ -8,7 +8,7 @@ from __future__ import annotations
 import re
 from typing import Iterable, Mapping, MutableMapping
 
-from standard_agents.brokers.redactions.iredaction_broker import IRedactionBroker
+from standard_agents.brokers.redactions.redaction_broker import RedactionBroker
 from standard_agents.models.foundations.brains.redaction_rule import RedactionRule
 
 
@@ -18,9 +18,9 @@ from standard_agents.models.foundations.brains.redaction_rule import RedactionRu
 # different host than the Brain, which makes an unredacted guardian a wider exposure, not a
 # narrower one.
 #
-# The rules are Data (RedactionRules.default); this broker is the liaison to the regex engine
+# The rules are Data (RedactionRules.DEFAULT); this broker is the liaison to the regex engine
 # that applies them, and holds no policy of its own.
-class RuleRedactionBroker(IRedactionBroker):
+class RuleRedactionBroker(RedactionBroker):
     def __init__(self, rules: Iterable[RedactionRule]) -> None:
         self._rules = tuple(rules)
 

@@ -10,7 +10,7 @@ from abc import ABC, abstractmethod
 from standard_agents.models.brokers.sessions.agent_session import AgentSession
 
 
-class ISessionBroker(ABC):
+class SessionBroker(ABC):
     @abstractmethod
     async def select_session(self, session_id: str) -> AgentSession | None:
         ...

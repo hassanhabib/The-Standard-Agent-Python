@@ -12,7 +12,7 @@ _MISSING = object()
 
 
 # Wire names follow JsonNamingPolicy.CamelCase; reads are case-insensitive and null values are
-# omitted on write (WhenWritingNull), as the McpBroker's serializer options leave them.
+# omitted on write (WhenWritingNull), as the HttpMcpBroker's serializer options leave them.
 @dataclass(frozen=True)
 class EmbeddedResource:
     uri: str | None

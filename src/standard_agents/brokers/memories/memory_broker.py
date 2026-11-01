@@ -6,14 +6,14 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-
-from standard_agents.models.orchestrations.effects.agent_effect import AgentEffect
-from standard_agents.models.orchestrations.effects.authorization_decision import (
-    AuthorizationDecision,
-)
+from typing import Sequence
 
 
-class IPolicyBroker(ABC):
+class MemoryBroker(ABC):
     @abstractmethod
-    async def authorize(self, effect: AgentEffect) -> AuthorizationDecision:
+    async def select_memories(self) -> Sequence[str]:
+        ...
+
+    @abstractmethod
+    async def insert_memory(self, memory: str) -> None:
         ...

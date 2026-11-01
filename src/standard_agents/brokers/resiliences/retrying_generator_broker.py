@@ -7,8 +7,8 @@ from __future__ import annotations
 
 from typing import AsyncIterator
 
-from standard_agents.brokers.generators.igenerator_broker import IGeneratorBroker
-from standard_agents.brokers.resiliences.iresilience_broker import IResilienceBroker
+from standard_agents.brokers.generators.generator_broker import GeneratorBroker
+from standard_agents.brokers.resiliences.resilience_broker import ResilienceBroker
 from standard_agents.models.brokers.generators.resolved_inference import ResolvedInference
 
 
@@ -22,11 +22,11 @@ from standard_agents.models.brokers.generators.resolved_inference import Resolve
 #
 # A retried call is still one turn (SPEC.md 4.10): retries happen inside the call, so the loop's
 # turn budget counts the agent's reasoning rather than the network's luck.
-class RetryingGeneratorBroker(IGeneratorBroker):
+class RetryingGeneratorBroker(GeneratorBroker):
     def __init__(
         self,
-        generator_broker: IGeneratorBroker,
-        resilience_broker: IResilienceBroker) -> None:
+        generator_broker: GeneratorBroker,
+        resilience_broker: ResilienceBroker) -> None:
 
         self._generator_broker = generator_broker
         self._resilience_broker = resilience_broker
@@ -38,33 +38,27 @@ class RetryingGeneratorBroker(IGeneratorBroker):
     def honors_request(self) -> bool:
         return self._generator_broker.honors_request
 
-    async def generate(self, system_prompt: str, user_prompt: str) -> str:
-        return await self._resilience_broker.execute(
-            lambda: self._generator_broker.generate(system_prompt, user_prompt),
-            str)
-
-    async def generate_with_inference(
-        self,
-        system_prompt: str,
-        user_prompt: str,
-        inference: ResolvedInference) -> str:
+    async def generate(
+            self,
+            system_prompt: str,
+            user_prompt: str,
+            *,
+            inference: ResolvedInference | None = None) -> str:
 
         return await self._resilience_broker.execute(
-            lambda: self._generator_broker.generate_with_inference(
-                system_prompt, user_prompt, inference),
+            lambda: self._generator_broker.generate(
+                system_prompt, user_prompt, inference=inference),
             str)
 
     # Streaming passes straight through, exactly as it did before. A stream that has already
     # yielded tokens cannot be retried from the start without the caller seeing them twice, and
     # silently replaying a partial answer is worse than surfacing the failure.
-    def generate_stream(self, system_prompt: str, user_prompt: str) -> AsyncIterator[str]:
-        return self._generator_broker.generate_stream(system_prompt, user_prompt)
+    def generate_stream(
+            self,
+            system_prompt: str,
+            user_prompt: str,
+            *,
+            inference: ResolvedInference | None = None) -> AsyncIterator[str]:
 
-    def generate_stream_with_inference(
-        self,
-        system_prompt: str,
-        user_prompt: str,
-        inference: ResolvedInference) -> AsyncIterator[str]:
-
-        return self._generator_broker.generate_stream_with_inference(
-            system_prompt, user_prompt, inference)
+        return self._generator_broker.generate_stream(
+            system_prompt, user_prompt, inference=inference)

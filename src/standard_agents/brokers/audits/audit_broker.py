@@ -7,10 +7,10 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
+from standard_agents.models.brokers.audits.audit_record import AuditRecord
 
-class IVerifierBroker(ABC):
-    # The task travels with the candidate: an answer is good or bad FOR a question, and a
-    # verdict on a fit the verifier cannot see is noise dressed as a number (SPEC.md 4.2).
+
+class AuditBroker(ABC):
     @abstractmethod
-    async def verify(self, task: str, candidate: str) -> str:
+    async def write(self, record: AuditRecord) -> None:
         ...

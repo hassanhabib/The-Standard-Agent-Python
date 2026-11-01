@@ -10,13 +10,13 @@ import unicodedata
 from typing import Sequence
 
 from standard_agents.brokers.files.file_enumeration import enumerate_files
-from standard_agents.brokers.skills.iskill_broker import ISkillBroker
+from standard_agents.brokers.skills.skill_broker import SkillBroker
 from standard_agents.models.foundations.skills.skill import Skill
 
 _FRONTMATTER_FENCE = "---"
 
 
-class FileSkillBroker(ISkillBroker):
+class FileSkillBroker(SkillBroker):
     def __init__(self, skills_path: str, search_pattern: str = "*.md") -> None:
         self._skills_path = skills_path
         self._search_pattern = search_pattern
