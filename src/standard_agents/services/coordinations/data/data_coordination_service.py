@@ -60,7 +60,12 @@ class DataCoordinationService:
         raise NotImplementedError
 
     async def retrieve_remote_tools(self) -> Sequence[McpTool]:
-        raise NotImplementedError
+        """The remote tools the agent's servers offer.
+
+        Part of what the agent HAS, so the loop can judge them with the local tools when it
+        decides what a run is offered (SPEC.md 4.15).
+        """
+        return await self.retrieval_service.retrieve_remote_tools()
 
 
 def _with_grounding_sources(
