@@ -21,6 +21,8 @@ from standard_agents._standard_agent_composition import (
 from standard_agents.agent import Agent
 from standard_agents.brokers.approvals.not_configured_approval_broker import (
     NotConfiguredApprovalBroker)
+from standard_agents.brokers.audits.audit_broker import AuditBroker
+from standard_agents.brokers.audits.auditing_logging_broker import AuditingLoggingBroker
 from standard_agents.brokers.classifiers.classifier_broker import ClassifierBroker
 from standard_agents.brokers.classifiers.function_classifier_broker import FunctionClassifierBroker
 from standard_agents.brokers.classifiers.not_configured_classifier_broker import (
@@ -44,6 +46,8 @@ from standard_agents.brokers.mcps.not_configured_mcp_broker import NotConfigured
 from standard_agents.brokers.memories.memory_broker import MemoryBroker
 from standard_agents.brokers.policies.not_configured_policy_broker import (
     NotConfiguredPolicyBroker)
+from standard_agents.brokers.redactions.not_configured_redaction_broker import (
+    NotConfiguredRedactionBroker)
 from standard_agents.brokers.sessions.not_configured_session_broker import (
     NotConfiguredSessionBroker)
 from standard_agents.brokers.skills.file_skill_broker import FileSkillBroker
@@ -56,6 +60,7 @@ from standard_agents.brokers.verifiers.not_configured_verifier_broker import (
     NotConfiguredVerifierBroker)
 from standard_agents.brokers.verifiers.function_verifier_broker import FunctionVerifierBroker
 from standard_agents.brokers.verifiers.verifier_broker import VerifierBroker
+from standard_agents.models.brokers.audits.audit_policy import AuditPolicy
 from standard_agents.models.brokers.generators.resolved_inference import ResolvedInference
 from standard_agents.models.clients.agents.agent_outcome import AgentOutcome
 from standard_agents.models.clients.agents.agent_stream_event import AgentStreamEvent
@@ -134,6 +139,7 @@ class StandardAgent(Agent):
         self._gate_settings: InferenceSettings | None = None
         self._judge_settings: InferenceSettings | None = None
         self._budget: AgentBudget | None = None
+        self._audit_broker: AuditBroker | None = None
         self._generator_broker_v1: GeneratorBrokerV1 | None = None
         self._native_brain_source: Callable[[], GeneratorBrokerV1] | None = None
         self._local_gate_screen: Callable[[str, str], Awaitable[str]] | None = None
@@ -271,6 +277,11 @@ class StandardAgent(Agent):
 
         return self
 
+    def use_audit(self, broker: AuditBroker) -> StandardAgent:
+        self._audit_broker = broker
+
+        return self
+
     def use_skills(self, broker: SkillBroker) -> StandardAgent:
         self._skill_sources.append(broker)
 
@@ -389,9 +400,23 @@ class StandardAgent(Agent):
         brain = self._brain_settings
         file = LocalFileBroker()
 
-        logging = (
+        # The log is one broker; the decision log is another, applied over it by decoration when
+        # an audit sink is configured, over the built-in trace or a host's own logging broker
+        # alike, so use_logging and audit compose rather than compete (F-16).
+        trace = (
             self._logging_broker if self._logging_broker is not None
             else StdlibLoggingBroker(_null_logger()))
+
+        audit = self._audit_broker
+
+        logging = (
+            trace if audit is None
+            else AuditingLoggingBroker(
+                trace,
+                audit,
+                SystemTimeBroker(),
+                NotConfiguredRedactionBroker(),
+                AuditPolicy(payloads=False)))
 
         generator = (
             self._generator_broker if self._generator_broker is not None
