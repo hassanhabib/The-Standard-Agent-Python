@@ -73,3 +73,19 @@ async def test_should_report_a_cancelled_run_as_cancelled():
     assert outcome.failure.code == AgentFailureCodes.CANCELLED
     assert outcome.failure.category is AgentFailureCategory.SERVICE
     assert outcome.failure.message == outcome.result
+
+
+async def test_should_report_an_exhausted_budget_as_budget_exhausted():
+    # given
+    agent = (_agent_that_loops(lambda turn: "ACTION: nonexistent_tool: keep going")
+        .max_turns(50)
+        .budget(max_wall_clock=timedelta(0)))
+
+    # when
+    outcome = await agent.run("loop forever")
+
+    # then
+    assert outcome.status is AgentStatus.FAILED
+    assert outcome.failure is not None
+    assert outcome.failure.code == AgentFailureCodes.BUDGET_EXHAUSTED
+    assert outcome.failure.message == outcome.result
