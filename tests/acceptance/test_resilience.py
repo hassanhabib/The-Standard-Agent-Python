@@ -83,3 +83,25 @@ async def test_should_fall_back_on_the_native_protocol_when_the_circuit_opens():
 
     # then
     assert actual_answer == "Answering from the standby model."
+
+
+async def test_should_stop_the_loop_when_cancelled():
+    # given: a Brain that would loop forever through tool calls
+    cancellation = asyncio.Event()
+    brain_calls = 0
+
+    def reply_for_turn(turn):
+        nonlocal brain_calls
+        brain_calls += 1
+        cancellation.set()
+
+        return "ACTION: nonexistent_tool: keep going"
+
+    agent = _agent_that_loops(reply_for_turn)
+
+    # when
+    actual_result = await agent.process_prompt("loop forever", cancellation=cancellation)
+
+    # then: stopped at the next turn boundary, and said so rather than answering
+    assert "cancelled" in actual_result
+    assert brain_calls == 1
