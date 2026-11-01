@@ -59,3 +59,22 @@ class TestSkillServiceLogicRetrieve(SkillServiceTests):
 
         # then
         assert actual_skills == expected_skills
+
+    # SPEC.md 4.2: a non-empty route selects the skills whose name it matches, so a specialist is
+    # pulled in only when relevant; a route nothing matches falls back to every skill rather than
+    # leaving the brain with no instructions at all.
+    def test_should_retrieve_only_the_routed_skills(self) -> None:
+        # given
+        routed_skill = Skill(name="billing/refunds.md", content=self.create_random_string())
+        other_skill = Skill(name="support/greetings.md", content=self.create_random_string())
+        self.skill_broker_mock.select_skills.return_value = [other_skill, routed_skill]
+
+        # when
+        actual_routed_skills = asyncio.run(self.skill_service.retrieve_skills("Refunds"))
+        actual_unrouted_skills = asyncio.run(self.skill_service.retrieve_skills("unknown"))
+
+        # then
+        assert actual_routed_skills == routed_skill.content
+
+        assert actual_unrouted_skills == (
+            routed_skill.content + "\n\n" + other_skill.content)
