@@ -175,3 +175,22 @@ async def test_should_not_deny_anything_when_no_selector_is_configured():
     # then
     assert web_search.executions == 1
     assert result == "done"
+
+
+# A name selection never saw is not selection's to withhold: an undescribed tool keeps its 6.1
+# treatment (callable if the Brain names it, never advertised) under enforcement too.
+async def test_should_not_deny_an_undescribed_tool():
+    # given: a tool with no description (selection operates over described names only) and a
+    # selector that offers nothing
+    undescribed = _NamedTool("secret_helper", description="")
+
+    agent = (_agent_with(_calls_then_answers("secret_helper", "done"), undescribed)
+        .on_select_tools(_selecting())
+        .enforce_selection())
+
+    # when
+    result = await agent.process_prompt("hello")
+
+    # then
+    assert undescribed.executions == 1
+    assert result == "done"
