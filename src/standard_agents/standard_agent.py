@@ -10,7 +10,7 @@ import logging
 import os
 import urllib.parse
 import warnings
-from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterable, Mapping
 from datetime import timedelta
 from decimal import Decimal
 from typing import Any
@@ -46,6 +46,7 @@ from standard_agents.brokers.mcps.composite_mcp_broker import CompositeMcpBroker
 from standard_agents.brokers.mcps.http_mcp_broker import HttpMcpBroker
 from standard_agents.brokers.mcps.mcp_broker import McpBroker
 from standard_agents.brokers.mcps.not_configured_mcp_broker import NotConfiguredMcpBroker
+from standard_agents.brokers.mcps.stdio_mcp_broker import StdioMcpBroker
 from standard_agents.brokers.memories.memory_broker import MemoryBroker
 from standard_agents.brokers.policies.not_configured_policy_broker import (
     NotConfiguredPolicyBroker)
@@ -180,6 +181,24 @@ class StandardAgent(Agent):
 
     def mcp(self, endpoint_url: str) -> StandardAgent:
         self._mcp_sources.append(lambda: HttpMcpBroker(endpoint_url, "", 30))
+
+        return self
+
+    def mcp_process(
+            self,
+            command: str,
+            *,
+            arguments: Iterable[str] | None = None,
+            environment_variables: Mapping[str, str] | None = None,
+            working_directory: str | None = None,
+            timeout_seconds: int = 30) -> StandardAgent:
+
+        self._mcp_sources.append(lambda: StdioMcpBroker(
+            command=command,
+            arguments=arguments if arguments is not None else [],
+            environment_variables=environment_variables,
+            working_directory=working_directory,
+            timeout_seconds=timeout_seconds))
 
         return self
 
