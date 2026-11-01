@@ -11,7 +11,9 @@ from restfulsense.exceptions import (
     HttpRequestException,
     HttpResponseBadRequestException,
     HttpResponseForbiddenException,
+    HttpResponseInternalServerErrorException,
     HttpResponseNotFoundException,
+    HttpResponseServiceUnavailableException,
     HttpResponseUnauthorizedException,
     HttpResponseUrlNotFoundException)
 from standard_agents.models.foundations.brains.exceptions import (
@@ -149,3 +151,35 @@ async def test_should_throw_critical_dependency_exception_on_generate_if_nothing
 
     assert logging_broker.mock_calls == [
         call.log_critical(same_exception_as(expected_brain_dependency_exception))]
+
+
+@pytest.mark.parametrize(
+    "dependency_exception",
+    [HttpResponseInternalServerErrorException(), HttpResponseServiceUnavailableException()],
+    ids=["internal-server-error", "service-unavailable"])
+async def test_should_throw_dependency_exception_on_generate_if_dependency_error_occurs_and_log_it(
+        dependency_exception,
+        brain_service,
+        generator_broker,
+        logging_broker,
+        same_exception_as,
+        create_random_string):
+
+    # given
+    random_system_prompt = create_random_string()
+    random_user_prompt = create_random_string()
+    expected_brain_dependency_exception = _brain_dependency_exception(dependency_exception)
+    generator_broker.generate.side_effect = dependency_exception
+
+    # when
+    with pytest.raises(BrainDependencyException) as raised:
+        await brain_service.generate(random_system_prompt, random_user_prompt)
+
+    # then
+    assert raised.value.same_exception_as(expected_brain_dependency_exception)
+
+    assert generator_broker.mock_calls == [
+        call.generate(random_system_prompt, random_user_prompt)]
+
+    assert logging_broker.mock_calls == [
+        call.log_error(same_exception_as(expected_brain_dependency_exception))]
