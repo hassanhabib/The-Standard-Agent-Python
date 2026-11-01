@@ -6,8 +6,12 @@
 # The Anthropic Messages wire, read from the bytes the real broker sends (F-21): the route, the
 # version pin, the top-level system, tool_use and tool_result blocks, and the usage names.
 
+import http
 import json
 
+import pytest
+
+from restfulsense.exceptions import HttpRequestException
 from standard_agents.brokers.generators.anthropic_generator_broker_v1 import (
     AnthropicGeneratorBrokerV1)
 from standard_agents.models.brokers.generators.v1.conversation import (
@@ -93,3 +97,23 @@ async def test_should_post_messages_in_the_anthropic_shape():
 
     # and the response, read back whole
     assert actual_result == expected_result
+
+
+@pytest.mark.parametrize("status_code", [
+    http.HTTPStatus.TOO_MANY_REQUESTS,
+    http.HTTPStatus.INTERNAL_SERVER_ERROR,
+])
+async def test_should_throw_http_request_exception_on_a_failed_status(status_code):
+    # given
+    server = ScriptedServerHandler.answering_with(
+        status_code,
+        '{"type":"error","error":{"type":"rate_limit_error"}}')
+
+    broker = create_broker(server)
+
+    # when
+    with pytest.raises(HttpRequestException) as raised:
+        await broker.generate(CONVERSATION, TOOLS)
+
+    # then
+    assert raised.value.status_code == status_code
