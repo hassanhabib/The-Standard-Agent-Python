@@ -61,6 +61,7 @@ class DecisionOrchestrationService(IDecisionOrchestrationService):
 
             return dataclasses.replace(
                 context,
+                intent=REFUSE_DIRECTION,
                 direction_type=REFUSE_DIRECTION,
                 payload=REFUSAL_MESSAGE)
 
@@ -86,6 +87,7 @@ class DecisionOrchestrationService(IDecisionOrchestrationService):
             context,
             observations=context.observations + (
                 revision_feedback(judgement, decided.payload),),
+            intent="",
             direction_type="",
             payload="",
             raw_reply=decided.raw_reply)

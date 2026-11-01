@@ -12,6 +12,7 @@ ACTION_PREFIX = "ACTION:"
 FINAL_PREFIX = "FINAL:"
 SAY_PREFIX = "SAY:"
 RETURN_RESPONSE_DIRECTION = "ReturnResponse"
+RESPOND_INTENT = "Respond"
 REFUSE_DIRECTION = "Refuse"
 REFUSE_VERDICT = "refuse"
 REFUSAL_MESSAGE = "I'm not able to help with that."
@@ -58,6 +59,7 @@ def interpret(context: AgentContext, reply: str) -> AgentContext:
         if tool_name.strip() != "":
             return dataclasses.replace(
                 context,
+                intent=tool_name.strip(),
                 direction_type=tool_name.strip(),
                 payload=tool_input.strip(),
                 narration=narration,
@@ -70,6 +72,7 @@ def interpret(context: AgentContext, reply: str) -> AgentContext:
 
     return dataclasses.replace(
         context,
+        intent=RESPOND_INTENT,
         direction_type=RETURN_RESPONSE_DIRECTION,
         payload=answer,
         narration=narration,
