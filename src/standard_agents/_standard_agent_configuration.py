@@ -18,6 +18,7 @@ from standard_agents.models.clients.agents.exceptions import (
     InvalidAgentBudgetException,
     InvalidAgentConfigurationException)
 
+from standard_agents._standard_agent_schema import document_property_names
 from standard_agents.models.brokers.agents.registered_agent import RegisteredAgent
 from standard_agents.models.foundations.brains.redaction_rule import RedactionRule
 from standard_agents.models.loggings.trace_verbosity import TraceVerbosity
@@ -81,6 +82,8 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
             agent.identity(agent.name, description=value)
 
         case "brain":
+            _shaped(value, key)
+
             agent.brain(
                 value["apiUrl"],
                 value.get("apiKey", ""),
@@ -90,6 +93,8 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
                 timeout_seconds=value.get("timeoutSeconds", 120))
 
         case "nativeBrain":
+            _shaped(value, key)
+
             agent.native_brain(
                 value["apiUrl"],
                 value.get("apiKey", ""),
@@ -98,6 +103,8 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
                 max_tokens=value.get("maxTokens", 1024))
 
         case "nativeBrainAnthropic":
+            _shaped(value, key)
+
             agent.native_brain_anthropic(
                 value["apiKey"],
                 value["model"],
@@ -112,6 +119,8 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
             agent.skills(value)
 
         case "knowledge" if isinstance(value, dict):
+            _shaped(value, key)
+
             agent.knowledge(
                 value["path"],
                 pattern=value.get("pattern", "*.md"),
@@ -126,10 +135,10 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
 
         case "mcp" if isinstance(value, list):
             for server in value:
-                _apply_mcp_server(agent, server)
+                _apply_mcp_server(agent, server, key)
 
         case "mcp":
-            _apply_mcp_server(agent, value)
+            _apply_mcp_server(agent, value, key)
 
         case "agents" if isinstance(value, list):
             for member in value:
@@ -139,6 +148,8 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
             agent.agents(value)
 
         case "gate":
+            _shaped(value, key)
+
             agent.gate(
                 value["apiUrl"],
                 value.get("apiKey", ""),
@@ -151,6 +162,8 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
             agent.rule_gate(*value)
 
         case "judge":
+            _shaped(value, key)
+
             agent.judge(
                 value["apiUrl"],
                 value.get("apiKey", ""),
@@ -174,8 +187,12 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
             agent.consumption(value)
 
         case "redact" if isinstance(value, dict):
+            _shaped(value, key)
+
             agent.redact(*(
-                RedactionRule(label=rule["label"], pattern=rule["pattern"])
+                RedactionRule(
+                    label=_shaped(rule, "redact.rules")["label"],
+                    pattern=rule["pattern"])
                 for rule in value["rules"]))
 
         case "redact" if value:
@@ -212,6 +229,8 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
             agent.require_approval(*value)
 
         case "logTo" if isinstance(value, dict):
+            _shaped(value, key)
+
             agent.log_to(
                 value["path"],
                 verbosity=_named(TraceVerbosity, value.get("verbosity", "Full"), key))
@@ -232,6 +251,8 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
             pass
 
         case "sessions" if isinstance(value, dict):
+            _shaped(value, key)
+
             agent.sessions(value["path"], max_history_turns=value.get("maxHistoryTurns", 20))
 
         case "sessions":
@@ -250,9 +271,13 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
             _apply_budget(agent, value)
 
         case "usage":
+            _shaped(value, key)
+
             agent.usage(characters_per_token=value.get("charactersPerToken", 4.0))
 
         case "resilience" if isinstance(value, dict):
+            _shaped(value, key)
+
             agent.resilience(retries=value.get("retries", 3))
 
         case "resilience":
@@ -302,6 +327,8 @@ def _apply_budget(agent: StandardAgent, budget: Any) -> None:
     # The builder is the one place the budget's rules live; the document reaches it through the
     # same verb code does. A refusal there is rewrapped into the document's own exception, naming
     # the entries the author must fix, with the builder's refusal preserved beneath it.
+    _shaped(budget, "budget")
+
     max_wall_clock_seconds = budget.get("maxWallClockSeconds")
     max_cost_usd = budget.get("maxCostUsd")
     cost_per_thousand_tokens = budget.get("costPerThousandTokens")
@@ -326,11 +353,13 @@ def _apply_budget(agent: StandardAgent, budget: Any) -> None:
             inner_exception=invalid_agent_budget_exception)
 
 
-def _apply_mcp_server(agent: StandardAgent, server: Any) -> None:
+def _apply_mcp_server(agent: StandardAgent, server: Any, key: str) -> None:
     # A server is a URL when it needs nothing else, an object when it carries auth: an API key in
     # a named header, or a bearer token (an OAuth access token or PAT). A refresh-flow token is
     # code (a callable) and arrives through use_mcp, never through the document.
     if isinstance(server, dict) and "command" in server:
+        _shaped(server, key)
+
         agent.mcp_process(
             server["command"],
             arguments=_mcp_arguments(server),
@@ -341,6 +370,8 @@ def _apply_mcp_server(agent: StandardAgent, server: Any) -> None:
         return
 
     if isinstance(server, dict):
+        _shaped(server, key)
+
         agent.mcp(
             server["endpointUrl"],
             relative_url=server.get("relativeUrl", ""),
@@ -373,6 +404,28 @@ def _mcp_environment_variables(server: dict[str, Any]) -> dict[str, str] | None:
         environment_variables = server.get("env")
 
     return None if environment_variables is None else dict(environment_variables)
+
+def _shaped(node: Any, key: str) -> dict[str, Any]:
+    """A section, once its shape is checked against the schema's table (F-24).
+
+    It must be an object, and every key in it must be one the section accepts. A nested typo
+    used to be ignored, which is a control the author believes is on and is not, the same
+    failure the top-level unknown-key refusal exists to prevent.
+    """
+    if not isinstance(node, dict):
+        raise InvalidAgentConfigurationException(message=f"'{key}' must be an object.")
+
+    properties = document_property_names(key)
+
+    for document_property in node:
+        if document_property not in properties:
+            raise InvalidAgentConfigurationException(
+                message=(
+                    f"'{key}' does not accept '{document_property}'. It accepts: "
+                    + ", ".join(properties) + "."))
+
+    return node
+
 
 def _named(enumeration: type[_Named], name: str, key: str) -> _Named:
     """The member a name means, as .NET's Enum.TryParse reads it: whatever the case."""
