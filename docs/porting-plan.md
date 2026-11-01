@@ -52,8 +52,8 @@ live in `src/xeptions` and `src/restfulsense`, and the wheel must not ship them 
 ## Known mismatches, each fixed test-first in its phase
 
 - `StdioMcpBroker` raises `TypeError` when given a command without arguments (`list(None)`),
-  has no `async with` lifecycle (cleanup rides `atexit`), finds child processes through `/proc`
-  only, and resolves the command by hand where `shutil.which` would do (Phase 4).
+  has no `async with` lifecycle (cleanup rides `atexit`), and finds child processes through
+  `/proc` only (Phase 4).
 - Resolved with the trace tests (Phase 3): `AgentRun.started_on` keeps its default of
   `datetime(1, 1, 1, tzinfo=timezone.utc)`, .NET's `default(DateTimeOffset)`. On a composed
   agent every outcome line follows the run's reset, which stamps the start, so the default is
@@ -66,6 +66,11 @@ live in `src/xeptions` and `src/restfulsense`, and the wheel must not ship them 
 ## Deliberate differences, for the README at parity
 
 Places where Python cannot or should not reproduce .NET, kept on purpose:
+
+- On Windows, `StdioMcpBroker` resolves a bare command with `shutil.which`, which looks in the
+  current directory before PATH (always before Python 3.12, and from 3.12 unless
+  `NoDefaultCurrentDirectoryInExePath` is set) and defaults PATHEXT to Python's list; C#'s
+  `ResolveCommand` searches PATH only, with `.EXE;.CMD;.BAT` when PATHEXT is unset.
 
 - The effect ledger records a tool failure as `str(exception)`, which is empty for a bare
   `Exception()` where .NET's `Message` is "Exception of type 'System.Exception' was thrown."
