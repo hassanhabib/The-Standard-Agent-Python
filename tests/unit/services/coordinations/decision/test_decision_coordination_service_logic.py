@@ -521,3 +521,28 @@ async def test_should_not_stream_response_on_think_stream_if_gate_refuses(
 
     assert decision_stream.result.direction_type == "Refuse"
     assert brain_service.generate_stream.mock_calls == []
+
+
+async def test_should_capture_gate_route_label_as_data_on_think(
+        decision_coordination_service,
+        gate_service,
+        brain_service,
+        create_random_agent_context,
+        setup_judge_approves):
+    """Found in the 2026-08-23 sweep: the route label was captured on the streamed door only.
+
+    The mirror image of every other asymmetry, and the same defect. Data consumes context.route
+    on both paths (retrieve_instructions), so a Gate that answered "route: X" steered skill
+    selection when the caller streamed and was silently ignored when the caller did not.
+    """
+    # given: the identical verdict the streamed test uses
+    input_context = create_random_agent_context()
+    setup_judge_approves()
+    gate_service.screen.return_value = "route: arithmetic"
+    brain_service.generate.return_value = "FINAL: 42"
+
+    # when
+    actual_context = await decision_coordination_service.think(input_context)
+
+    # then: the label rides through as data on this door too
+    assert actual_context.route == "arithmetic"
