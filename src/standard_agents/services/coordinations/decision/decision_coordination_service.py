@@ -123,7 +123,8 @@ class DecisionCoordinationService:
         return dataclasses.replace(
             context,
             intent=_REFUSE_DIRECTION,
-            direction_type=_REFUSE_DIRECTION)
+            direction_type=_REFUSE_DIRECTION,
+            raw_reply=verdict)
 
     async def _routed_by_gate(self, context: AgentContext, verdict: str) -> AgentContext:
         """Everything else the Gate's verdict carries, handled once for both doors.
@@ -212,7 +213,7 @@ def _build_clarification_question(conflict: SkillConflict) -> str:
 
 
 def _is_refusal(verdict: str) -> bool:
-    return verdict.startswith(_REFUSE_VERDICT)
+    return _starts_with_ordinal_ignore_case(verdict, _REFUSE_VERDICT)
 
 
 def _is_route(verdict: str) -> bool:
@@ -221,3 +222,32 @@ def _is_route(verdict: str) -> bool:
 
 def _extract_route_label(verdict: str) -> str:
     return verdict[len(_ROUTE_VERDICT):].lstrip(": ")
+
+
+def _starts_with_ordinal_ignore_case(text: str, prefix: str) -> bool:
+    """string.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)."""
+    if len(text) < len(prefix):
+        return False
+
+    return _equals_ordinal_ignore_case(text[:len(prefix)], prefix)
+
+
+def _equals_ordinal_ignore_case(text: str, other: str) -> bool:
+    """string.Equals(other, StringComparison.OrdinalIgnoreCase)."""
+    return _fold_ordinal_ignore_case(text) == _fold_ordinal_ignore_case(other)
+
+
+def _fold_ordinal_ignore_case(value: str) -> str:
+    """Fold a string the way .NET's StringComparison.OrdinalIgnoreCase compares it.
+
+    Characters compare by their simple uppercase mapping. Python's str.upper() applies full
+    mappings (U+00DF becomes "SS"), so each character is uppercased on its own and kept as it
+    is when its mapping expands.
+    """
+    folded: list[str] = []
+
+    for character in value:
+        candidate = character.upper()
+        folded.append(candidate if len(candidate) == 1 else character)
+
+    return "".join(folded)
