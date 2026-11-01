@@ -58,3 +58,12 @@ def test_should_pass_engine_keys_through_whole():
     survived = json.loads(sanitized.json)
     assert survived["grammar"] == "root ::= object"
     assert survived["thinking"]["budget_tokens"] == 1024
+
+
+def test_should_treat_a_malformed_bag_as_nothing_and_say_it_was_malformed():
+    # when
+    sanitized = ProviderOptions.sanitize("not json at all")
+
+    # then: nothing reaches the wire, and the boundary can say why
+    assert sanitized.json is None
+    assert sanitized.malformed is True
