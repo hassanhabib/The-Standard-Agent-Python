@@ -128,3 +128,29 @@ async def test_should_report_effects_that_could_not_be_undone():
     assert "Unwound 1 of 2 effects." in actual_result
     assert "'send_email' could not be undone; the effect stands." in actual_result
     assert "undo:send_email" not in ledger
+
+
+async def test_should_not_compensate_effects_that_were_never_performed():
+    # given: policy denies the charge, so only the booking was ever performed
+    ledger: list[str] = []
+
+    async def authorize(effect):
+        return (
+            AuthorizationDecision.deny("card charges are not permitted")
+            if effect.tool_name == "charge_card"
+            else AuthorizationDecision.allow())
+
+    agent = (_agent_that_runs(
+            [_ReversibleTool("book_flight", ledger), _ReversibleTool("charge_card", ledger)],
+            "ACTION: book_flight: LHR-JFK",
+            "ACTION: charge_card: 480.00")
+        .max_turns(2)
+        .compensate_on_failure()
+        .on_policy(authorize))
+
+    # when
+    actual_result = await agent.process_prompt("book me a flight")
+
+    # then: a denied effect was never performed, so there is nothing of it to undo
+    assert ledger == ["do:book_flight", "undo:book_flight"]
+    assert "Unwound 1 of 1 effects." in actual_result
