@@ -24,8 +24,8 @@ class LoggingBroker(ILoggingBroker):
     async def log_critical(self, exception: BaseException) -> None:
         self.logger.critical(str(exception), exc_info=exception)
 
-    async def log_turn(self, turn: int) -> None:
-        self.logger.info("Turn %d", turn)
+    async def log_turn(self, run_id: str, turn: int) -> None:
+        self.logger.info("Turn %d (run %s)", turn, run_id)
 
     async def log_process(self, actor: str, message: str) -> None:
         self.logger.info("[%s] %s", actor, message)
