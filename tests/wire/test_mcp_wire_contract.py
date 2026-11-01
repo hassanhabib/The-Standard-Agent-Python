@@ -389,3 +389,28 @@ async def test_should_read_structured_content_when_a_text_block_is_absent():
 
     # then
     assert actual_text == '{"account":"42","owed":12}'
+
+
+async def test_should_ask_the_token_provider_on_every_request():
+    # given: an access token that changes between calls, as an OAuth token does
+    server = ScriptedServerHandler.answering('{"jsonrpc":"2.0","id":1,"result":{"tools":[]}}')
+    issued = 0
+
+    async def issue_token():
+        nonlocal issued
+        issued += 1
+
+        return f"token-{issued}"
+
+    broker = create_broker(
+        server,
+        bearer_token="stale-static-token",
+        bearer_token_provider=issue_token)
+
+    # when
+    await broker.list_tools()
+    await broker.list_tools()
+
+    # then: the provider wins over the static token, and every request asked again
+    assert header_of(server.requests[0], "Authorization") == "Bearer token-1"
+    assert header_of(server.requests[1], "Authorization") == "Bearer token-2"
