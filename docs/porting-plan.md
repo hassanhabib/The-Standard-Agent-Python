@@ -90,10 +90,10 @@ Places where Python cannot or should not reproduce .NET, kept on purpose:
   `cancellation: asyncio.Event | None`, `AgentRun` carries it, and the loop checks `is_set()`
   where C# checks the token, so a run stops only at a turn boundary, no effect is left
   half-recorded, and the run ends with the `cancelled` failure code (pinned end to end by
-  tests/acceptance/test_resilience.py). `task.cancel()` keeps its ordinary Python meaning:
-  `asyncio.CancelledError` propagates from every door and every foundation and is never mapped,
-  where C# turns a dependency's own cancellation (a cancelled brain stream or usage count) into
-  a dependency or service exception.
+  tests/acceptance/test_resilience.py and test_failure_code.py). `task.cancel()` keeps its
+  ordinary Python meaning: `asyncio.CancelledError` propagates from every door and every
+  foundation and is never mapped, where C# turns a dependency's own cancellation (a cancelled
+  brain stream or usage count) into a dependency or service exception.
 - A streamed run reads from a background task; a reader cancelled with `task.cancel()` stops the
   run at once, where C# lets it reach its next write. A set `cancellation` event is seen at the
   next turn boundary, never inside a brain stream.
