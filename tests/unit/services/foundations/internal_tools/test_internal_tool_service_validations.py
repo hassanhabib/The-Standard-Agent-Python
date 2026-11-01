@@ -39,3 +39,29 @@ async def test_should_throw_validation_exception_on_handles_if_name_is_invalid_a
         call.log_error(same_exception_as(expected_internal_tool_validation_exception))]
 
     assert tool_broker.mock_calls == []
+
+
+@pytest.mark.parametrize("invalid_name", [None, "", " "])
+async def test_should_throw_validation_exception_on_run_if_name_is_invalid_and_log_it(
+        invalid_name,
+        internal_tool_service,
+        tool_broker,
+        logging_broker,
+        same_exception_as,
+        create_random_string):
+
+    # given
+    random_input = create_random_string()
+    expected_internal_tool_validation_exception = _internal_tool_validation_exception()
+
+    # when
+    with pytest.raises(InternalToolValidationException) as raised:
+        await internal_tool_service.run(invalid_name, random_input)
+
+    # then
+    assert raised.value.same_exception_as(expected_internal_tool_validation_exception)
+
+    assert logging_broker.mock_calls == [
+        call.log_error(same_exception_as(expected_internal_tool_validation_exception))]
+
+    assert tool_broker.mock_calls == []
