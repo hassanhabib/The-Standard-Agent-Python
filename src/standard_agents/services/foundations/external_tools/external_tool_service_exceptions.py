@@ -9,8 +9,10 @@ from xeptions import Xeption
 from standard_agents.brokers.loggings.ilogging_broker import ILoggingBroker
 from standard_agents.models.foundations.external_tools.exceptions import (
     ExternalToolDependencyException,
+    ExternalToolServiceException,
     ExternalToolValidationException,
     FailedExternalToolDependencyException,
+    FailedExternalToolServiceException,
     InvalidExternalToolException)
 
 
@@ -32,6 +34,25 @@ async def try_catch(
         raise await create_and_log_dependency_exception(
             logging_broker,
             failed_dependency_exception)
+    except Exception as exception:
+        failed_service_exception = FailedExternalToolServiceException(
+            message="Failed external tool service error occurred, contact support.",
+            inner_exception=exception)
+
+        raise await create_and_log_service_exception(logging_broker, failed_service_exception)
+
+
+async def create_and_log_service_exception(
+    logging_broker: ILoggingBroker,
+    exception: Xeption) -> ExternalToolServiceException:
+
+    external_tool_service_exception = ExternalToolServiceException(
+        message="External tool service error occurred, contact support.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(external_tool_service_exception)
+
+    return external_tool_service_exception
 
 
 async def create_and_log_dependency_exception(
