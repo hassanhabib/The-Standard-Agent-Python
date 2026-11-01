@@ -11,6 +11,7 @@ from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.models.coordinations.directions.perimeter_policy import PerimeterPolicy
 from standard_agents.models.orchestrations.agents.agent_context import AgentContext
 from standard_agents.models.orchestrations.agents.agent_status import AgentStatus
+from standard_agents.models.orchestrations.agents.tool_exchange import ToolExchange
 from standard_agents.models.orchestrations.effects.agent_effect import AgentEffect
 from standard_agents.models.orchestrations.effects.compensation_outcome import (
     CompensationOutcome)
@@ -89,7 +90,7 @@ class DirectionCoordinationService:
         if claim.verdict is EffectClaimVerdict.REPLAY:
             outcome = claim.outcome if claim.outcome is not None else ""
 
-            return _observed(context, _replayed(effect.tool_name, outcome))
+            return _observed(context, _replayed(effect.tool_name, outcome), replayed=True)
 
         output = await self.execution_service.run(context.direction_type, context.payload)
         await self.perimeter_service.record_outcome(effect, output)
@@ -119,11 +120,39 @@ def _replayed(tool_name: str, outcome: str) -> str:
         "else.]")
 
 
-def _observed(context: AgentContext, output: str) -> AgentContext:
+def _with_exchange(
+        context: AgentContext,
+        result: str,
+        replayed: bool = False) -> tuple[ToolExchange, ...]:
+    """A call the model made gets an answer, whatever the answer is.
+
+    Whether the ledger answered it rather than the tool rides with it (SPEC.md 3.2, v1.14): a
+    loop that counts a run's asks has to tell a replay from a call that ran.
+    """
+    if not context.tool_call_id:
+        return context.tool_exchanges
+
+    return (
+        *context.tool_exchanges,
+        ToolExchange(
+            context.tool_call_id,
+            context.direction_type,
+            context.payload,
+            result,
+            replayed=replayed))
+
+
+def _observed(context: AgentContext, output: str, replayed: bool = False) -> AgentContext:
     return dataclasses.replace(
         context,
         result=output,
-        observations=(*context.observations, f"{context.direction_type}: {output}"))
+        observations=(*context.observations, f"{context.direction_type}: {output}"),
+
+        # On the native path the result is also kept beside the call that asked for it, so the
+        # next turn can hand it back as a tool message rather than as narration (SPEC.md 6).
+        # Observations still carry it too: they are what the V0 path reads, and what the trace
+        # and the Judge read on both.
+        tool_exchanges=_with_exchange(context, output, replayed))
 
 
 def _is_terminal(direction_type: str) -> bool:
