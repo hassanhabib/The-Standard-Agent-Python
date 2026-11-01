@@ -120,3 +120,18 @@ async def test_should_not_advertise_an_empty_tool_list():
     body = json.loads(server.bodies[0])
     assert "tools" not in body
     assert actual_result.content == "12"
+
+
+async def test_should_read_an_answer_without_usage_as_zero_tokens():
+    # given: a partial answer: no usage block, no tool calls, content only
+    server = ScriptedServerHandler.answering(
+        '{"choices":[{"message":{"role":"assistant","content":"12"}}]}')
+
+    broker = create_broker(server)
+    expected_result = GenerationResult(content="12")
+
+    # when
+    actual_result = await broker.generate(CONVERSATION, TOOLS)
+
+    # then: reported, not estimated: zero says "the provider did not say"
+    assert actual_result == expected_result
