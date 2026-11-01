@@ -35,7 +35,7 @@ class MemoryService:
         return await self.memory_broker.select_memories()
 
     async def remember(self, memory: str) -> None:
-        raise NotImplementedError
+        await self.memory_broker.insert_memory(memory)
 
     async def _select_memories_from_file(self, file_broker: FileBroker) -> Sequence[str]:
         if not file_broker.file_exists(self.memory_path):
