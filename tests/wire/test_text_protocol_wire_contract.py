@@ -7,8 +7,12 @@
 # bytes the real broker sends and parsed from the bytes a server sends back (F-21). The stream
 # is where wire contracts drift most: frame boundaries, comments, blank lines, the sentinel.
 
+import http
 import json
 
+import pytest
+
+from restfulsense.exceptions import HttpRequestException
 from standard_agents.brokers.generators.openai_generator_broker import OpenAiGeneratorBroker
 from tests.wire.scripted_server_handler import ScriptedServerHandler, header_of
 
@@ -93,3 +97,23 @@ async def test_should_end_the_stream_when_the_connection_ends_without_a_sentinel
 
     # then: what arrived is delivered; the enumeration completes rather than hangs
     assert streamed == ["FINAL: 1", "2"]
+
+
+async def test_should_throw_on_a_throttled_stream_before_reading_any_frame():
+    # given
+    server = ScriptedServerHandler.answering_with(
+        http.HTTPStatus.TOO_MANY_REQUESTS,
+        '{"error":{"message":"slow down"}}')
+
+    broker = create_broker(server)
+
+    # when
+    async def stream():
+        async for _ in broker.generate_stream("be brief", "what is owed?"):
+            pass
+
+    # then
+    with pytest.raises(HttpRequestException) as raised:
+        await stream()
+
+    assert raised.value.status_code == http.HTTPStatus.TOO_MANY_REQUESTS
