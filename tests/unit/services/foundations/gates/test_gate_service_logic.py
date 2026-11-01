@@ -3,7 +3,7 @@
 # Licensed under the The Standard Software License (TSSL)
 # ---------------------------------------------------------------
 
-from unittest.mock import call
+from unittest.mock import ANY, call
 
 import pytest
 
@@ -42,4 +42,21 @@ async def test_should_return_verdict_verbatim_on_screen(
     # then
     assert actual_verdict == expected_verdict
     assert classifier_broker.mock_calls == [call.classify(random_input)]
+    assert logging_broker.mock_calls == []
+
+
+async def test_should_detect_conflict(
+        gate_service, classifier_broker, logging_broker, create_random_string):
+
+    # given
+    random_instructions = create_random_string()
+    random_verdict = create_random_string()
+    classifier_broker.assess.return_value = random_verdict
+
+    # when
+    actual_verdict = await gate_service.detect_conflict(random_instructions)
+
+    # then
+    assert actual_verdict == random_verdict
+    assert classifier_broker.mock_calls == [call.assess(ANY, random_instructions)]
     assert logging_broker.mock_calls == []
