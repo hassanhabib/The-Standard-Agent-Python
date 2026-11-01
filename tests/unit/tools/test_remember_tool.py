@@ -22,3 +22,19 @@ async def test_should_write_to_memory_on_execute():
     # then
     assert fact in actual_result
     assert remembered == [fact]
+
+
+async def test_should_extract_fact_from_structured_arguments_on_execute():
+    # given
+    remembered = []
+
+    async def remember(memory):
+        remembered.append(memory)
+
+    remember_tool = RememberTool(remember)
+
+    # when
+    await remember_tool.execute('{"fact":"Paris is the capital of France"}')
+
+    # then
+    assert remembered == ["Paris is the capital of France"]
