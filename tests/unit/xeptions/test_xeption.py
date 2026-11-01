@@ -74,3 +74,42 @@ class TestXeption:
 
         # then
         assert xeption.data == expected_data
+
+    def test_should_tell_whether_exceptions_are_the_same(self) -> None:
+        # given
+        random_message = create_random_string()
+        random_key = create_random_string()
+        random_value = create_random_string()
+        native_exception = RuntimeError(random_message)
+
+        def create_xeption() -> Xeption:
+            inner_xeption = Xeption(
+                message=random_message,
+                inner_exception=native_exception)
+
+            inner_xeption.upsert_data_list(random_key, random_value)
+
+            return Xeption(message=random_message, inner_exception=inner_xeption)
+
+        expected_xeption = create_xeption()
+        same_xeption = create_xeption()
+        other_message_xeption = Xeption(message=create_random_string())
+
+        other_inner_xeption = Xeption(
+            message=random_message,
+            inner_exception=Xeption(message=create_random_string()))
+
+        other_data_xeption = create_xeption()
+        other_data_xeption.inner_exception.upsert_data_list(random_key, random_value)
+
+        # when
+        actual_results = [
+            expected_xeption.same_exception_as(same_xeption),
+            expected_xeption.same_exception_as(other_message_xeption),
+            expected_xeption.same_exception_as(other_inner_xeption),
+            expected_xeption.same_exception_as(other_data_xeption),
+            expected_xeption.same_exception_as(None)
+        ]
+
+        # then
+        assert actual_results == [True, False, False, False, False]
