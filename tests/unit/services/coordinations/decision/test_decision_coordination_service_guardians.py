@@ -39,3 +39,24 @@ async def test_should_refuse_on_think_if_gate_screens_refuse(
     # then
     assert actual_context.direction_type == "Refuse"
     assert actual_context.intent == "Refuse"
+
+
+@pytest.mark.parametrize(
+    "verdict",
+    ["refuse", "REFUSE", "refuse: asks for credentials", "Refuse - policy violation"])
+async def test_should_refuse_on_think_if_gate_screens_refuse_with_reason(
+        verdict,
+        decision_coordination_service,
+        gate_service,
+        create_random_agent_context):
+
+    # given
+    input_context = create_random_agent_context()
+    gate_service.screen.return_value = verdict
+
+    # when
+    actual_context = await decision_coordination_service.think(input_context)
+
+    # then
+    assert actual_context.direction_type == "Refuse"
+    assert actual_context.raw_reply == verdict
