@@ -185,3 +185,37 @@ async def test_should_keep_working_when_a_transfer_does_not_deliver(
     # then: the outer brain saw the failed transfer and answered itself.
     assert outcome.status is AgentStatus.RESPONDED
     assert "here is what I can do instead" in outcome.result
+
+
+# The fleet is data like everything else: an "agents" entry is either a folder of agent documents
+# (a path) or an agent document riding inline, identity included, because the document IS the
+# agent. A form that can post JSON can post a fleet.
+async def test_should_compose_a_fleet_from_json(empty_memory_broker, empty_knowledge_broker):
+    # given
+    fleet = """
+    {
+      "agents": [
+        { "name": "billing", "description": "Handles refunds and invoices.", "maxTurns": 2 }
+      ]
+    }
+    """
+
+    outer_saw = []
+
+    async def outer_brain(system_prompt, user_prompt):
+        outer_saw.append(system_prompt)
+
+        return "FINAL: nothing to do"
+
+    outer_agent = (StandardAgent.from_json(fleet)
+        .use_memory(empty_memory_broker)
+        .use_knowledge(empty_knowledge_broker)
+        .on_skills(select_concierge)
+        .on_brain(outer_brain))
+
+    # when
+    await outer_agent.process_prompt("hello")
+
+    # then: the document's fleet member is advertised exactly as a registered agent is.
+    assert "billing" in outer_saw[-1]
+    assert "Handles refunds and invoices." in outer_saw[-1]
