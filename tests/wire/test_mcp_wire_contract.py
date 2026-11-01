@@ -129,3 +129,18 @@ async def test_should_throw_http_request_exception_on_a_json_rpc_error():
 
     # then: the server's own words, as a native exception for the foundation to localize
     assert raised.value.message == "unknown tool"
+
+
+async def test_should_accept_json_and_an_event_stream_on_every_request():
+    # given: a server free to answer either way, as the Streamable HTTP transport allows
+    server = ScriptedServerHandler.answering('{"jsonrpc":"2.0","id":1,"result":{"tools":[]}}')
+    broker = create_broker(server)
+
+    # when
+    await broker.list_tools()
+
+    # then: every request says it reads both
+    for request in server.requests:
+        media_types = media_types_of(request)
+        assert "application/json" in media_types
+        assert "text/event-stream" in media_types
