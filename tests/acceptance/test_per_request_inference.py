@@ -188,3 +188,24 @@ async def test_should_hand_the_broker_the_framework_default_when_nobody_said_any
     assert broker.captured is not None
     assert broker.captured.temperature == ResolvedInference.DEFAULT_TEMPERATURE
     assert broker.captured.max_tokens == ResolvedInference.DEFAULT_MAX_TOKENS
+
+
+# The streamed loop is a run like any other. A request whose temperature applied on the batched
+# call and silently vanished on the streamed one would make the stream the way to step around
+# the seam, and a control a caller can step around by changing method is not a control
+# (SPEC.md 7.6).
+async def test_should_carry_the_request_to_the_broker_on_the_streamed_path():
+    # given
+    broker = _CapturingGeneratorBroker()
+    agent = _agent_with_broker(broker)
+
+    request = PromptRequest(prompt="hello", temperature=0.2, max_tokens=64)
+
+    # when: the stream must be consumed for the run to happen
+    async for _ in agent.process_prompt_stream(request):
+        pass
+
+    # then
+    assert broker.captured is not None
+    assert broker.captured.temperature == 0.2
+    assert broker.captured.max_tokens == 64
