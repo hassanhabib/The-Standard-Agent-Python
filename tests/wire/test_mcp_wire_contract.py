@@ -1,0 +1,86 @@
+# ---------------------------------------------------------------
+# Copyright (c) Hassan Habib All rights reserved.
+# Licensed under the The Standard Software License (TSSL)
+# ---------------------------------------------------------------
+
+# The MCP JSON-RPC wire, read from the bytes the real broker sends (F-21): tools/list and
+# tools/call as the protocol shapes them, ids that increase, schemas that survive untouched,
+# arguments that arrive as an object, errors that surface, and a token asked for per request.
+
+import http
+import json
+import urllib.request
+
+import pytest
+
+from restfulsense.exceptions import HttpRequestException
+from standard_agents.brokers.mcps.http_mcp_broker import HttpMcpBroker
+from standard_agents.models.brokers.mcps.mcp_tool import McpTool
+from tests.wire.scripted_server_handler import (
+    ScriptedResponse,
+    ScriptedServerHandler,
+    header_of)
+
+
+def create_broker(
+        server: ScriptedServerHandler,
+        bearer_token: str | None = None,
+        api_key: str | None = None,
+        bearer_token_provider=None) -> HttpMcpBroker:
+
+    # The broker takes the composed opener, as StandardAgent hands it one over the host's
+    # handler: no User-Agent of its own.
+    opener = urllib.request.build_opener(server)
+    opener.addheaders = []
+
+    return HttpMcpBroker(
+        endpoint_url="http://mcp.test/",
+        relative_url="rpc",
+        timeout_seconds=30,
+        bearer_token=bearer_token,
+        api_key=api_key,
+        api_key_header="X-Api-Key",
+        bearer_token_provider=bearer_token_provider,
+        handler=opener)
+
+
+def media_types_of(request: urllib.request.Request) -> list[str]:
+    accept = header_of(request, "Accept") or ""
+
+    return [media_type.split(";")[0].strip() for media_type in accept.split(",")]
+
+
+async def test_should_post_tools_list_as_json_rpc_and_keep_schemas_whole():
+    # given: a server listing one tool with a typed schema
+    server = ScriptedServerHandler.answering(
+        '{"jsonrpc":"2.0","id":1,"result":{"tools":[{"name":"lookup",'
+        + '"description":"looks up an account",'
+        + '"inputSchema":{"type":"object","properties":{"account":{"type":"string"}},'
+        + '"required":["account"]}}]}}')
+
+    broker = create_broker(server, api_key="mcp-key")
+
+    expected_tools = [
+        McpTool(
+            name="lookup",
+            description="looks up an account",
+            input_schema_json=(
+                '{"type":"object","properties":{"account":{"type":"string"}},'
+                + '"required":["account"]}'))
+    ]
+
+    # when
+    actual_tools = await broker.list_tools()
+
+    # then: the route, the credential header, the envelope, after the handshake
+    request = server.requests[-1]
+    assert request.full_url == "http://mcp.test/rpc"
+    assert header_of(request, "X-Api-Key") == "mcp-key"
+
+    body = json.loads(server.bodies[-1])
+    assert body["jsonrpc"] == "2.0"
+    assert body["method"] == "tools/list"
+    assert body["id"] == 2
+
+    # and the schema, verbatim (F-03)
+    assert actual_tools == expected_tools
