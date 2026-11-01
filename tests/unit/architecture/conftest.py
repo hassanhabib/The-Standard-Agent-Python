@@ -53,6 +53,17 @@ class TierMap:
             and f".services.{tier}" in cls.__module__
             and cls.__name__.endswith("Service"))
 
+    def services_above_foundations(self) -> tuple[type, ...]:
+        """Every tier above foundations, named explicitly.
+
+        A tier missing from this list is a tier nobody is checking, which is how the loop
+        briefly escaped the rule when it moved from Coordinations to Managements.
+        """
+        return (
+            self.services_under("orchestrations")
+            + self.services_under("coordinations")
+            + self.services_under("managements"))
+
     def constructors(self, cls: type) -> tuple[tuple[Parameter, ...], ...]:
         """The C# constructor overloads, as Python's one keyword-only __init__ carries them.
 
@@ -97,6 +108,18 @@ class TierMap:
             for constructor in self.constructors(cls))
 
     @staticmethod
+    def dependencies_in(constructor: tuple[Parameter, ...]) -> tuple[type, ...]:
+        """A dependency for counting purposes is another SERVICE: what the tier below supplies.
+
+        Options, delegates and primitives are configuration rather than collaborators, and
+        utility brokers are exempt everywhere.
+        """
+        return tuple(
+            _unwrap(parameter.annotation)
+            for parameter in constructor
+            if _is_a_dependency(_unwrap(parameter.annotation)))
+
+    @staticmethod
     def role(broker_name: str) -> str:
         """One broker ROLE, which may be versioned.
 
@@ -134,6 +157,14 @@ def _is_broker_contract(annotation: object) -> bool:
         and annotation.__name__.endswith("Broker"))
 
 
+def _is_a_dependency(annotation: object) -> bool:
+    """A service of a tier: Python's services are the classes themselves, with no interface."""
+    return (
+        inspect.isclass(annotation)
+        and annotation.__name__.endswith("Service")
+        and ".services." in annotation.__module__)
+
+
 @functools.cache
 def _read_tier_map() -> TierMap:
     return TierMap(standard_agents)
@@ -144,6 +175,7 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
 
     services_by_fixture = {
         "foundation_service": tier_map.services_under("foundations"),
+        "service_above_foundations": tier_map.services_above_foundations(),
     }
 
     for fixture_name, services in services_by_fixture.items():
