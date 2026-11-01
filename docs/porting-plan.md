@@ -74,7 +74,6 @@ Places where Python cannot or should not reproduce .NET, kept on purpose:
   current directory before PATH (always before Python 3.12, and from 3.12 unless
   `NoDefaultCurrentDirectoryInExePath` is set) and defaults PATHEXT to Python's list; C#'s
   `ResolveCommand` searches PATH only, with `.EXE;.CMD;.BAT` when PATHEXT is unset.
-
 - The effect ledger records a tool failure as `str(exception)`, which is empty for a bare
   `Exception()` where .NET's `Message` is "Exception of type 'System.Exception' was thrown."
   Reproducing it would mean naming .NET types in Python; no C# test pins it.
