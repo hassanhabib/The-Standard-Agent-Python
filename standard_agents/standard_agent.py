@@ -167,6 +167,27 @@ class StandardAgent:
 
         return self
 
+    # The turn-by-turn trace, written to a file of the host's choosing. The logger is named after
+    # the path, so two agents tracing to two files never write into each other's.
+    def log_to(self, path: str) -> "StandardAgent":
+        logger = logging.getLogger(f"standard_agents.trace.{path}")
+        logger.setLevel(logging.INFO)
+        logger.propagate = False
+
+        if not logger.handlers:
+            file_handler = logging.FileHandler(path, encoding="utf-8")
+            file_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+            logger.addHandler(file_handler)
+
+        self.logging_broker = LoggingBroker(logger)
+
+        return self
+
+    def use_logging(self, logging_broker: ILoggingBroker) -> "StandardAgent":
+        self.logging_broker = logging_broker
+
+        return self
+
     # A bound on how many Recall, Think, Act turns one prompt may take.
     def max_turns(self, turns: int) -> "StandardAgent":
         validate_turns(turns)
