@@ -48,6 +48,33 @@ class TestDecisionOrchestrationServiceLogicThink(DecisionOrchestrationServiceTes
 
         assert self.judge_service_mock.mock_calls == []
 
+    # This implementation does not voice narration, so under SPEC.md 6.0 a SAY: line is the
+    # reply's first line under the unamended rules: not an ACTION, so the whole reply is the
+    # answer, and no act is taken on a line that was never the first.
+    def test_should_think_and_read_a_say_line_as_the_first_line(self) -> None:
+        # given
+        input_context = self.create_random_context()
+        random_tool_name = self.create_random_string()
+        returned_reply = f"SAY: {self.create_random_string()}\nACTION: {random_tool_name}: x"
+        returned_judgement = Judgement(score=1.0)
+
+        expected_context = dataclasses.replace(
+            copy.deepcopy(input_context),
+            intent="Respond",
+            direction_type="ReturnResponse",
+            payload=returned_reply,
+            raw_reply=returned_reply)
+
+        self.gate_service_mock.screen.return_value = "allow"
+        self.brain_service_mock.generate.return_value = returned_reply
+        self.judge_service_mock.evaluate.return_value = returned_judgement
+
+        # when
+        actual_context = asyncio.run(self.decision_orchestration_service.think(input_context))
+
+        # then
+        assert actual_context == expected_context
+
     def test_should_think_and_answer_when_judge_accepts(self) -> None:
         # given
         input_context = self.create_random_context()
