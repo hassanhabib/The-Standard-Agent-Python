@@ -120,12 +120,15 @@ class StandardAgent:
 
         return self
 
-    def on_gate(self, screen: Callable[[str], Awaitable[str]]) -> "StandardAgent":
+    def on_gate(self, screen: Callable[[str, str], Awaitable[str]]) -> "StandardAgent":
         self.classifier_broker = FunctionClassifierBroker(screen)
 
         return self
 
-    def on_judge(self, evaluate: Callable[[str, str], Awaitable[str]]) -> "StandardAgent":
+    def on_judge(
+        self,
+        evaluate: Callable[[str, str, str], Awaitable[str]]) -> "StandardAgent":
+
         self.verifier_broker = FunctionVerifierBroker(evaluate)
 
         return self

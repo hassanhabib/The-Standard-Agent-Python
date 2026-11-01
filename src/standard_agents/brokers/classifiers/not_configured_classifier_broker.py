@@ -8,5 +8,5 @@ from standard_agents.brokers.classifiers.iclassifier_broker import IClassifierBr
 
 # No Gate configured: every request is let through, exactly as if the Gate were absent.
 class NotConfiguredClassifierBroker(IClassifierBroker):
-    async def classify(self, text: str) -> str:
-        return "allow"
+    async def classify(self, system_prompt: str, input: str) -> str:
+        return "accept"

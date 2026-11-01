@@ -29,7 +29,7 @@ class RecordingVerifierBroker(IVerifierBroker):
         self.score = score
         self.tasks: list[str] = []
 
-    async def verify(self, task: str, candidate: str) -> str:
+    async def verify(self, system_prompt: str, task: str, candidate: str) -> str:
         self.tasks.append(task)
 
         return self.score

@@ -19,10 +19,10 @@ class GateService(IGateService):
         self.classifier_broker = classifier_broker
         self.logging_broker = logging_broker
 
-    async def screen(self, text: str) -> str:
+    async def screen(self, gate_prompt: str, input: str) -> str:
         async def returning_string_function() -> str:
-            validate_text(text)
-            verdict = await self.classifier_broker.classify(text)
+            validate_text(input)
+            verdict = await self.classifier_broker.classify(gate_prompt, input)
 
             return verdict.strip()
 
