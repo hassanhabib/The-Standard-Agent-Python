@@ -49,3 +49,23 @@ async def test_should_throw_dependency_exception_on_retrieve_skills_if_critical_
 
     assert logging_broker.mock_calls == [
         call.log_critical(same_exception_as(expected_skill_dependency_exception))]
+
+
+async def test_should_throw_dependency_exception_on_retrieve_skills_if_io_error_occurs_and_log_it(
+        skill_service, skill_broker, logging_broker, same_exception_as):
+
+    # given
+    io_error = OSError()
+    expected_skill_dependency_exception = _skill_dependency_exception(io_error)
+    skill_broker.select_skills.side_effect = io_error
+
+    # when
+    with pytest.raises(SkillDependencyException) as raised:
+        await skill_service.retrieve_skills()
+
+    # then
+    assert raised.value.same_exception_as(expected_skill_dependency_exception)
+    assert skill_broker.mock_calls == [call.select_skills()]
+
+    assert logging_broker.mock_calls == [
+        call.log_error(same_exception_as(expected_skill_dependency_exception))]
