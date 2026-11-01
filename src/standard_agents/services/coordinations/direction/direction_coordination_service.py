@@ -75,10 +75,7 @@ class DirectionCoordinationService:
 
         output = await self.execution_service.run(context.direction_type, context.payload)
 
-        return dataclasses.replace(
-            context,
-            result=output,
-            observations=(*context.observations, output))
+        return _observed(context, output)
 
     async def compensate_run(self) -> tuple[CompensationOutcome, ...]:
         """Unwinds what this run performed, in reverse order (SPEC.md 4.9).
@@ -86,6 +83,13 @@ class DirectionCoordinationService:
         Reports every effect it could not undo rather than reporting the run cleanly unwound.
         """
         raise NotImplementedError
+
+
+def _observed(context: AgentContext, output: str) -> AgentContext:
+    return dataclasses.replace(
+        context,
+        result=output,
+        observations=(*context.observations, f"{context.direction_type}: {output}"))
 
 
 def _is_terminal(direction_type: str) -> bool:
