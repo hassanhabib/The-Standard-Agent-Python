@@ -6,6 +6,7 @@
 import dataclasses
 from unittest.mock import call
 
+from standard_agents.models.brokers.mcps.mcp_tool import McpTool
 from standard_agents.models.orchestrations.agents.agent_context import AgentContext
 
 
@@ -202,3 +203,31 @@ async def test_should_remember(
 
     # then
     assert memory_service.mock_calls == [call.remember(random_memory)]
+
+
+async def test_should_retrieve_remote_tools(
+        data_coordination_service,
+        skill_service,
+        memory_service,
+        external_tool_service,
+        logging_broker,
+        create_random_string):
+    """What the agent HAS includes what its servers offer (SPEC.md 4.15).
+
+    The nature hands the loop the remote tools its retrieval region discovered, so selection can
+    judge them with the local ones.
+    """
+    # given
+    random_tools = [McpTool(create_random_string(), create_random_string())]
+    expected_tools = random_tools
+    external_tool_service.retrieve_tools.return_value = random_tools
+
+    # when
+    actual_tools = await data_coordination_service.retrieve_remote_tools()
+
+    # then
+    assert actual_tools == expected_tools
+    assert external_tool_service.mock_calls == [call.retrieve_tools()]
+    assert skill_service.mock_calls == []
+    assert memory_service.mock_calls == []
+    assert logging_broker.mock_calls == []
