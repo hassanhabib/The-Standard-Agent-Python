@@ -9,3 +9,6 @@ from abc import ABC, abstractmethod
 class ISkillService(ABC):
     @abstractmethod
     async def retrieve_skills(self, route: str = "") -> str: ...
+
+    @abstractmethod
+    async def retrieve_skill_catalog(self) -> str: ...
