@@ -100,3 +100,24 @@ async def test_should_remember(
     # then
     assert memory_broker.mock_calls == [call.insert_memory(input_memory)]
     assert logging_broker.mock_calls == []
+
+
+async def test_should_remember_by_appending_to_memory_file(
+        file_broker, logging_broker, create_random_string):
+
+    # given
+    memory_directory = create_random_string()
+    memory_path = os.path.join(memory_directory, create_random_string() + ".txt")
+    input_memory = create_random_string()
+    file_memory_service = MemoryService(
+        file_broker=file_broker, memory_path=memory_path, logging_broker=logging_broker)
+
+    # when
+    await file_memory_service.remember(input_memory)
+
+    # then
+    assert file_broker.mock_calls == [
+        call.create_directory(memory_directory),
+        call.append_all_lines(memory_path, (input_memory,))]
+
+    assert logging_broker.mock_calls == []
