@@ -100,3 +100,18 @@ async def test_should_stop_a_streamed_run_when_cancelled():
     # then: a cancelled run stops at the turn boundary and says so, on this path too
     assert tool.execution_count == 0
     assert any("cancelled" in stream_event.content for stream_event in actual_events)
+
+
+async def test_should_stop_a_streamed_run_when_the_budget_is_exhausted():
+    # given: a model that would loop forever, and no time to do it in
+    tool = _CountingTool()
+
+    agent = (_agent_that_loops(tool, _answering("ACTION: calculator: 47*89"))
+        .max_turns(50)
+        .budget(max_wall_clock=timedelta(0)))
+
+    # when
+    actual_events = await _drain(agent.process_prompt_stream("loop"))
+
+    # then: a budget a caller can step around by streaming is not a budget
+    assert any("budget" in stream_event.content for stream_event in actual_events)
