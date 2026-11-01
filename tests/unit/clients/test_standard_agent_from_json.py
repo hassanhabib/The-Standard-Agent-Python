@@ -8,6 +8,8 @@
 # agent the fluent code composes. Tools and callables stay code; JSON reaches everything that is
 # data.
 
+import re
+
 import pytest
 
 from standard_agents.models.clients.agents.agent_failure_codes import AgentFailureCodes
@@ -158,3 +160,13 @@ def test_should_reject_an_unknown_configuration_key():
 
     # then: a typo'd key must not produce an unbounded agent that looks configured.
     assert "buget" in raised.value.message
+
+
+def test_should_reject_a_nameless_inline_fleet_member():
+    # given . when: an inline fleet member with no name is an agent no handoff could ever call,
+    # so it refuses to compose rather than registering an unreachable agent.
+    with pytest.raises(InvalidAgentConfigurationException) as raised:
+        StandardAgent.from_json('{ "agents": [ { "maxTurns": 2 } ] }')
+
+    # then
+    assert re.search("agents.*name", raised.value.message)
