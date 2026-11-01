@@ -74,7 +74,13 @@ class BrainService:
             _validate_user_prompt(user_prompt)
             tokens = self.generator_broker.generate_stream(system_prompt, user_prompt)
 
-        async for token in tokens:
+        while True:
+            async with _handling_stream_exceptions(self.logging_broker):
+                try:
+                    token = await anext(tokens)
+                except StopAsyncIteration:
+                    break
+
             yield token
 
 
@@ -127,6 +133,9 @@ async def _handling_stream_exceptions(logging_broker: LoggingBroker) -> AsyncIte
     except InvalidBrainException as invalid_brain_exception:
         raise await _create_and_log_validation_exception(
             logging_broker, invalid_brain_exception)
+    except HttpRequestException as http_request_exception:
+        raise await _create_and_log_unreachable_exception(
+            logging_broker, http_request_exception)
 
 
 async def _create_and_log_validation_exception(
