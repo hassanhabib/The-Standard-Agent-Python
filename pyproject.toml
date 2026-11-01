@@ -33,7 +33,7 @@ Specification = "https://github.com/hassanhabib/The-Standard-Agent-Specs"
 where = ["src"]
 
 [tool.setuptools.package-data]
-standard_agents = ["py.typed"]
+standard_agents = ["py.typed", "prompts/guardians/*.md"]
 xeptions = ["py.typed"]
 
 [tool.pytest.ini_options]

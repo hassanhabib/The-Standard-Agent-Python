@@ -3,7 +3,9 @@
 # Licensed under the The Standard Software License (TSSL)
 # ---------------------------------------------------------------
 
+import importlib.resources
 import logging
+from pathlib import Path
 from collections.abc import Awaitable, Callable, Iterable
 
 from standard_agents.brokers.classifiers.function_classifier_broker import (
@@ -70,6 +72,27 @@ async def select_no_skills() -> list[Skill]:
     return []
 
 
+# The built-in guardian policies and contracts are Data shipped with the package (SPEC.md 4.5).
+def read_guardian_prompt(name: str) -> str:
+    guardian_prompts = importlib.resources.files("standard_agents.prompts.guardians")
+
+    return guardian_prompts.joinpath(name).read_text(encoding="utf-8")
+
+
+def read_data(path: str | None) -> str:
+    if path is None:
+        return ""
+
+    return Path(path).read_text(encoding="utf-8")
+
+
+# Constitution, then policy, then contract; an absent layer contributes nothing.
+def compose_rubric(constitution: str, policy: str, contract: str) -> str:
+    layers = [layer.strip() for layer in (constitution, policy, contract)]
+
+    return "\n\n".join(layer for layer in layers if layer != "")
+
+
 # The door. Every capability is opt-in and has a sane default, so the shortest agent is a brain
 # and nothing else; each line added is one capability, never a rewrite. The configuration
 # methods only record what was chosen; run composes the brokers and services from it, and the
@@ -86,6 +109,8 @@ class StandardAgent:
         self.logging_broker: ILoggingBroker = LoggingBroker(logging.getLogger("standard_agents"))
         self.agent_tools: dict[str, ITool] = {}
         self.turn_limit = DEFAULT_MAX_TURNS
+        self.constitution_path: str | None = None
+        self.consumption_path: str | None = None
 
     def on_brain(self, generate: Callable[[str, str], Awaitable[str]]) -> "StandardAgent":
         self.generator_broker = FunctionGeneratorBroker(generate)
@@ -191,6 +216,19 @@ class StandardAgent:
 
     # The turn-by-turn trace, written to a file of the host's choosing. The logger is named after
     # the path, so two agents tracing to two files never write into each other's.
+    # One law above both guardians: prepended to the Gate's rubric and the Judge's alike.
+    def constitution(self, path: str) -> "StandardAgent":
+        self.constitution_path = path
+
+        return self
+
+    # A consumption skill replaces the built-in policy in both guardians. The contract, the
+    # output the brokers parse, stays: a replacement policy can never break the parsing.
+    def consumption(self, path: str) -> "StandardAgent":
+        self.consumption_path = path
+
+        return self
+
     def log_to(self, path: str) -> "StandardAgent":
         logger = logging.getLogger(f"standard_agents.trace.{path}")
         logger.setLevel(logging.INFO)
@@ -242,7 +280,9 @@ class StandardAgent:
             brain_service=BrainService(self.generator_broker, self.logging_broker),
             gate_service=GateService(self.classifier_broker, self.logging_broker),
             judge_service=JudgeService(self.verifier_broker, self.logging_broker),
-            logging_broker=self.logging_broker)
+            logging_broker=self.logging_broker,
+            gate_rubric=self.compose_guardian_rubric("gate"),
+            judge_rubric=self.compose_guardian_rubric("judge"))
 
         direction_orchestration_service = DirectionOrchestrationService(
             internal_tool_service=InternalToolService(
@@ -258,6 +298,13 @@ class StandardAgent:
             direction_orchestration_service=direction_orchestration_service,
             logging_broker=self.logging_broker,
             max_turns=self.turn_limit)
+
+    def compose_guardian_rubric(self, guardian: str) -> str:
+        constitution = read_data(self.constitution_path)
+        policy = read_data(self.consumption_path) or read_guardian_prompt(f"{guardian}.policy.md")
+        contract = read_guardian_prompt(f"{guardian}.contract.md")
+
+        return compose_rubric(constitution, policy, contract)
 
     # What the brain reads at {{tools}} in its skills: one line per tool, as the tool describes it.
     def render_tool_catalog(self) -> str:
