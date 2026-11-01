@@ -56,3 +56,23 @@ async def test_should_mark_a_measured_call_as_estimated_on_measure(
 
     # then
     assert actual_usage.is_estimated
+
+
+async def test_should_measure_empty_completion_without_failing_on_measure(
+        usage_service, usage_broker, create_random_string, create_random_token_count):
+    """An empty completion is an ordinary measurement, not a missing one.
+
+    A call that produced no reply consumed no completion tokens, and it still consumed its
+    prompt.
+    """
+    # given
+    random_prompt = create_random_string()
+    random_prompt_tokens = create_random_token_count()
+    usage_broker.count_tokens.side_effect = {random_prompt: random_prompt_tokens, "": 0}.get
+
+    # when
+    actual_usage = await usage_service.measure(random_prompt, "")
+
+    # then
+    assert actual_usage.prompt_tokens == random_prompt_tokens
+    assert actual_usage.completion_tokens == 0
