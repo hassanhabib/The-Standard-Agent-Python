@@ -233,3 +233,25 @@ async def test_should_keep_an_unselected_tool_callable_by_name():
     # then
     assert answer == "done"
     assert code_search.executions == 1
+
+
+async def test_should_offer_the_native_brain_only_what_the_selector_named():
+    # given: an agent carrying two described tools, and a selector that judges only one relevant
+    # to this task
+    shown: list[Sequence[ToolDefinition]] = [[]]
+
+    def reply(tools: Sequence[ToolDefinition]) -> GenerationResult:
+        shown[0] = tools
+
+        return GenerationResult(content="hello!")
+
+    agent = (_agent_with(reply, _NamedTool("web_search"), _NamedTool("code_search"))
+        .on_select_tools(_selecting("web_search")))
+
+    # when
+    answer = await agent.process_prompt("look something up")
+
+    # then: the run was offered the selected tool and nothing else
+    assert answer == "hello!"
+    assert any(definition.name == "web_search" for definition in shown[0])
+    assert not any(definition.name == "code_search" for definition in shown[0])
