@@ -13,19 +13,28 @@ from tests.unit.services.orchestrations.data.data_orchestration_service_tests im
 
 
 class TestDataOrchestrationServiceLogicRecall(DataOrchestrationServiceTests):
-    def test_should_recall_skills_memories_and_knowledge(self) -> None:
+    # SPEC.md 4.3: recall sets the system prompt from skills and seeds observations from memory and
+    # knowledge. Recall runs every turn, so what is already observed is not observed twice.
+    def test_should_recall_skills_and_seed_observations_once(self) -> None:
         # given
+        recalled_before = self.create_random_string()
         input_context = self.create_random_context()
+
+        input_context = dataclasses.replace(
+            input_context,
+            observations=input_context.observations + (recalled_before,))
+
         random_instructions = self.create_random_string()
         returned_skills = random_instructions + "\n{{tools}}"
-        returned_memories = [self.create_random_string()]
-        returned_knowledge = [self.create_random_string(), self.create_random_string()]
+        new_memory = self.create_random_string()
+        new_knowledge = self.create_random_string()
+        returned_memories = [recalled_before, new_memory]
+        returned_knowledge = [new_knowledge, recalled_before]
 
         expected_context = dataclasses.replace(
             copy.deepcopy(input_context),
             system_prompt=random_instructions + "\n" + self.tool_catalog,
-            memories=tuple(returned_memories),
-            knowledge=tuple(returned_knowledge))
+            observations=input_context.observations + (new_memory, new_knowledge))
 
         self.skill_service_mock.retrieve_all_skills.return_value = returned_skills
         self.memory_service_mock.retrieve_all_memories.return_value = returned_memories

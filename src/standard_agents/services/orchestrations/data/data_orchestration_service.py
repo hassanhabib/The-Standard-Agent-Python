@@ -22,6 +22,16 @@ from standard_agents.services.orchestrations.data.idata_orchestration_service im
 TOOLS_MARKER = "{{tools}}"
 
 
+def with_new_observations(observations: tuple[str, ...], recalled: list[str]) -> tuple[str, ...]:
+    new_observations = []
+
+    for item in recalled:
+        if item not in observations and item not in new_observations:
+            new_observations.append(item)
+
+    return observations + tuple(new_observations)
+
+
 class DataOrchestrationService(IDataOrchestrationService):
     def __init__(
         self,
@@ -49,7 +59,6 @@ class DataOrchestrationService(IDataOrchestrationService):
             return dataclasses.replace(
                 context,
                 system_prompt=skills.replace(TOOLS_MARKER, self.tool_catalog),
-                memories=tuple(memories),
-                knowledge=tuple(knowledge))
+                observations=with_new_observations(context.observations, memories + knowledge))
 
         return await try_catch(self.logging_broker, returning_context_function)
