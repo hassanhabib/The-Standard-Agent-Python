@@ -179,3 +179,29 @@ async def test_should_offer_nothing_on_an_empty_selection():
     # then
     assert answer == "hello!"
     assert len(shown[0]) == 0
+
+
+# Caller tools are the caller's own vocabulary (SPEC.md 4.13); selection governs the agent's tools
+# and never the caller's: an empty selection still advertises them.
+async def test_should_never_select_away_the_callers_tools():
+    # given
+    shown: list[Sequence[ToolDefinition]] = [[]]
+
+    def reply(tools: Sequence[ToolDefinition]) -> GenerationResult:
+        shown[0] = tools
+
+        return GenerationResult(content="done")
+
+    agent = (_agent_with(reply, _NamedTool("web_search"))
+        .on_select_tools(_selecting()))
+
+    request = PromptRequest(
+        prompt="read a file",
+        caller_tools=(ToolDefinition("read_file", "Reads a file.", "{}"),))
+
+    # when
+    await agent.process_prompt(request)
+
+    # then
+    assert any(definition.name == "read_file" for definition in shown[0])
+    assert not any(definition.name == "web_search" for definition in shown[0])
