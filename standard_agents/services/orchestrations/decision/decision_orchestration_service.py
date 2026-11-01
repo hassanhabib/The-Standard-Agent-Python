@@ -11,6 +11,10 @@ from standard_agents.models.orchestrations.agents.agent_status import AgentStatu
 from standard_agents.services.foundations.brains.ibrain_service import IBrainService
 from standard_agents.services.foundations.gates.igate_service import IGateService
 from standard_agents.services.foundations.judges.ijudge_service import IJudgeService
+from standard_agents.services.orchestrations.decision.decision_orchestration_service_exceptions import (
+    try_catch)
+from standard_agents.services.orchestrations.decision.decision_orchestration_service_validations import (
+    validate_context)
 from standard_agents.services.orchestrations.decision.decision_orchestration_service_protocol import (
     build_user_message,
     REFUSAL_MESSAGE,
@@ -39,6 +43,16 @@ class DecisionOrchestrationService(IDecisionOrchestrationService):
         self.logging_broker = logging_broker
 
     async def think(self, context: AgentContext) -> AgentContext:
+        async def returning_context_function() -> AgentContext:
+            validate_context(context)
+
+            return await self.think_through(context)
+
+        return await try_catch(self.logging_broker, returning_context_function)
+
+    # Screen, then think, then review: the Gate before the brain sees the request, the Judge
+    # before the user sees the answer.
+    async def think_through(self, context: AgentContext) -> AgentContext:
         verdict = await self.gate_service.screen(context.prompt)
 
         # The Gate's reason is for the trace, not the user: a refusal says what it will not do,
