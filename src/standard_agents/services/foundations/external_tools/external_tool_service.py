@@ -8,8 +8,12 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
+from standard_agents.brokers.mcps import mcp_json
 from standard_agents.brokers.mcps.mcp_broker import McpBroker
 from standard_agents.models.brokers.mcps.mcp_tool import McpTool
+
+# The one argument plain text travels as, for a tool that declared no schema of its own.
+_INPUT_ARGUMENT_NAME = "input"
 
 
 class ExternalToolService:
@@ -20,7 +24,7 @@ class ExternalToolService:
         self.logging_broker = logging_broker
 
     async def call(self, name: str, input: str) -> str:
-        raise NotImplementedError
+        return await self.mcp_broker.call(name, _to_arguments_json(input))
 
     async def retrieve_tools(self) -> Sequence[McpTool]:
         """The remote tools the configured servers offer, in business language.
@@ -30,3 +34,8 @@ class ExternalToolService:
         an empty catalog.
         """
         raise NotImplementedError
+
+
+def _to_arguments_json(input: str) -> str:
+    """The text as the one argument a schema-less tool understands."""
+    return mcp_json.to_json_string({_INPUT_ARGUMENT_NAME: input})
