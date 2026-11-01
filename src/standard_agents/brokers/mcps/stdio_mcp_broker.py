@@ -8,10 +8,12 @@ from __future__ import annotations
 import asyncio
 import atexit
 import copy
+import functools
 import importlib.metadata
 import json
 import os
 import re
+import shutil
 import signal
 import subprocess
 from collections import deque
@@ -70,7 +72,9 @@ class StdioMcpBroker(McpBroker):
     """An MCP server spoken to over its standard input and output.
 
     Pass server_output and server_input for streams already open, or pass command to start the
-    server as a process (on first use, and again on the first use after it exits).
+    server as a process (on first use, and again on the first use after it exits). A process the
+    broker started is stopped, with every process it started, when the interpreter exits, as the
+    C# stops it when the host exits; aclose(), or leaving an async with block, stops it sooner.
     """
 
     def __init__(
@@ -92,14 +96,20 @@ class StdioMcpBroker(McpBroker):
 
             self._connect = connect_to_streams
         else:
-            process_arguments = list(arguments)
+            process_arguments = list(arguments) if arguments is not None else []
 
             async def connect_to_process() -> tuple[ServerOutput, ServerInput]:
-                return await _start_server_process(
+                server_process = await _start_server_process(
                     command,
                     process_arguments,
                     environment_variables,
                     working_directory)
+
+                self._server_process = server_process
+                self._stop_at_exit = functools.partial(_stop_server_process, server_process)
+                atexit.register(self._stop_at_exit)
+
+                return server_process.stdout, server_process.stdin
 
             self._connect = connect_to_process
 
@@ -111,6 +121,35 @@ class StdioMcpBroker(McpBroker):
         self._is_start_of_output = True
         self._request_id = 0
         self._is_initialized = False
+        self._server_process: asyncio.subprocess.Process | None = None
+        self._stop_at_exit: Callable[[], None] | None = None
+
+    async def __aenter__(self) -> StdioMcpBroker:
+        return self
+
+    async def __aexit__(self, *exception_info: object) -> None:
+        await self.aclose()
+
+    async def aclose(self) -> None:
+        """Stop the server process this broker started, and every process it started.
+
+        The next use starts the server again. Streams handed to the broker are the caller's,
+        and are left as they are.
+        """
+        async with self._exchange_lock:
+            server_process = self._server_process
+
+            if server_process is None:
+                return
+
+            atexit.unregister(self._stop_at_exit)
+            self._server_process = None
+            self._stop_at_exit = None
+            self._is_initialized = False
+
+            await asyncio.to_thread(_stop_server_process, server_process)
+            server_process.stdin.close()
+            await server_process.wait()
 
     async def call(self, name: str, arguments_json: str) -> str:
         parameters = {
@@ -400,7 +439,7 @@ async def _start_server_process(
         command: str,
         arguments: list[str],
         environment_variables: Mapping[str, str] | None,
-        working_directory: str | None) -> tuple[ServerOutput, ServerInput]:
+        working_directory: str | None) -> asyncio.subprocess.Process:
 
     server_environment = dict(os.environ)
 
@@ -427,9 +466,7 @@ async def _start_server_process(
         limit=_LINE_LIMIT,
         creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
 
-    atexit.register(_stop_server_process, server_process)
-
-    return server_process.stdout, server_process.stdin
+    return server_process
 
 
 def _stop_server_process(server_process: asyncio.subprocess.Process) -> None:
@@ -455,12 +492,27 @@ def _stop_server_process(server_process: asyncio.subprocess.Process) -> None:
 
 
 def _descendants_of(process_id: int) -> list[int]:
-    parents: dict[int, list[int]] = {}
+    """Every process process_id started, and every process those started, as the tree is now."""
+    children = _children_from_proc() or _children_from_ps()
+    descendants: list[int] = []
+    pending = list(children.get(process_id, []))
+
+    while pending:
+        child_id = pending.pop()
+        descendants.append(child_id)
+        pending.extend(children.get(child_id, []))
+
+    return descendants
+
+
+def _children_from_proc() -> dict[int, list[int]]:
+    """Each process's children, read from /proc; empty where there is no /proc (macOS, BSD)."""
+    children: dict[int, list[int]] = {}
 
     try:
         entries = os.listdir("/proc")
     except OSError:
-        return []
+        return children
 
     for entry in entries:
         if not entry.isdigit():
@@ -472,44 +524,45 @@ def _descendants_of(process_id: int) -> list[int]:
         except (OSError, ValueError, IndexError):
             continue
 
-        parents.setdefault(parent_id, []).append(int(entry))
+        children.setdefault(parent_id, []).append(int(entry))
 
-    descendants: list[int] = []
-    pending = list(parents.get(process_id, []))
+    return children
 
-    while pending:
-        child_id = pending.pop()
-        descendants.append(child_id)
-        pending.extend(parents.get(child_id, []))
 
-    return descendants
+def _children_from_ps() -> dict[int, list[int]]:
+    """Each process's children, as POSIX ps lists every process and its parent."""
+    children: dict[int, list[int]] = {}
+
+    try:
+        listing = subprocess.run(
+            ["ps", "-A", "-o", "pid=", "-o", "ppid="],
+            capture_output=True,
+            text=True,
+            check=True).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return children
+
+    for line in listing.splitlines():
+        try:
+            child_id, parent_id = (int(field) for field in line.split())
+        except ValueError:
+            continue
+
+        children.setdefault(parent_id, []).append(child_id)
+
+    return children
 
 
 def _resolve_command(command: str) -> str:
     """The executable a command names.
 
     On Windows a bare name resolves through PATH and PATHEXT, so npx finds npx.cmd; a name with an
-    extension, or any name elsewhere, is started as given.
+    extension, a name nothing resolves, or any name elsewhere, is started as given.
     """
     if os.name != "nt" or _has_extension(command):
         return command
 
-    directories = [
-        directory for directory in os.environ.get("PATH", "").split(os.pathsep)
-        if directory]
-
-    extensions = [
-        extension for extension in os.environ.get("PATHEXT", ".EXE;.CMD;.BAT").split(";")
-        if extension]
-
-    for directory in directories:
-        for extension in extensions:
-            candidate = os.path.join(directory, command + extension)
-
-            if os.path.isfile(candidate):
-                return candidate
-
-    return command
+    return shutil.which(command) or command
 
 
 def _has_extension(path: str) -> bool:

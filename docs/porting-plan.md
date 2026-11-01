@@ -51,9 +51,12 @@ live in `src/xeptions` and `src/restfulsense`, and the wheel must not ship them 
 
 ## Known mismatches, each fixed test-first in its phase
 
-- `StdioMcpBroker` raises `TypeError` when given a command without arguments (`list(None)`),
-  has no `async with` lifecycle (cleanup rides `atexit`), finds child processes through `/proc`
-  only, and resolves the command by hand where `shutil.which` would do (Phase 4).
+- `StandardAgent` does not close the stdio brokers `mcp_process` starts. C# never disposes
+  them either: their process trees are killed when the host exits, and a recomposition leaves
+  the old ones running. Python adds `StdioMcpBroker.aclose()` and `async with`, but a host
+  composing through the door cannot reach them, so a process started in one event loop
+  outlives it and its transport prints "Event loop is closed" when collected. Closing them
+  needs a public `StandardAgent` lifecycle (`aclose()`, `async with`), an owner decision.
 - Resolved with the trace tests (Phase 3): `AgentRun.started_on` keeps its default of
   `datetime(1, 1, 1, tzinfo=timezone.utc)`, .NET's `default(DateTimeOffset)`. On a composed
   agent every outcome line follows the run's reset, which stamps the start, so the default is
@@ -67,6 +70,10 @@ live in `src/xeptions` and `src/restfulsense`, and the wheel must not ship them 
 
 Places where Python cannot or should not reproduce .NET, kept on purpose:
 
+- On Windows, `StdioMcpBroker` resolves a bare command with `shutil.which`, which looks in the
+  current directory before PATH (always before Python 3.12, and from 3.12 unless
+  `NoDefaultCurrentDirectoryInExePath` is set) and defaults PATHEXT to Python's list; C#'s
+  `ResolveCommand` searches PATH only, with `.EXE;.CMD;.BAT` when PATHEXT is unset.
 - The effect ledger records a tool failure as `str(exception)`, which is empty for a bare
   `Exception()` where .NET's `Message` is "Exception of type 'System.Exception' was thrown."
   Reproducing it would mean naming .NET types in Python; no C# test pins it.
