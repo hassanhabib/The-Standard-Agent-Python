@@ -22,18 +22,14 @@ class TestDecisionOrchestrationServiceLogicThink(DecisionOrchestrationServiceTes
         input_context = self.create_random_context()
         random_tool_name = self.create_random_string()
         random_tool_input = self.create_random_string() + ": " + self.create_random_string()
-        random_narration = self.create_random_string()
         expected_user_message = self.create_user_message(input_context)
-
-        returned_reply = (
-            f"SAY: {random_narration}\n"
-            + f"ACTION: {random_tool_name}: {random_tool_input}\n")
+        returned_reply = f"ACTION: {random_tool_name}: {random_tool_input}\n"
 
         expected_context = dataclasses.replace(
             copy.deepcopy(input_context),
+            intent=random_tool_name,
             direction_type=random_tool_name,
             payload=random_tool_input,
-            narration=random_narration,
             raw_reply=returned_reply.strip())
 
         self.gate_service_mock.screen.return_value = "allow"
@@ -62,6 +58,7 @@ class TestDecisionOrchestrationServiceLogicThink(DecisionOrchestrationServiceTes
 
         expected_context = dataclasses.replace(
             copy.deepcopy(input_context),
+            intent="Respond",
             direction_type="ReturnResponse",
             payload=random_answer,
             raw_reply=returned_reply)
@@ -133,6 +130,7 @@ class TestDecisionOrchestrationServiceLogicThink(DecisionOrchestrationServiceTes
 
         expected_context = dataclasses.replace(
             copy.deepcopy(input_context),
+            intent="Refuse",
             direction_type="Refuse",
             payload="I'm not able to help with that.")
 
