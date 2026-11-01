@@ -39,3 +39,26 @@ async def test_should_return_empty_when_broker_returns_no_skills(
     assert actual_skills == ""
     assert skill_broker.mock_calls == [call.select_skills()]
     assert logging_broker.mock_calls == []
+
+
+async def test_should_compose_skills_in_name_order(
+        skill_service, skill_broker, logging_broker, create_random_string):
+
+    # given
+    first_skill = create_random_string()
+    second_skill = create_random_string()
+
+    unordered_skills = [
+        Skill(name="b-second.md", content=second_skill),
+        Skill(name="a-first.md", content=first_skill)]
+
+    expected_skills = "\n\n".join((first_skill, second_skill))
+    skill_broker.select_skills.return_value = unordered_skills
+
+    # when
+    actual_skills = await skill_service.retrieve_skills()
+
+    # then: composed in name order regardless of the order the broker returned
+    assert actual_skills == expected_skills
+    assert skill_broker.mock_calls == [call.select_skills()]
+    assert logging_broker.mock_calls == []
