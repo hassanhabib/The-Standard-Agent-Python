@@ -191,3 +191,28 @@ async def test_should_return_a_tool_result_tied_to_the_call_that_asked_for_it():
     assert answer is not None
     assert answer.tool_call_id == "call_7"
     assert answer.content == "4183"
+
+
+async def test_should_advertise_only_described_tools_natively():
+    # given
+    tool = _CalculatorTool()
+    captured_tools: list[Sequence[ToolDefinition]] = [[]]
+
+    def reply(tools: Sequence[ToolDefinition], turn: int) -> GenerationResult:
+        captured_tools[0] = tools
+
+        return GenerationResult(content="done")
+
+    agent = _agent_with(tool, reply).tool(_UndescribedTool())
+
+    # when
+    await agent.process_prompt("hello")
+
+    # then: a description is the opt-in, natively exactly as in the text catalog: a tool without
+    # one stays callable but is never offered to the model
+    assert any(definition.name == "calculator" for definition in captured_tools[0])
+    assert not any(definition.name == "secret" for definition in captured_tools[0])
+
+    assert all(
+        definition.description is not None and definition.description.strip() != ""
+        for definition in captured_tools[0])
