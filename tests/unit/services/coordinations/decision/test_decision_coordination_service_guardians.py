@@ -84,3 +84,24 @@ async def test_should_not_carry_last_turns_narration_on_think_if_gate_refuses(
 
     # then
     assert actual_context.narration == ""
+
+
+async def test_should_not_call_brain_on_think_if_gate_refuses(
+        decision_coordination_service,
+        gate_service,
+        brain_service,
+        judge_service,
+        create_random_agent_context):
+
+    # given
+    input_context = create_random_agent_context()
+    gate_service.screen.return_value = "refuse"
+
+    # when
+    await decision_coordination_service.think(input_context)
+
+    # then
+    assert brain_service.generate.mock_calls == []
+    assert judge_service.evaluate.mock_calls == []
+    assert brain_service.mock_calls == []
+    assert judge_service.mock_calls == []
