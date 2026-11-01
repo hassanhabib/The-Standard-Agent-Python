@@ -95,7 +95,9 @@ def unwaived_modes():
         yield capability.name, "Custom", capability.custom
 
 
-@pytest.mark.parametrize(("capability_name", "mode", "expected_method_name"), unwaived_modes())
+@pytest.mark.parametrize(
+    ("capability_name", "mode", "expected_method_name"),
+    list(unwaived_modes()))
 def test_should_expose_every_capability_local_external_and_custom(
         capability_name,
         mode,
