@@ -47,7 +47,12 @@ class KnowledgeService:
         return await self.knowledge_broker.select_knowledge(query)
 
     async def retrieve_sourced_knowledge(self, query: str) -> Sequence[KnowledgeResult]:
-        return await self.sourced_knowledge_broker.select_sourced_knowledge(query)
+        if self.sourced_knowledge_broker is not None:
+            return await self.sourced_knowledge_broker.select_sourced_knowledge(query)
+
+        documents = await self.knowledge_broker.select_knowledge(query)
+
+        return tuple(_lift_unsourced(document) for document in documents)
 
     async def _select_knowledge_from_files(
             self,
@@ -88,6 +93,14 @@ class KnowledgeService:
 
         # Take(n) takes nothing for a negative n, where a negative slice would take from the end.
         return tuple(passage for passage, _ in scored_passages[:max(self.max_results, 0)])
+
+
+def _lift_unsourced(document: str) -> KnowledgeResult:
+    """A plain broker never said where a passage came from (SPEC.md 4.1).
+
+    So the lifted passage claims nothing: no score, no source, and therefore never cited.
+    """
+    return KnowledgeResult(text=document, score=None, source="")
 
 
 def _ordinal(text: str) -> bytes:
