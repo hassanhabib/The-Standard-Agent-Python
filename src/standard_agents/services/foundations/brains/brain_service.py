@@ -24,8 +24,10 @@ from standard_agents.models.brokers.generators.resolved_inference import Resolve
 from standard_agents.models.foundations.brains.exceptions import (
     BrainDependencyException,
     BrainDependencyValidationException,
+    BrainServiceException,
     BrainValidationException,
     FailedBrainDependencyException,
+    FailedBrainServiceException,
     InvalidBrainException,
     UnreachableBrainException)
 
@@ -113,6 +115,9 @@ async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[N
     except HttpRequestException as http_request_exception:
         raise await _create_and_log_unreachable_exception(
             logging_broker, http_request_exception)
+    except Exception as exception:
+        raise await _create_and_log_service_exception(
+            logging_broker, _create_failed_service_exception(exception))
 
 
 @asynccontextmanager
@@ -203,3 +208,22 @@ def _create_dependency_exception(exception: Exception) -> BrainDependencyExcepti
     return BrainDependencyException(
         message="Brain dependency error occurred, contact support.",
         inner_exception=failed_brain_dependency_exception)
+
+
+def _create_failed_service_exception(exception: Exception) -> FailedBrainServiceException:
+    return FailedBrainServiceException(
+        message="Failed brain service error occurred, contact support.",
+        inner_exception=exception)
+
+
+async def _create_and_log_service_exception(
+        logging_broker: LoggingBroker,
+        exception: Exception) -> BrainServiceException:
+
+    brain_service_exception = BrainServiceException(
+        message="Brain service error occurred, contact support.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(brain_service_exception)
+
+    return brain_service_exception
