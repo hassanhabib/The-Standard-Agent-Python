@@ -82,6 +82,24 @@ class AcceptingJudge(IVerifierBroker):
         return "1.0"
 
 
+class RecordingLoggingBroker(ILoggingBroker):
+    def __init__(self) -> None:
+        self.turns: list[int] = []
+
+    async def log_information(self, message: str) -> None: ...
+
+    async def log_warning(self, message: str) -> None: ...
+
+    async def log_error(self, exception: BaseException) -> None: ...
+
+    async def log_critical(self, exception: BaseException) -> None: ...
+
+    async def log_turn(self, turn: int) -> None:
+        self.turns.append(turn)
+
+    async def log_process(self, actor: str, message: str) -> None: ...
+
+
 class TestStandardAgentCompositions:
     def test_should_compose_from_brokers_the_host_supplies(self) -> None:
         # given
@@ -128,24 +146,6 @@ class TestStandardAgentCompositions:
 
         # then
         assert logging_broker.turns == [0]
-
-
-class RecordingLoggingBroker(ILoggingBroker):
-    def __init__(self) -> None:
-        self.turns: list[int] = []
-
-    async def log_information(self, message: str) -> None: ...
-
-    async def log_warning(self, message: str) -> None: ...
-
-    async def log_error(self, exception: BaseException) -> None: ...
-
-    async def log_critical(self, exception: BaseException) -> None: ...
-
-    async def log_turn(self, turn: int) -> None:
-        self.turns.append(turn)
-
-    async def log_process(self, actor: str, message: str) -> None: ...
 
     def test_should_compose_from_functions_the_host_writes(self) -> None:
         # given
