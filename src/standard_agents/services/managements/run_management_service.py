@@ -8,7 +8,7 @@ from __future__ import annotations
 import asyncio
 import dataclasses
 from collections.abc import AsyncIterator, Iterable, Mapping
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, nullcontext
 
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.brokers.telemetries.not_configured_telemetry_broker import (
@@ -181,25 +181,46 @@ class RunManagementService:
             cancellation: asyncio.Event | None) -> AgentOutcome:
 
         async with _handling_exceptions(self.logging_broker):
-            _validate_prompt(request.prompt)
+            return await self._run_the_loop(request, cancellation)
 
+    async def _run_the_loop(
+            self,
+            request: PromptRequest,
+            cancellation: asyncio.Event | None) -> AgentOutcome:
+
+        _validate_prompt(request.prompt)
+
+        # The run scope closes with the run, so every turn span lands inside it. None when
+        # nothing is listening: a scope nobody observes costs nothing.
+        with self.telemetry_broker.start_run(request.session_id) or nullcontext():
             await self.logging_broker.log_reset()
 
             context = AgentContext(prompt=request.prompt)
+            run_prompt_tokens = 0
+            run_completion_tokens = 0
 
             for turn in range(self.max_turns):
-                await self.logging_broker.log_turn(turn)
+                # Scoped to the iteration: continue and break both close the turn span.
+                with self.telemetry_broker.start_turn(turn) or nullcontext():
+                    await self.logging_broker.log_turn(turn)
 
-                context = await self.data_coordination_service.recall(context)
-                context = await self.decision_coordination_service.think(context)
+                    context = await self.data_coordination_service.recall(context)
+                    context = await self.decision_coordination_service.think(context)
+                    run_prompt_tokens += context.prompt_tokens
+                    run_completion_tokens += context.completion_tokens
 
-                if context.status is AgentStatus.REVISING:
-                    continue
+                    self.telemetry_broker.record_turn_usage(
+                        context.prompt_tokens,
+                        context.completion_tokens,
+                        context.usage_is_estimated)
 
-                context = await self.direction_coordination_service.act(context)
+                    if context.status is AgentStatus.REVISING:
+                        continue
 
-                if context.status is not AgentStatus.WORKING:
-                    break
+                    context = await self.direction_coordination_service.act(context)
+
+                    if context.status is not AgentStatus.WORKING:
+                        break
 
             # Turns ran out with the loop still WORKING: no answer was ever delivered, and the
             # last tool output is not one.
@@ -215,7 +236,15 @@ class RunManagementService:
             if context.remember:
                 await self.data_coordination_service.remember(context.remember)
 
+            self.telemetry_broker.record_run_outcome(
+                _status_name(context.status), run_prompt_tokens, run_completion_tokens)
+
             return AgentOutcome(context.result, context.status)
+
+
+def _status_name(status: AgentStatus) -> str:
+    """The status as the C# prints it: AWAITING_INPUT is AwaitingInput."""
+    return "".join(word.capitalize() for word in status.name.split("_"))
 
 
 def _validate_prompt(prompt: str | None) -> None:
