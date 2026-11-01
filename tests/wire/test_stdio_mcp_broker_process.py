@@ -10,8 +10,10 @@
 
 import asyncio
 import os
+import subprocess
 import sys
 
+from standard_agents.brokers.mcps import stdio_mcp_broker
 from standard_agents.brokers.mcps.stdio_mcp_broker import StdioMcpBroker
 
 SERVER_PATH = os.path.join(os.path.dirname(__file__), "stdio_process_server.py")
@@ -110,3 +112,23 @@ async def test_should_start_a_server_named_on_the_path_without_arguments(tmp_pat
 
     # then
     assert [tool.name.split("-")[0] for tool in actual_tools] == ["server", "child"]
+
+
+def test_should_find_every_process_a_server_started_where_there_is_no_proc(monkeypatch):
+    # given: a system without /proc (macOS, the BSDs), where ps lists each process's parent
+    def list_directory(path):
+        raise FileNotFoundError(path)
+
+    def run(arguments, **options):
+        listing = "  100     1\n  200   100\n  300   200\n  400     1\n  500   100\n"
+
+        return subprocess.CompletedProcess(arguments, 0, stdout=listing, stderr="")
+
+    monkeypatch.setattr(stdio_mcp_broker.os, "listdir", list_directory)
+    monkeypatch.setattr(stdio_mcp_broker.subprocess, "run", run)
+
+    # when
+    actual_descendants = stdio_mcp_broker._descendants_of(100)
+
+    # then: the children, and their children, as Kill(entireProcessTree: true) finds them
+    assert sorted(actual_descendants) == [200, 300, 500]
