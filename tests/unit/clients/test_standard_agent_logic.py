@@ -3,6 +3,8 @@
 # Licensed under the The Standard Software License (TSSL)
 # ---------------------------------------------------------------
 
+import pytest
+
 from standard_agents.models.clients.agents.exceptions import InvalidAgentCompositionException
 from standard_agents.models.loggings.trace_verbosity import TraceVerbosity
 from standard_agents.standard_agent import StandardAgent
@@ -85,3 +87,17 @@ async def test_should_recompose_after_configuration_changes(
     # then
     assert first_result == "first"
     assert second_result == "second"
+
+
+async def test_should_throw_composition_exception_on_process_prompt_if_brain_is_not_configured():
+    # given
+    agent = StandardAgent()
+
+    # when
+    process_task = agent.process_prompt(prompt="prompt")
+
+    with pytest.raises(InvalidAgentCompositionException) as raised:
+        await process_task
+
+    # then
+    assert "no brain" in raised.value.message
