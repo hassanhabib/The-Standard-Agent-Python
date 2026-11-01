@@ -44,3 +44,21 @@ async def test_should_emit_to_external_telemetry_broker_on_process_prompt(answer
     # then
     assert telemetry_broker.start_run.call_count == 1
     assert telemetry_broker.record_run_outcome.call_count == 1
+
+
+async def test_should_emit_to_custom_telemetry_delegate_on_process_prompt(answering_agent):
+    # given
+    captured_events = []
+
+    agent = answering_agent.on_telemetry(
+        lambda event_name, attributes: captured_events.append(event_name))
+
+    # when
+    await agent.process_prompt(prompt="what is the answer?")
+
+    # then
+    assert "run.start" in captured_events
+    assert "turn.start" in captured_events
+    assert "turn.usage" in captured_events
+    assert "run.outcome" in captured_events
+    assert "run.end" in captured_events
