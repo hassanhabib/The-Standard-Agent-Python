@@ -18,6 +18,7 @@ from standard_agents.services.orchestrations.direction.executions.execution_orch
 from standard_agents.services.orchestrations.direction.perimeters.perimeter_orchestration_service \
     import PerimeterOrchestrationService
 
+_RETURN_RESPONSE_DIRECTION = "ReturnResponse"
 _REFUSE_DIRECTION = "Refuse"
 _AWAIT_INPUT_DIRECTION = "AwaitInput"
 
@@ -64,12 +65,17 @@ class DirectionCoordinationService:
         self.advertised_tool_names = frozenset(standing_orders.advertised_tools)
 
     async def act(self, context: AgentContext) -> AgentContext:
-        result = await self.execution_service.return_payload(context.payload)
+        if _is_terminal(context.direction_type):
+            result = await self.execution_service.return_payload(context.payload)
 
-        return dataclasses.replace(
-            context,
-            result=result,
-            status=_to_terminal_status(context.direction_type))
+            return dataclasses.replace(
+                context,
+                result=result,
+                status=_to_terminal_status(context.direction_type))
+
+        output = await self.execution_service.run(context.direction_type, context.payload)
+
+        return dataclasses.replace(context, observations=(output,))
 
     async def compensate_run(self) -> tuple[CompensationOutcome, ...]:
         """Unwinds what this run performed, in reverse order (SPEC.md 4.9).
@@ -77,6 +83,13 @@ class DirectionCoordinationService:
         Reports every effect it could not undo rather than reporting the run cleanly unwound.
         """
         raise NotImplementedError
+
+
+def _is_terminal(direction_type: str) -> bool:
+    return direction_type in (
+        _RETURN_RESPONSE_DIRECTION,
+        _REFUSE_DIRECTION,
+        _AWAIT_INPUT_DIRECTION)
 
 
 def _to_terminal_status(direction_type: str) -> AgentStatus:
