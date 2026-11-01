@@ -42,6 +42,19 @@ class SameExceptionAs:
         return f"SameExceptionAs({self.expected_exception!r})"
 
 
+class Containing:
+    """Matches, in a recorded call, a string that contains the expected text."""
+
+    def __init__(self, expected_text: str) -> None:
+        self.expected_text = expected_text
+
+    def __eq__(self, actual_text: object) -> bool:
+        return isinstance(actual_text, str) and self.expected_text in actual_text
+
+    def __repr__(self) -> str:
+        return f"Containing({self.expected_text!r})"
+
+
 @pytest.fixture
 def skill_service() -> SkillService:
     return create_autospec(SkillService, instance=True)
@@ -105,6 +118,11 @@ def tool_catalog() -> str:
 @pytest.fixture
 def same_exception_as():
     return SameExceptionAs
+
+
+@pytest.fixture
+def containing():
+    return Containing
 
 
 @pytest.fixture
