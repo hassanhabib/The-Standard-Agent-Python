@@ -306,6 +306,8 @@ async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[N
     except (FileNotFoundError, NotADirectoryError, PermissionError) as critical_error:
         raise await _create_and_log_critical_dependency_exception(
             logging_broker, critical_error)
+    except OSError as os_error:
+        raise await _create_and_log_dependency_exception(logging_broker, os_error)
 
 
 async def _create_and_log_validation_exception(
@@ -327,6 +329,16 @@ async def _create_and_log_critical_dependency_exception(
 
     knowledge_dependency_exception = _create_dependency_exception(exception)
     await logging_broker.log_critical(knowledge_dependency_exception)
+
+    return knowledge_dependency_exception
+
+
+async def _create_and_log_dependency_exception(
+        logging_broker: LoggingBroker,
+        exception: Exception) -> KnowledgeDependencyException:
+
+    knowledge_dependency_exception = _create_dependency_exception(exception)
+    await logging_broker.log_error(knowledge_dependency_exception)
 
     return knowledge_dependency_exception
 
