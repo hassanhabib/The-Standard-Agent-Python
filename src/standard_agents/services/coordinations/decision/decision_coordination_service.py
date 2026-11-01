@@ -169,7 +169,10 @@ class DecisionCoordinationService:
         if not _is_refusal(verdict):
             return None
 
+        await self.logging_broker.log_payload("Decision", "Gate REFUSE", verdict, detail=False)
+
         return dataclasses.replace(
+
             context,
             intent=_REFUSE_DIRECTION,
             direction_type=_REFUSE_DIRECTION,
