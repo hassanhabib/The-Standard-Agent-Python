@@ -168,6 +168,8 @@ class RunManagementService:
             request: PromptRequest,
             cancellation: asyncio.Event | None) -> AgentOutcome:
 
+        await self.logging_broker.log_reset()
+
         context = AgentContext(prompt=request.prompt)
 
         for _ in range(self.max_turns):
