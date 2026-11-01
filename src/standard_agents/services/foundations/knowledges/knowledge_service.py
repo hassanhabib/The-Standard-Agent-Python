@@ -8,12 +8,16 @@ from __future__ import annotations
 import math
 import os
 import re
-from collections.abc import Iterator, Sequence
+from collections.abc import AsyncIterator, Iterator, Sequence
+from contextlib import asynccontextmanager
 
 from standard_agents.brokers.files.file_broker import FileBroker, SearchOption
 from standard_agents.brokers.knowledges.knowledge_broker import KnowledgeBroker
 from standard_agents.brokers.knowledges.sourced_knowledge_broker import SourcedKnowledgeBroker
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
+from standard_agents.models.foundations.knowledges.exceptions import (
+    InvalidKnowledgeException,
+    KnowledgeValidationException)
 from standard_agents.models.foundations.knowledges.knowledge_result import KnowledgeResult
 
 
@@ -42,9 +46,11 @@ class KnowledgeService:
         self.logging_broker = logging_broker
 
     async def retrieve_knowledge(self, query: str) -> Sequence[str]:
-        knowledge_results = await self._select_sourced_knowledge(query)
+        async with _handling_exceptions(self.logging_broker):
+            _validate_query(query)
+            knowledge_results = await self._select_sourced_knowledge(query)
 
-        return tuple(knowledge_result.text for knowledge_result in knowledge_results)
+            return tuple(knowledge_result.text for knowledge_result in knowledge_results)
 
     async def retrieve_sourced_knowledge(self, query: str) -> Sequence[KnowledgeResult]:
         return await self._select_sourced_knowledge(query)
@@ -272,3 +278,31 @@ def _ignore_case_key(text: str) -> str:
 def _utf16_length(text: str) -> int:
     """The text's length as string.Length counts it: in UTF-16 code units."""
     return len(text.encode("utf-16-le", errors="surrogatepass")) // 2
+
+
+def _validate_query(query: str | None) -> None:
+    if not query or query.isspace():
+        raise InvalidKnowledgeException(
+            message="Invalid knowledge query. Please correct the error and try again.")
+
+
+@asynccontextmanager
+async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[None]:
+    try:
+        yield
+    except InvalidKnowledgeException as invalid_knowledge_exception:
+        raise await _create_and_log_validation_exception(
+            logging_broker, invalid_knowledge_exception)
+
+
+async def _create_and_log_validation_exception(
+        logging_broker: LoggingBroker,
+        exception: Exception) -> KnowledgeValidationException:
+
+    knowledge_validation_exception = KnowledgeValidationException(
+        message="Knowledge validation error occurred, fix the error and try again.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(knowledge_validation_exception)
+
+    return knowledge_validation_exception
