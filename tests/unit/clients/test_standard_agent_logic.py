@@ -67,3 +67,21 @@ def test_should_chain_log_to_with_verbosity():
 
     # then
     assert chained is agent
+
+
+async def test_should_recompose_after_configuration_changes(
+        create_fully_stubbed_agent,
+        create_generator_broker):
+
+    # given
+    agent = create_fully_stubbed_agent("FINAL: first")
+    first_result = await agent.process_prompt(prompt="prompt")
+    new_generator = create_generator_broker("FINAL: second")
+
+    # when
+    agent.use_generator(new_generator)
+    second_result = await agent.process_prompt(prompt="prompt")
+
+    # then
+    assert first_result == "first"
+    assert second_result == "second"
