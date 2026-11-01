@@ -181,3 +181,31 @@ async def test_should_refuse_an_act_on_jurisdiction_alone():
 
     # then
     assert tool.execution_count == 0
+
+
+async def test_should_keep_the_identifier_only_principal_working():
+    """The id-only overload still works and still reads the same way, so nothing written
+    against 1.0 has to change to keep authorizing."""
+    # given
+    tool = _CountingTool()
+    seen_id = None
+    seen_identity = None
+
+    async def authorize(effect):
+        nonlocal seen_id, seen_identity
+        seen_id = effect.principal
+        seen_identity = effect.identity
+
+        return AuthorizationDecision.allow()
+
+    agent = (_agent_that_calls_the_tool(tool, "ACTION: wire_transfer: 10000", "FINAL: paid")
+        .principal(lambda: "teller-42")
+        .on_policy(authorize))
+
+    # when
+    await agent.process_prompt("pay the invoice")
+
+    # then: the id reads as before, and the richer view carries the same identity
+    assert seen_id == "teller-42"
+    assert seen_identity.id == "teller-42"
+    assert seen_identity.tenant_id is None
