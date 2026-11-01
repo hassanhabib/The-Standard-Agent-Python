@@ -10,7 +10,7 @@ import logging
 import os
 import urllib.parse
 import warnings
-from collections.abc import AsyncIterator, Awaitable, Callable, Iterable, Mapping
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterable, Mapping, Sequence
 from datetime import timedelta
 from decimal import Decimal
 from typing import Any
@@ -54,7 +54,9 @@ from standard_agents.brokers.redactions.not_configured_redaction_broker import (
     NotConfiguredRedactionBroker)
 from standard_agents.brokers.sessions.not_configured_session_broker import (
     NotConfiguredSessionBroker)
+from standard_agents.brokers.skills.composite_skill_broker import CompositeSkillBroker
 from standard_agents.brokers.skills.file_skill_broker import FileSkillBroker
+from standard_agents.brokers.skills.function_skill_broker import FunctionSkillBroker
 from standard_agents.brokers.skills.skill_broker import SkillBroker
 from standard_agents.brokers.telemetries.function_telemetry_broker import FunctionTelemetryBroker
 from standard_agents.brokers.telemetries.telemetry_broker import TelemetryBroker
@@ -78,6 +80,7 @@ from standard_agents.models.clients.agents.exceptions import (
 from standard_agents.models.clients.agents.inference_settings import InferenceSettings
 from standard_agents.models.clients.agents.prompt_request import PromptRequest
 from standard_agents.models.coordinations.agents.agent_budget import AgentBudget
+from standard_agents.models.foundations.skills.skill import Skill
 from standard_agents.models.loggings.trace_verbosity import TraceVerbosity
 from standard_agents.models.orchestrations.effects.agent_principal import AgentPrincipal
 from standard_agents.prompts.guardian_prompts import (
@@ -336,6 +339,11 @@ class StandardAgent(Agent):
 
         return self
 
+    def on_skills(self, select: Callable[[], Awaitable[Sequence[Skill]]]) -> StandardAgent:
+        self._skill_sources.append(FunctionSkillBroker(select))
+
+        return self
+
     def use_skills(self, broker: SkillBroker) -> StandardAgent:
         self._skill_sources.append(broker)
 
@@ -532,9 +540,12 @@ class StandardAgent(Agent):
         else:
             mcp = CompositeMcpBroker(mcp_brokers)
 
-        skills = (
-            self._skill_sources[0] if self._skill_sources
-            else FileSkillBroker(os.path.join(os.getcwd(), "Skills")))
+        if not self._skill_sources:
+            skills: SkillBroker = FileSkillBroker(os.path.join(os.getcwd(), "Skills"))
+        elif len(self._skill_sources) == 1:
+            skills = self._skill_sources[0]
+        else:
+            skills = CompositeSkillBroker(self._skill_sources)
 
         skill_service = SkillService(skill_broker=skills, logging_broker=logging)
 
