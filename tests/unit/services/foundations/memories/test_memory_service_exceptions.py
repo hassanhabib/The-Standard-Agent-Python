@@ -71,3 +71,31 @@ async def test_should_throw_dependency_exception_on_recall_memories_if_io_error_
 
     assert logging_broker.mock_calls == [
         call.log_error(same_exception_as(expected_memory_dependency_exception))]
+
+
+async def test_should_throw_service_exception_on_recall_memories_if_service_error_occurs_and_log_it(
+        memory_service, memory_broker, logging_broker, same_exception_as):
+
+    # given
+    service_error = Exception()
+
+    failed_memory_service_exception = FailedMemoryServiceException(
+        message="Failed memory service error occurred, contact support.",
+        inner_exception=service_error)
+
+    expected_memory_service_exception = MemoryServiceException(
+        message="Memory service error occurred, contact support.",
+        inner_exception=failed_memory_service_exception)
+
+    memory_broker.select_memories.side_effect = service_error
+
+    # when
+    with pytest.raises(MemoryServiceException) as raised:
+        await memory_service.recall_memories()
+
+    # then
+    assert raised.value.same_exception_as(expected_memory_service_exception)
+    assert memory_broker.mock_calls == [call.select_memories()]
+
+    assert logging_broker.mock_calls == [
+        call.log_error(same_exception_as(expected_memory_service_exception))]
