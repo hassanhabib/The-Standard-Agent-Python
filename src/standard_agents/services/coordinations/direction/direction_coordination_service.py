@@ -6,6 +6,8 @@
 from __future__ import annotations
 
 import dataclasses
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.models.coordinations.directions.perimeter_policy import PerimeterPolicy
@@ -13,6 +15,9 @@ from standard_agents.models.loggings.agent_run import AgentRun
 from standard_agents.models.loggings.performed_effect import PerformedEffect
 from standard_agents.models.orchestrations.agents.agent_context import AgentContext
 from standard_agents.models.orchestrations.agents.agent_status import AgentStatus
+from standard_agents.models.orchestrations.agents.exceptions import (
+    AgentOrchestrationValidationException,
+    NullAgentContextException)
 from standard_agents.models.orchestrations.agents.tool_exchange import ToolExchange
 from standard_agents.models.orchestrations.effects.agent_effect import AgentEffect
 from standard_agents.models.orchestrations.effects.compensation_outcome import (
@@ -24,6 +29,7 @@ from standard_agents.services.orchestrations.direction.executions.execution_orch
     import ExecutionOrchestrationService
 from standard_agents.services.orchestrations.direction.perimeters.perimeter_orchestration_service \
     import PerimeterOrchestrationService
+from xeptions import Xeption
 
 _RETURN_RESPONSE_DIRECTION = "ReturnResponse"
 _REFUSE_DIRECTION = "Refuse"
@@ -72,18 +78,21 @@ class DirectionCoordinationService:
         self.advertised_tool_names = frozenset(standing_orders.advertised_tools)
 
     async def act(self, context: AgentContext) -> AgentContext:
-        if _is_terminal(context.direction_type):
-            result = await self.execution_service.return_payload(context.payload)
+        async with _handling_exceptions(self.logging_broker):
+            _validate_context(context)
 
-            await self.logging_broker.log_payload(
-                "Direction", f"{context.direction_type} returned", result, detail=False)
+            if _is_terminal(context.direction_type):
+                result = await self.execution_service.return_payload(context.payload)
 
-            return dataclasses.replace(
-                context,
-                result=result,
-                status=_to_terminal_status(context.direction_type))
+                await self.logging_broker.log_payload(
+                    "Direction", f"{context.direction_type} returned", result, detail=False)
 
-        return await self._act_on_effect(context)
+                return dataclasses.replace(
+                    context,
+                    result=result,
+                    status=_to_terminal_status(context.direction_type))
+
+            return await self._act_on_effect(context)
 
     async def _act_on_effect(self, context: AgentContext) -> AgentContext:
         effect = AgentEffect.create(
@@ -288,3 +297,30 @@ def _to_terminal_status(direction_type: str) -> AgentStatus:
         return AgentStatus.AWAITING_INPUT
 
     return AgentStatus.RESPONDED
+
+
+def _validate_context(context: AgentContext | None) -> None:
+    if context is None:
+        raise NullAgentContextException(message="Agent context is null.")
+
+
+@asynccontextmanager
+async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[None]:
+    try:
+        yield
+    except NullAgentContextException as null_agent_context_exception:
+        raise await _create_and_log_validation_exception(
+            logging_broker, null_agent_context_exception)
+
+
+async def _create_and_log_validation_exception(
+        logging_broker: LoggingBroker,
+        exception: Xeption | None) -> AgentOrchestrationValidationException:
+
+    agent_orchestration_validation_exception = AgentOrchestrationValidationException(
+        message="Agent orchestration validation error occurred, fix the error and try again.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(agent_orchestration_validation_exception)
+
+    return agent_orchestration_validation_exception
