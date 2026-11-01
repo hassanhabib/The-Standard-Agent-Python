@@ -38,3 +38,20 @@ async def test_should_configure_brain_from_constructor_arguments(
 
     # then
     assert type(actual_exception) is not InvalidAgentCompositionException
+
+
+def test_should_return_same_instance_on_each_builder_method():
+    # given
+    agent = StandardAgent()
+
+    # when
+    chained = (agent
+        .skills(path="Skills")
+        .brain(api_url="https://x/", api_key="key", model="model")
+        .memory(path="memory.txt")
+        .knowledge(path="Knowledge")
+        .mcp(endpoint_url="https://mcp/")
+        .log_to(path="log.txt"))
+
+    # then
+    assert chained is agent
