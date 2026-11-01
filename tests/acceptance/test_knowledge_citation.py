@@ -202,3 +202,27 @@ async def test_should_not_cite_an_answer_held_to_a_response_schema():
 
     # then
     assert actual_result == json_answer
+
+
+# The Judge scores the model's answer; lines the agent wrote are not the model's work, and a Judge
+# shown them is scoring the agent (SPEC.md 4.2).
+async def test_should_cite_after_the_judge():
+    # given
+    seen_by_judge = []
+
+    async def judge(judge_prompt, candidate):
+        seen_by_judge.append(candidate)
+
+        return "1.0"
+
+    agent = (_grounded_agent(_answering(_ANSWER))
+        .on_judge(judge)
+        .cite_knowledge())
+
+    # when
+    actual_result = await agent.process_prompt("what is the refund window?")
+
+    # then
+    assert seen_by_judge
+    assert all("Source:" not in candidate for candidate in seen_by_judge)
+    assert actual_result.endswith(f"Source: {_SHIPPING_SOURCE}")
