@@ -24,3 +24,22 @@ async def test_should_handles(
     assert actual_outcome is expected_outcome
     assert tool_broker.mock_calls == [call.has(input_name)]
     assert logging_broker.mock_calls == []
+
+
+async def test_should_run(
+        internal_tool_service, tool_broker, logging_broker, create_random_string):
+
+    # given
+    input_name = create_random_string()
+    input_input = create_random_string()
+    random_output = create_random_string()
+    expected_output = random_output
+    tool_broker.run.return_value = random_output
+
+    # when
+    actual_output = await internal_tool_service.run(input_name, input_input)
+
+    # then
+    assert actual_output == expected_output
+    assert tool_broker.mock_calls == [call.run(input_name, input_input)]
+    assert logging_broker.mock_calls == []
