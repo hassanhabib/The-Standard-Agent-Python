@@ -36,4 +36,4 @@ class SessionService:
 
     async def record_session(self, session: AgentSession) -> None:
         """Writes the conversation back, replacing what was there."""
-        raise NotImplementedError
+        await self.session_broker.upsert_session(session)
