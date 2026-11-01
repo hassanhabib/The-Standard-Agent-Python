@@ -5,8 +5,14 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.brokers.skills.skill_broker import SkillBroker
+from standard_agents.models.foundations.skills.exceptions import (
+    FailedSkillDependencyException,
+    SkillDependencyException)
 from standard_agents.models.foundations.skills.skill import Skill
 
 _SKILL_SEPARATOR = "\n\n"
@@ -20,18 +26,19 @@ class SkillService:
         self.logging_broker = logging_broker
 
     async def retrieve_skills(self, route: str = "") -> str:
-        skills = await self.skill_broker.select_skills()
-        selected_skills = sorted(skills, key=_ordinal_name)
+        async with _handling_exceptions(self.logging_broker):
+            skills = await self.skill_broker.select_skills()
+            selected_skills = sorted(skills, key=_ordinal_name)
 
-        if route and not route.isspace():
-            routed_skills = [
-                skill for skill in selected_skills
-                if _contains_ordinal_ignore_case(skill.name, route)]
+            if route and not route.isspace():
+                routed_skills = [
+                    skill for skill in selected_skills
+                    if _contains_ordinal_ignore_case(skill.name, route)]
 
-            if routed_skills:
-                selected_skills = routed_skills
+                if routed_skills:
+                    selected_skills = routed_skills
 
-        return _SKILL_SEPARATOR.join(skill.content for skill in selected_skills)
+            return _SKILL_SEPARATOR.join(skill.content for skill in selected_skills)
 
 
 def _ordinal_name(skill: Skill) -> bytes:
@@ -57,3 +64,29 @@ def _to_upper_ordinal(text: str) -> str:
         folded.append(upper if len(upper) == 1 else character)
 
     return "".join(folded)
+
+
+@asynccontextmanager
+async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[None]:
+    try:
+        yield
+    except (FileNotFoundError, NotADirectoryError, PermissionError) as critical_error:
+        failed_skill_dependency_exception = FailedSkillDependencyException(
+            message="Failed skill dependency error occurred, contact support.",
+            inner_exception=critical_error)
+
+        raise await _create_and_log_critical_dependency_exception(
+            logging_broker, failed_skill_dependency_exception)
+
+
+async def _create_and_log_critical_dependency_exception(
+        logging_broker: LoggingBroker,
+        exception: Exception) -> SkillDependencyException:
+
+    skill_dependency_exception = SkillDependencyException(
+        message="Skill dependency error occurred, contact support.",
+        inner_exception=exception)
+
+    await logging_broker.log_critical(skill_dependency_exception)
+
+    return skill_dependency_exception
