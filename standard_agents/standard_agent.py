@@ -12,11 +12,14 @@ from standard_agents.brokers.classifiers.not_configured_classifier_broker import
 from standard_agents.brokers.generators.function_generator_broker import (
     FunctionGeneratorBroker)
 from standard_agents.brokers.generators.igenerator_broker import IGeneratorBroker
+from standard_agents.brokers.knowledges.function_knowledge_broker import (
+    FunctionKnowledgeBroker)
 from standard_agents.brokers.knowledges.iknowledge_broker import IKnowledgeBroker
 from standard_agents.brokers.knowledges.not_configured_knowledge_broker import (
     NotConfiguredKnowledgeBroker)
 from standard_agents.brokers.loggings.ilogging_broker import ILoggingBroker
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
+from standard_agents.brokers.memories.file_memory_broker import FileMemoryBroker
 from standard_agents.brokers.memories.imemory_broker import IMemoryBroker
 from standard_agents.brokers.memories.not_configured_memory_broker import (
     NotConfiguredMemoryBroker)
@@ -78,6 +81,19 @@ class StandardAgent:
 
     def skills(self, path: str) -> "StandardAgent":
         self.skill_broker = FileSkillBroker(path)
+
+        return self
+
+    def memory(self, path: str) -> "StandardAgent":
+        self.memory_broker = FileMemoryBroker(path)
+
+        return self
+
+    def on_knowledge(
+        self,
+        select_knowledge: Callable[[str], Awaitable[list[str]]]) -> "StandardAgent":
+
+        self.knowledge_broker = FunctionKnowledgeBroker(select_knowledge)
 
         return self
 
