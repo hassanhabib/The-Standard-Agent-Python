@@ -8,9 +8,13 @@
 from __future__ import annotations
 
 import json
+from datetime import timedelta
+from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
-from standard_agents.models.clients.agents.exceptions import InvalidAgentConfigurationException
+from standard_agents.models.clients.agents.exceptions import (
+    InvalidAgentBudgetException,
+    InvalidAgentConfigurationException)
 
 if TYPE_CHECKING:
     from standard_agents.standard_agent import StandardAgent
@@ -56,6 +60,9 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
             for member in value:
                 _apply_fleet_member(agent, member, key)
 
+        case "budget":
+            _apply_budget(agent, value)
+
         case _:
             raise InvalidAgentConfigurationException(
                 message=(
@@ -73,3 +80,31 @@ def _apply_fleet_member(agent: StandardAgent, member: Any, key: str) -> None:
     if not composed.name or composed.name.isspace():
         raise InvalidAgentConfigurationException(
             message=f"An inline '{key}' entry needs a 'name' \u2014 a handoff calls agents by name.")
+
+
+def _apply_budget(agent: StandardAgent, budget: Any) -> None:
+    # The builder is the one place the budget's rules live; the document reaches it through the
+    # same verb code does. A refusal there is rewrapped into the document's own exception, naming
+    # the entries the author must fix, with the builder's refusal preserved beneath it.
+    max_wall_clock_seconds = budget.get("maxWallClockSeconds")
+    max_cost_usd = budget.get("maxCostUsd")
+    cost_per_thousand_tokens = budget.get("costPerThousandTokens")
+
+    try:
+        agent.budget(
+            max_tokens=budget.get("maxTokens"),
+            max_cost_usd=None if max_cost_usd is None else Decimal(str(max_cost_usd)),
+            max_wall_clock=(
+                None if max_wall_clock_seconds is None
+                else timedelta(seconds=max_wall_clock_seconds)),
+            cost_per_thousand_tokens=(
+                Decimal(0) if cost_per_thousand_tokens is None
+                else Decimal(str(cost_per_thousand_tokens))))
+    except InvalidAgentBudgetException as invalid_agent_budget_exception:
+        raise InvalidAgentConfigurationException(
+            message=(
+                "The 'budget' entry sets 'maxCostUsd' without a positive "
+                + "'costPerThousandTokens'. Cost is priced off the token count times that "
+                + "rate, so without it the spend is zero forever and the bound can never "
+                + "trip. Add your model's rate, or bound by 'maxTokens' instead."),
+            inner_exception=invalid_agent_budget_exception) from invalid_agent_budget_exception
