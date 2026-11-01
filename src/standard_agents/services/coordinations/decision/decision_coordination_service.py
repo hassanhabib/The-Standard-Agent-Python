@@ -215,7 +215,13 @@ class DecisionCoordinationService:
 
 
 def _revision_feedback(judgement: Judgement, draft: str) -> str:
-    return f"A previous draft was rejected on review: {draft}"
+    if not judgement.reason:
+        return f"A previous draft was rejected on review: {draft}"
+
+    return (
+        f"A previous draft was rejected on review \u2014 {judgement.reason}. "
+        f"The draft was: {draft}")
+
 
 
 def _fresh_of_last_turn(context: AgentContext) -> AgentContext:
