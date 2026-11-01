@@ -6,12 +6,16 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Sequence
+from collections.abc import AsyncIterator, Sequence
+from contextlib import asynccontextmanager
 
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.brokers.mcps import mcp_json
 from standard_agents.brokers.mcps.mcp_broker import McpBroker
 from standard_agents.models.brokers.mcps.mcp_tool import McpTool
+from standard_agents.models.foundations.external_tools.exceptions import (
+    ExternalToolValidationException,
+    InvalidExternalToolException)
 
 # The one argument plain text travels as, for a tool that declared no schema of its own.
 _INPUT_ARGUMENT_NAME = "input"
@@ -25,7 +29,10 @@ class ExternalToolService:
         self.logging_broker = logging_broker
 
     async def call(self, name: str, input: str) -> str:
-        return await self.mcp_broker.call(name, _to_arguments_json(input))
+        async with _handling_exceptions(self.logging_broker):
+            _validate_name(name)
+
+            return await self.mcp_broker.call(name, _to_arguments_json(input))
 
     async def retrieve_tools(self) -> Sequence[McpTool]:
         """The remote tools the configured servers offer, in business language.
@@ -56,3 +63,31 @@ def _is_json_object(input: str) -> bool:
         return isinstance(mcp_json.parse(input), dict)
     except json.JSONDecodeError:
         return False
+
+
+def _validate_name(name: str | None) -> None:
+    if not name or name.isspace():
+        raise InvalidExternalToolException(
+            message="Invalid external tool. Please correct the error and try again.")
+
+
+@asynccontextmanager
+async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[None]:
+    try:
+        yield
+    except InvalidExternalToolException as invalid_external_tool_exception:
+        raise await _create_and_log_validation_exception(
+            logging_broker, invalid_external_tool_exception)
+
+
+async def _create_and_log_validation_exception(
+        logging_broker: LoggingBroker,
+        exception: Exception) -> ExternalToolValidationException:
+
+    external_tool_validation_exception = ExternalToolValidationException(
+        message="External tool validation error occurred, fix the error and try again.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(external_tool_validation_exception)
+
+    return external_tool_validation_exception
