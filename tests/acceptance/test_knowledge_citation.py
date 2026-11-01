@@ -287,3 +287,27 @@ async def test_should_cite_the_same_answer_on_the_streamed_door():
         for streamed_event in streamed_events)
 
     assert run_stream.outcome.result == expected_result
+
+
+# The session records the answer the caller was given (SPEC.md 4.11), so the next prompt in the
+# conversation is told what the agent actually said.
+async def test_should_record_the_cited_answer_in_the_session(tmp_path):
+    # given
+    seen_by_brain = ""
+
+    async def brain(system_prompt, user_prompt):
+        nonlocal seen_by_brain
+        seen_by_brain = user_prompt
+
+        return f"FINAL: {_ANSWER}"
+
+    agent = (_grounded_agent(brain)
+        .sessions(str(tmp_path))
+        .cite_knowledge())
+
+    # when
+    await agent.process_prompt("what is the refund window?", session_id="customer-1")
+    await agent.process_prompt("and for small businesses?", session_id="customer-1")
+
+    # then
+    assert f"Source: {_REFUNDS_SOURCE}" in seen_by_brain
