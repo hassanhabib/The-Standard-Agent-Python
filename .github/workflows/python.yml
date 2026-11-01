@@ -26,3 +26,11 @@ jobs:
       run: python -m pytest -q
     - name: Running Example Agent
       run: python -m examples.calculator_agent
+    - name: Pulling Conformance Vectors
+      uses: actions/checkout@v4
+      with:
+        repository: hassanhabib/The-Standard-Agent
+        path: reference
+        sparse-checkout: conformance
+    - name: Certifying Core Conformance
+      run: python -m conformance reference/conformance/vectors --profile Core
