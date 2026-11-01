@@ -175,3 +175,47 @@ async def test_should_read_the_reply_from_an_event_stream():
 
     # then: the response is found past the notification, the schema whole
     assert actual_tools == expected_tools
+
+
+async def test_should_initialize_once_before_the_first_request():
+    # given: a server that expects the lifecycle the protocol defines
+    def respond(request, body):
+        method = json.loads(body)["method"]
+
+        if method == "initialize":
+            return ScriptedServerHandler.json(
+                http.HTTPStatus.OK,
+                '{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-06-18",'
+                + '"capabilities":{"tools":{}},'
+                + '"serverInfo":{"name":"students","version":"1.0.0"}}}')
+
+        if method == "notifications/initialized":
+            return ScriptedResponse(http.HTTPStatus.ACCEPTED)
+
+        return ScriptedServerHandler.json(
+            http.HTTPStatus.OK,
+            '{"jsonrpc":"2.0","id":2,"result":{"tools":[]}}')
+
+    server = ScriptedServerHandler(respond)
+    broker = create_broker(server)
+
+    # when
+    await broker.list_tools()
+    await broker.list_tools()
+
+    # then: initialize, then the initialized notification, then the work; once only
+    messages = [json.loads(body) for body in server.bodies]
+
+    assert [message["method"] for message in messages] == [
+        "initialize",
+        "notifications/initialized",
+        "tools/list",
+        "tools/list",
+    ]
+
+    initialize = messages[0]
+    assert initialize.get("id") is not None
+    assert initialize["params"]["protocolVersion"] == "2025-06-18"
+    assert isinstance(initialize["params"]["capabilities"], dict)
+    assert initialize["params"]["clientInfo"]["name"] == "Standard.Agents"
+    assert messages[1].get("id") is None
