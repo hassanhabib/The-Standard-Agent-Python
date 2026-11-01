@@ -11,7 +11,9 @@ from restfulsense import (
     HttpRequestException,
     HttpResponseBadRequestException,
     HttpResponseForbiddenException,
+    HttpResponseInternalServerErrorException,
     HttpResponseNotFoundException,
+    HttpResponseServiceUnavailableException,
     HttpResponseUnauthorizedException,
     HttpResponseUrlNotFoundException)
 from standard_agents.models.foundations.external_tools.exceptions import (
@@ -26,6 +28,11 @@ CRITICAL_DEPENDENCY_EXCEPTIONS = [
     pytest.param(HttpResponseNotFoundException(), id="not-found"),
     pytest.param(HttpResponseUrlNotFoundException(), id="url-not-found"),
     pytest.param(HttpRequestException(), id="http-request"),
+]
+
+DEPENDENCY_EXCEPTIONS = [
+    pytest.param(HttpResponseInternalServerErrorException(), id="internal-server-error"),
+    pytest.param(HttpResponseServiceUnavailableException(), id="service-unavailable"),
 ]
 
 
@@ -169,3 +176,36 @@ async def test_should_throw_critical_dependency_exception_on_retrieve_tools_if_c
 
     assert logging_broker.mock_calls == [
         call.log_critical(same_exception_as(expected_external_tool_dependency_exception))]
+
+
+@pytest.mark.parametrize("dependency_exception", DEPENDENCY_EXCEPTIONS)
+async def test_should_throw_dependency_exception_on_call_if_dependency_error_occurs_and_log_it(
+        dependency_exception,
+        external_tool_service,
+        mcp_broker,
+        logging_broker,
+        same_exception_as,
+        create_random_string,
+        expected_arguments_json):
+
+    # given
+    random_name = create_random_string()
+    random_input = create_random_string()
+
+    expected_external_tool_dependency_exception = _external_tool_dependency_exception(
+        dependency_exception)
+
+    mcp_broker.call.side_effect = dependency_exception
+
+    # when
+    with pytest.raises(ExternalToolDependencyException) as raised:
+        await external_tool_service.call(random_name, random_input)
+
+    # then
+    assert raised.value.same_exception_as(expected_external_tool_dependency_exception)
+
+    assert mcp_broker.mock_calls == [
+        call.call(random_name, expected_arguments_json(random_input))]
+
+    assert logging_broker.mock_calls == [
+        call.log_error(same_exception_as(expected_external_tool_dependency_exception))]
