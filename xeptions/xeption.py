@@ -29,7 +29,8 @@ class Xeption(Exception):
         raise NotImplementedError
 
     def throw_if_contains_errors(self) -> None:
-        raise NotImplementedError
+        if self.data:
+            raise self
 
     def same_exception_as(self, other: BaseException | None) -> bool:
         raise NotImplementedError
