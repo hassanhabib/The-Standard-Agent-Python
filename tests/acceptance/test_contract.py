@@ -79,3 +79,23 @@ async def test_should_revise_when_the_answer_does_not_satisfy_the_contract():
     # the one the caller receives
     assert '"amount"' in actual_answer
     assert "one hundred US dollars" not in actual_answer
+
+
+# A model that never produces the shape must fail the way every other exhausted control fails: a
+# graceful refusal, distinguishable from an answer. Never an exception, and never prose handed
+# back as though it had satisfied a schema it did not.
+async def test_should_refuse_when_the_contract_is_never_satisfied():
+    # given
+    agent = (_agent_answering("FINAL: The amount is one hundred US dollars.")
+        .contract(INVOICE_SCHEMA)
+        .max_turns(3))
+
+    # when
+    actual_answer = await agent.process_prompt("what is owed")
+
+    # then: prose handed back unchanged is the failure this exists to prevent, since a caller
+    # parsing the result would have no way to tell it never matched; and an exhausted contract
+    # refuses gracefully, the same as an exhausted revision budget, rather than throwing or
+    # returning nothing
+    assert actual_answer != "The amount is one hundred US dollars."
+    assert actual_answer.strip() != ""
