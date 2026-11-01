@@ -9,11 +9,25 @@ import re
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+from restfulsense.exceptions import (
+    HttpRequestException,
+    HttpResponseBadRequestException,
+    HttpResponseForbiddenException,
+    HttpResponseInternalServerErrorException,
+    HttpResponseNotFoundException,
+    HttpResponseServiceUnavailableException,
+    HttpResponseUnauthorizedException,
+    HttpResponseUrlNotFoundException)
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.brokers.verifiers.verifier_broker import VerifierBroker
 from standard_agents.models.foundations.judges.exceptions import (
+    FailedJudgeDependencyException,
+    FailedJudgeServiceException,
     InvalidJudgeException,
     InvalidJudgeScoreException,
+    JudgeDependencyException,
+    JudgeDependencyValidationException,
+    JudgeServiceException,
     JudgeValidationException)
 from standard_agents.models.foundations.judges.judgement import Judgement
 
@@ -114,6 +128,35 @@ async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[N
     except (InvalidJudgeException, InvalidJudgeScoreException) as invalid_judge_exception:
         raise await _create_and_log_validation_exception(
             logging_broker, invalid_judge_exception)
+    except HttpResponseBadRequestException as http_response_bad_request_exception:
+        invalid_judge_exception = InvalidJudgeException(
+            message="Invalid judge request. Please correct the error and try again.")
+
+        invalid_judge_exception.add_data(http_response_bad_request_exception.data)
+
+        raise await _create_and_log_dependency_validation_exception(
+            logging_broker, invalid_judge_exception)
+    except (
+            HttpResponseUnauthorizedException,
+            HttpResponseForbiddenException,
+            HttpResponseNotFoundException,
+            HttpResponseUrlNotFoundException,
+            HttpRequestException) as critical_exception:
+
+        raise await _create_and_log_critical_dependency_exception(
+            logging_broker, critical_exception)
+    except (
+            HttpResponseInternalServerErrorException,
+            HttpResponseServiceUnavailableException) as dependency_exception:
+
+        raise await _create_and_log_dependency_exception(logging_broker, dependency_exception)
+    except Exception as exception:
+        failed_judge_service_exception = FailedJudgeServiceException(
+            message="Failed judge service error occurred, contact support.",
+            inner_exception=exception)
+
+        raise await _create_and_log_service_exception(
+            logging_broker, failed_judge_service_exception)
 
 
 async def _create_and_log_validation_exception(
@@ -127,3 +170,59 @@ async def _create_and_log_validation_exception(
     await logging_broker.log_error(judge_validation_exception)
 
     return judge_validation_exception
+
+
+async def _create_and_log_dependency_validation_exception(
+        logging_broker: LoggingBroker,
+        exception: Exception) -> JudgeDependencyValidationException:
+
+    judge_dependency_validation_exception = JudgeDependencyValidationException(
+        message="Judge dependency validation error occurred, fix the error and try again.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(judge_dependency_validation_exception)
+
+    return judge_dependency_validation_exception
+
+
+async def _create_and_log_critical_dependency_exception(
+        logging_broker: LoggingBroker,
+        exception: Exception) -> JudgeDependencyException:
+
+    judge_dependency_exception = _create_dependency_exception(exception)
+    await logging_broker.log_critical(judge_dependency_exception)
+
+    return judge_dependency_exception
+
+
+async def _create_and_log_dependency_exception(
+        logging_broker: LoggingBroker,
+        exception: Exception) -> JudgeDependencyException:
+
+    judge_dependency_exception = _create_dependency_exception(exception)
+    await logging_broker.log_error(judge_dependency_exception)
+
+    return judge_dependency_exception
+
+
+def _create_dependency_exception(exception: Exception) -> JudgeDependencyException:
+    failed_judge_dependency_exception = FailedJudgeDependencyException(
+        message="Failed judge dependency error occurred, contact support.",
+        inner_exception=exception)
+
+    return JudgeDependencyException(
+        message="Judge dependency error occurred, contact support.",
+        inner_exception=failed_judge_dependency_exception)
+
+
+async def _create_and_log_service_exception(
+        logging_broker: LoggingBroker,
+        exception: Exception) -> JudgeServiceException:
+
+    judge_service_exception = JudgeServiceException(
+        message="Judge service error occurred, contact support.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(judge_service_exception)
+
+    return judge_service_exception
