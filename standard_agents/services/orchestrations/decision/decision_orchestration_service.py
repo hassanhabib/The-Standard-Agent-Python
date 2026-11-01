@@ -8,6 +8,9 @@ from standard_agents.models.orchestrations.agents.agent_context import AgentCont
 from standard_agents.services.foundations.brains.ibrain_service import IBrainService
 from standard_agents.services.foundations.gates.igate_service import IGateService
 from standard_agents.services.foundations.judges.ijudge_service import IJudgeService
+from standard_agents.services.orchestrations.decision.decision_orchestration_service_protocol import (
+    build_user_message,
+    interpret)
 from standard_agents.services.orchestrations.decision.idecision_orchestration_service import (
     IDecisionOrchestrationService)
 
@@ -26,4 +29,8 @@ class DecisionOrchestrationService(IDecisionOrchestrationService):
         self.logging_broker = logging_broker
 
     async def think(self, context: AgentContext) -> AgentContext:
-        raise NotImplementedError
+        await self.gate_service.screen(context.prompt)
+        user_message = build_user_message(context)
+        reply = await self.brain_service.generate(context.system_prompt, user_message)
+
+        return interpret(context, reply.strip())
