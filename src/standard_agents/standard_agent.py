@@ -8,7 +8,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from datetime import timedelta
 
 from standard_agents.agent import Agent
@@ -21,6 +21,7 @@ from standard_agents.brokers.contracts.rule_contract_broker import RuleContractB
 from standard_agents.brokers.effects.in_memory_effect_ledger_broker import (
     InMemoryEffectLedgerBroker)
 from standard_agents.brokers.files.local_file_broker import LocalFileBroker
+from standard_agents.brokers.generators.function_generator_broker import FunctionGeneratorBroker
 from standard_agents.brokers.generators.generator_broker import GeneratorBroker
 from standard_agents.brokers.generators.openai_generator_broker import OpenAiGeneratorBroker
 from standard_agents.brokers.knowledges.knowledge_broker import KnowledgeBroker
@@ -165,6 +166,11 @@ class StandardAgent(Agent):
 
     def use_skills(self, broker: SkillBroker) -> StandardAgent:
         self._skill_sources.append(broker)
+
+        return self
+
+    def on_brain(self, generate: Callable[[str, str], Awaitable[str]]) -> StandardAgent:
+        self._generator_broker = FunctionGeneratorBroker(generate)
 
         return self
 
