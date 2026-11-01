@@ -15,6 +15,8 @@ from standard_agents.services.foundations.external_tools.external_tool_service i
 from standard_agents.services.foundations.knowledges.knowledge_service import KnowledgeService
 from standard_agents.services.foundations.skills.skill_service import SkillService
 
+_TOOLS_MARKER = "{{tools}}"
+
 
 class RetrievalOrchestrationService:
     """Authored material, selected by relevance.
@@ -41,10 +43,27 @@ class RetrievalOrchestrationService:
         self.tool_catalog_entries = tool_catalog_entries
 
     async def retrieve_instructions(self, route: str) -> str:
-        raise NotImplementedError
+        skills = await self.skill_service.retrieve_skills(route)
+
+        return skills.replace(_TOOLS_MARKER, await self._render_tool_catalog())
 
     async def retrieve_grounding(self, query: str) -> Sequence[KnowledgeResult]:
         raise NotImplementedError
 
     async def retrieve_remote_tools(self) -> Sequence[McpTool]:
         raise NotImplementedError
+
+    async def _render_tool_catalog(self) -> str:
+        remote_catalog = _render_remote_tool_catalog(
+            await self.external_tool_service.retrieve_tools())
+
+        return f"{self.tool_catalog}\n{remote_catalog}"
+
+
+def _render_remote_tool_catalog(remote_tools: Sequence[McpTool]) -> str:
+    catalog_lines = (
+        f"- {tool.name} \u2014 {tool.description} parameters: {tool.input_schema_json}"
+        for tool in remote_tools
+        if tool.description and not tool.description.isspace())
+
+    return "\n".join(catalog_lines)
