@@ -5,8 +5,15 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from standard_agents.brokers.classifiers.classifier_broker import ClassifierBroker
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
+from standard_agents.models.foundations.gates.exceptions import (
+    GateValidationException,
+    InvalidGateException)
+from xeptions import Xeption
 
 
 class GateService:
@@ -27,7 +34,37 @@ class GateService:
         self.logging_broker = logging_broker
 
     async def screen(self, input: str) -> str:
-        return await self.classifier_broker.classify(input)
+        async with _handling_exceptions(self.logging_broker):
+            _validate_screen(input)
+
+            return await self.classifier_broker.classify(input)
 
     async def detect_conflict(self, instructions: str) -> str:
         raise NotImplementedError
+
+
+def _validate_screen(input: str | None) -> None:
+    if not input or input.isspace():
+        raise InvalidGateException(
+            message="Invalid gate input. Please correct the error and try again.")
+
+
+@asynccontextmanager
+async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[None]:
+    try:
+        yield
+    except InvalidGateException as invalid_gate_exception:
+        raise await _create_and_log_validation_exception(logging_broker, invalid_gate_exception)
+
+
+async def _create_and_log_validation_exception(
+        logging_broker: LoggingBroker,
+        exception: Xeption) -> GateValidationException:
+
+    gate_validation_exception = GateValidationException(
+        message="Gate validation error occurred, fix the error and try again.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(gate_validation_exception)
+
+    return gate_validation_exception
