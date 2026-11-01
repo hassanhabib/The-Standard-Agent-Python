@@ -10,15 +10,24 @@ from __future__ import annotations
 import json
 from datetime import timedelta
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any
+from enum import Enum
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from standard_agents.models.clients.agents.exceptions import (
     InvalidAgentApiUrlException,
     InvalidAgentBudgetException,
     InvalidAgentConfigurationException)
 
+from standard_agents.models.brokers.agents.registered_agent import RegisteredAgent
+from standard_agents.models.foundations.brains.redaction_rule import RedactionRule
+from standard_agents.models.loggings.trace_verbosity import TraceVerbosity
+from standard_agents.models.orchestrations.effects.permission_mode import PermissionMode
+from standard_agents.models.orchestrations.effects.risk_level import RiskLevel
+
 if TYPE_CHECKING:
     from standard_agents.standard_agent import StandardAgent
+
+_Named = TypeVar("_Named", bound=Enum)
 
 
 def apply_document(agent: StandardAgent, document_json: str) -> None:
@@ -58,6 +67,9 @@ def _apply_entry(agent: StandardAgent, key: str, value: Any) -> None:
 
 
 def _apply(agent: StandardAgent, key: str, value: Any) -> None:
+    # One case per capability, named exactly as the builder verb it drives, camelCased: the parity
+    # test feeds a document containing every key, so a verb added without a binding turns red
+    # there.
     match key:
         # Identity rides in the document, so the file IS the agent: a registry reads the name a
         # handoff calls and the description that advertises it from the same JSON that composes
@@ -77,8 +89,100 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
                 max_tokens=value.get("maxTokens", 1024),
                 timeout_seconds=value.get("timeoutSeconds", 120))
 
+        case "nativeBrain":
+            agent.native_brain(
+                value["apiUrl"],
+                value.get("apiKey", ""),
+                value["model"],
+                temperature=value.get("temperature", 0.7),
+                max_tokens=value.get("maxTokens", 1024))
+
+        case "nativeBrainAnthropic":
+            agent.native_brain_anthropic(
+                value["apiKey"],
+                value["model"],
+                temperature=value.get("temperature", 0.7),
+                max_tokens=value.get("maxTokens", 1024))
+
+        case "skills" if isinstance(value, list):
+            for source in value:
+                agent.skills(source)
+
+        case "skills":
+            agent.skills(value)
+
+        case "knowledge" if isinstance(value, dict):
+            agent.knowledge(
+                value["path"],
+                pattern=value.get("pattern", "*.md"),
+                max_results=value.get("maxResults", 3),
+                min_score=value.get("minScore", 0.0))
+
+        case "knowledge":
+            agent.knowledge(value)
+
+        case "memory":
+            agent.memory(value)
+
+        case "mcp" if isinstance(value, list):
+            for server in value:
+                _apply_mcp_server(agent, server)
+
+        case "mcp":
+            _apply_mcp_server(agent, value)
+
+        case "agents" if isinstance(value, list):
+            for member in value:
+                _apply_fleet_member(agent, member, key)
+
+        case "agents":
+            agent.agents(value)
+
+        case "gate":
+            agent.gate(
+                value["apiUrl"],
+                value.get("apiKey", ""),
+                value["model"],
+                temperature=value.get("temperature", 0.0),
+                max_tokens=value.get("maxTokens", 16),
+                timeout_seconds=value.get("timeoutSeconds", 30))
+
         case "ruleGate":
             agent.rule_gate(*value)
+
+        case "judge":
+            agent.judge(
+                value["apiUrl"],
+                value.get("apiKey", ""),
+                value["model"],
+                temperature=value.get("temperature", 0.0),
+                max_tokens=value.get("maxTokens", 16),
+                timeout_seconds=value.get("timeoutSeconds", 30))
+
+        case "ruleJudge":
+            agent.rule_judge(*value)
+
+        # The contract is itself a JSON schema, so it rides embedded rather than as an escaped
+        # string a form author would have to hand-quote.
+        case "contract":
+            agent.contract("{}" if value is None else json.dumps(value, separators=(",", ":")))
+
+        case "constitution":
+            agent.constitution(value)
+
+        case "consumption":
+            agent.consumption(value)
+
+        case "redact" if isinstance(value, dict):
+            agent.redact(*(
+                RedactionRule(label=rule["label"], pattern=rule["pattern"])
+                for rule in value["rules"]))
+
+        case "redact" if value:
+            agent.redact()
+
+        case "redact":
+            pass
 
         case "maxTurns":
             agent.max_turns(value)
@@ -94,12 +198,71 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
         case "citeKnowledge":
             agent.cite_knowledge(cite=value)
 
-        case "agents":
-            for member in value:
-                _apply_fleet_member(agent, member, key)
+        case "allowTools":
+            agent.allow_tools(*value)
+
+        case "permissions":
+            agent.permissions(_named(PermissionMode, value, key))
+
+        case "risk":
+            for level_name, tool_names in value.items():
+                agent.risk(_named(RiskLevel, level_name, key), *tool_names)
+
+        case "requireApproval":
+            agent.require_approval(*value)
+
+        case "logTo" if isinstance(value, dict):
+            agent.log_to(
+                value["path"],
+                verbosity=_named(TraceVerbosity, value.get("verbosity", "Full"), key))
+
+        case "logTo":
+            agent.log_to(value)
+
+        case "audit":
+            agent.audit(value)
+
+        case "telemetry" if isinstance(value, str):
+            agent.telemetry(agent_name=value)
+
+        case "telemetry" if value:
+            agent.telemetry()
+
+        case "telemetry":
+            pass
+
+        case "sessions" if isinstance(value, dict):
+            agent.sessions(value["path"], max_history_turns=value.get("maxHistoryTurns", 20))
+
+        case "sessions":
+            agent.sessions(value)
+
+        case "effectLedger":
+            agent.effect_ledger(value)
+
+        case "screenToolOutput" if value:
+            agent.screen_tool_output()
+
+        case "screenToolOutput":
+            pass
 
         case "budget":
             _apply_budget(agent, value)
+
+        case "usage":
+            agent.usage(characters_per_token=value.get("charactersPerToken", 4.0))
+
+        case "resilience" if isinstance(value, dict):
+            agent.resilience(retries=value.get("retries", 3))
+
+        case "resilience":
+            agent.resilience(retries=value)
+
+        case "compensateOnFailure" if value:
+            agent.compensate_on_failure()
+
+        case "compensateOnFailure":
+            pass
 
         case _:
             raise InvalidAgentConfigurationException(
@@ -110,14 +273,29 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
 
 
 def _apply_fleet_member(agent: StandardAgent, member: Any, key: str) -> None:
-    # A fleet member rides inline as the same document from_json composes, identity included,
-    # because the document IS the agent. An inline member must be named: a handoff calls agents
-    # by name, and a nameless agent is one the brain could never call.
+    # A fleet member is a path when the agents live beside the process (a folder of agent
+    # documents), an object when the agent rides inline: the same document from_json composes,
+    # identity included, because the document IS the agent. An inline member must be named: a
+    # handoff calls agents by name, and a nameless agent is one the brain could never call.
+    if not isinstance(member, dict):
+        agent.agents(member)
+
+        return
+
     composed = type(agent).from_json(json.dumps(member))
 
     if not composed.name or composed.name.isspace():
         raise InvalidAgentConfigurationException(
-            message=f"An inline '{key}' entry needs a 'name' \u2014 a handoff calls agents by name.")
+            message=(
+                f"An inline '{key}' entry needs a 'name' \u2014 a handoff calls agents by "
+                + "name."))
+
+    registered_agents = [RegisteredAgent(composed.name, composed.description, composed)]
+
+    async def select_agents() -> list[RegisteredAgent]:
+        return registered_agents
+
+    agent.on_agents(select_agents)
 
 
 def _apply_budget(agent: StandardAgent, budget: Any) -> None:
@@ -146,3 +324,38 @@ def _apply_budget(agent: StandardAgent, budget: Any) -> None:
                 + "rate, so without it the spend is zero forever and the bound can never "
                 + "trip. Add your model's rate, or bound by 'maxTokens' instead."),
             inner_exception=invalid_agent_budget_exception)
+
+
+def _apply_mcp_server(agent: StandardAgent, server: Any) -> None:
+    # A server is a URL when it needs nothing else, an object when it carries auth: an API key in
+    # a named header, or a bearer token (an OAuth access token or PAT). A refresh-flow token is
+    # code (a callable) and arrives through use_mcp, never through the document.
+    if isinstance(server, dict):
+        agent.mcp(
+            server["endpointUrl"],
+            relative_url=server.get("relativeUrl", ""),
+            timeout_seconds=server.get("timeoutSeconds", 30),
+            bearer_token=server.get("bearerToken"),
+            api_key=server.get("apiKey"),
+            api_key_header=server.get("apiKeyHeader", "X-Api-Key"))
+
+        return
+
+    agent.mcp(server)
+
+
+def _named(enumeration: type[_Named], name: str, key: str) -> _Named:
+    """The member a name means, as .NET's Enum.TryParse reads it: whatever the case."""
+    for member in enumeration:
+        if _csharp_name(member).lower() == name.strip().lower():
+            return member
+
+    raise InvalidAgentConfigurationException(
+        message=(
+            f"'{key}' does not accept '{name}'. It accepts: "
+            + ", ".join(_csharp_name(member) for member in enumeration) + "."))
+
+
+def _csharp_name(member: Enum) -> str:
+    """The member's name as the document and the C# spell it: IRREVERSIBLE is Irreversible."""
+    return "".join(word.capitalize() for word in member.name.split("_"))

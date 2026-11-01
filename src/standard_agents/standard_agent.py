@@ -56,6 +56,8 @@ from standard_agents.brokers.effects.in_memory_effect_ledger_broker import (
     InMemoryEffectLedgerBroker)
 from standard_agents.brokers.files.file_broker import FileBroker
 from standard_agents.brokers.files.local_file_broker import LocalFileBroker
+from standard_agents.brokers.generators.anthropic_generator_broker_v1 import (
+    AnthropicGeneratorBrokerV1)
 from standard_agents.brokers.generators.function_generator_broker import FunctionGeneratorBroker
 from standard_agents.brokers.generators.function_generator_broker_v1 import (
     FunctionGeneratorBrokerV1)
@@ -139,6 +141,8 @@ from standard_agents.models.orchestrations.effects.agent_effect import AgentEffe
 from standard_agents.models.orchestrations.effects.agent_principal import AgentPrincipal
 from standard_agents.models.orchestrations.effects.authorization_decision import (
     AuthorizationDecision)
+from standard_agents.models.orchestrations.effects.permission_mode import PermissionMode
+from standard_agents.models.orchestrations.effects.risk_level import RiskLevel
 from standard_agents.prompts.guardian_prompts import (
     gate_contract,
     gate_policy,
@@ -216,6 +220,9 @@ class StandardAgent(Agent):
         self._local_judge_evaluate: Callable[[str, str], Awaitable[str]] | None = None
         self._memory_path = "memory.txt"
         self._knowledge_path = "Knowledge"
+        self._knowledge_pattern = "*.md"
+        self._knowledge_max_results = 3
+        self._knowledge_min_score = 0.0
         self._log_path = ""
         self._constitution_path = ""
         self._consumption_path = ""
@@ -241,6 +248,10 @@ class StandardAgent(Agent):
         self._agent_sources: list[AgentRegistryBroker] = []
         self._redaction_rules: Sequence[RedactionRule] | None = None
         self._redaction_broker: RedactionBroker | None = None
+        self._permission_mode = PermissionMode.OPEN
+        self._declared_risk: dict[str, RiskLevel] = {}
+        self._screen_tool_output = False
+        self._compensate_on_failure = False
 
         if api_url is not None or api_key is not None or model is not None:
             self.brain(api_url, api_key, model)
@@ -286,8 +297,60 @@ class StandardAgent(Agent):
 
         return self
 
-    def knowledge(self, path: str) -> StandardAgent:
+    def knowledge(
+            self,
+            path: str,
+            *,
+            pattern: str = "*.md",
+            max_results: int = 3,
+            min_score: float = 0.0) -> StandardAgent:
+
         self._knowledge_path = path
+        self._knowledge_pattern = pattern
+        self._knowledge_max_results = max_results
+        self._knowledge_min_score = min_score
+
+        return self
+
+    def native_brain_anthropic(
+            self,
+            api_key: str,
+            model: str,
+            *,
+            temperature: float = 0.7,
+            max_tokens: int = 1024) -> StandardAgent:
+
+        self._generator_broker_v1 = None
+
+        self._native_brain_source = lambda: AnthropicGeneratorBrokerV1(
+            api_key,
+            model,
+            temperature,
+            max_tokens,
+            timeout_seconds=120,
+            api_url="https://api.anthropic.com/",
+            handler=self._create_http_handler())
+
+        return self
+
+    def permissions(self, mode: PermissionMode) -> StandardAgent:
+        self._permission_mode = mode
+
+        return self
+
+    def risk(self, level: RiskLevel, *tool_names: str) -> StandardAgent:
+        for tool_name in tool_names:
+            self._declared_risk[tool_name] = level
+
+        return self
+
+    def screen_tool_output(self) -> StandardAgent:
+        self._screen_tool_output = True
+
+        return self
+
+    def compensate_on_failure(self) -> StandardAgent:
+        self._compensate_on_failure = True
 
         return self
 
