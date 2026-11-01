@@ -3,6 +3,8 @@
 # Licensed under the The Standard Software License (TSSL)
 # ---------------------------------------------------------------
 
+import uuid
+
 from standard_agents.brokers.loggings.ilogging_broker import ILoggingBroker
 from standard_agents.models.clients.agents.agent_outcome import AgentOutcome
 from standard_agents.models.orchestrations.agents.agent_context import AgentContext
@@ -49,13 +51,16 @@ class RunCoordinationService(IRunCoordinationService):
 
         return await try_catch(self.logging_broker, returning_outcome_function)
 
+    # Run identity is per invocation, a local of this call and never a field of the instance, so
+    # one instance serves concurrent prompts without one run's record touching another's (4.4).
     # Each turn: Recall, Think, Act (SPEC.md 5). Any status other than WORKING ends the run with
     # how it ended; a turn that only revised a draft leaves it working.
     async def turn_the_loop(self, prompt: str) -> AgentOutcome:
+        run_id = uuid.uuid4().hex
         context = AgentContext(prompt=prompt)
 
         for turn in range(self.max_turns):
-            await self.logging_broker.log_turn(turn)
+            await self.logging_broker.log_turn(run_id, turn)
             context = await self.data_orchestration_service.recall(context)
             context = await self.decision_orchestration_service.think(context)
             context = await self.direction_orchestration_service.act(context)
@@ -63,6 +68,8 @@ class RunCoordinationService(IRunCoordinationService):
             if context.status is not AgentStatus.WORKING:
                 return AgentOutcome(result=context.result, status=context.status)
 
-        await self.logging_broker.log_process("Run", f"stopped: {TURNS_EXHAUSTED_MESSAGE}")
+        await self.logging_broker.log_process(
+            "Run",
+            f"{run_id} stopped: {TURNS_EXHAUSTED_MESSAGE}")
 
         return AgentOutcome(result=TURNS_EXHAUSTED_MESSAGE, status=AgentStatus.FAILED)
