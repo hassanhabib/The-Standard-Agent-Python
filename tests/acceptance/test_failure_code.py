@@ -144,3 +144,15 @@ class _CountingTool(Tool):
         self.calls += 1
 
         return "2"
+
+
+async def test_should_carry_no_failure_on_a_run_that_answered():
+    # given
+    agent = _agent_that_loops(lambda turn: "FINAL: 42")
+
+    # when
+    outcome = await agent.run("what is the answer?")
+
+    # then: an answer is not a stop without an answer, and must never look like one
+    assert outcome.status is AgentStatus.RESPONDED
+    assert outcome.failure is None
