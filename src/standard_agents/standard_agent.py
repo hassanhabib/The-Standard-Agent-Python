@@ -21,6 +21,7 @@ from standard_agents.brokers.knowledges.not_configured_knowledge_broker import (
     NotConfiguredKnowledgeBroker)
 from standard_agents.brokers.loggings.ilogging_broker import ILoggingBroker
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
+from standard_agents.brokers.mcps.function_mcp_broker import FunctionMcpBroker
 from standard_agents.brokers.mcps.imcp_broker import IMcpBroker
 from standard_agents.brokers.mcps.not_configured_mcp_broker import NotConfiguredMcpBroker
 from standard_agents.brokers.memories.file_memory_broker import FileMemoryBroker
@@ -157,6 +158,18 @@ class StandardAgent:
 
     def use_judge(self, verifier_broker: IVerifierBroker) -> "StandardAgent":
         self.verifier_broker = verifier_broker
+
+        return self
+
+    # Remote tools: where an act on a name the agent does not own is sent (SPEC.md 4.3). External
+    # takes the host's broker; Custom takes a function that answers each call.
+    def use_mcp(self, mcp_broker: IMcpBroker) -> "StandardAgent":
+        self.mcp_broker = mcp_broker
+
+        return self
+
+    def on_mcp(self, call: Callable[[str, str], Awaitable[str]]) -> "StandardAgent":
+        self.mcp_broker = FunctionMcpBroker(call)
 
         return self
 

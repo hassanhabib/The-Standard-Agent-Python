@@ -10,9 +10,11 @@ from standard_agents.brokers.classifiers.iclassifier_broker import IClassifierBr
 from standard_agents.brokers.generators.igenerator_broker import IGeneratorBroker
 from standard_agents.brokers.knowledges.iknowledge_broker import IKnowledgeBroker
 from standard_agents.brokers.loggings.ilogging_broker import ILoggingBroker
+from standard_agents.brokers.mcps.imcp_broker import IMcpBroker
 from standard_agents.brokers.memories.imemory_broker import IMemoryBroker
 from standard_agents.brokers.skills.iskill_broker import ISkillBroker
 from standard_agents.brokers.verifiers.iverifier_broker import IVerifierBroker
+from standard_agents.models.brokers.mcps.remote_tool import RemoteTool
 from standard_agents.standard_agent import StandardAgent
 from standard_agents.tools.itool import ITool
 
@@ -182,6 +184,64 @@ class TestStandardAgentCompositions:
         # then
         assert brain_calls[0][0] == expected_system_prompt
         assert random_memory in brain_calls[0][1]
+
+    # Remote tools, the External way (a broker) and the Custom way (a function): an act on a name
+    # the agent does not own goes out to whichever the host composed, and comes back as Data.
+    def test_should_call_out_through_remote_tools_the_host_supplies(self) -> None:
+        # given
+        input_prompt = create_random_string()
+        remote_answer = create_random_string()
+        remote_calls = []
+
+        async def remote_tool(name: str, input: str) -> str:
+            remote_calls.append((name, input))
+
+            return remote_answer
+
+        brain = RecordingBrainThatActsFirst("weather", "today")
+        broker_brain = RecordingBrainThatActsFirst("weather", "today")
+        broker = RecordingMcpBroker(remote_answer)
+        custom_agent = StandardAgent().on_mcp(remote_tool).use_generator(brain)
+        external_agent = StandardAgent().use_mcp(broker).use_generator(broker_brain)
+
+        # when
+        asyncio.run(custom_agent.run(input_prompt))
+        asyncio.run(external_agent.run(input_prompt))
+
+        # then
+        assert remote_calls == [("weather", "today")]
+        assert broker.calls == [("weather", "today")]
+        assert f"weather returned: {remote_answer}" in brain.calls[1][1]
+        assert f"weather returned: {remote_answer}" in broker_brain.calls[1][1]
+
+
+class RecordingBrainThatActsFirst(IGeneratorBroker):
+    def __init__(self, tool_name: str, tool_input: str) -> None:
+        self.tool_name = tool_name
+        self.tool_input = tool_input
+        self.calls: list[tuple[str, str]] = []
+
+    async def generate(self, system_prompt: str, user_prompt: str) -> str:
+        self.calls.append((system_prompt, user_prompt))
+
+        if len(self.calls) == 1:
+            return f"ACTION: {self.tool_name}: {self.tool_input}"
+
+        return "FINAL: done"
+
+
+class RecordingMcpBroker(IMcpBroker):
+    def __init__(self, answer: str) -> None:
+        self.answer = answer
+        self.calls: list[tuple[str, str]] = []
+
+    async def call(self, name: str, input: str) -> str:
+        self.calls.append((name, input))
+
+        return self.answer
+
+    async def list_tools(self) -> list[RemoteTool]:
+        return []
 
 
 class NamedTool(ITool):
