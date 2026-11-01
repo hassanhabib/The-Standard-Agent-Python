@@ -21,11 +21,15 @@ _DATE_TIME_OFFSET_PATTERN = re.compile(
     r"(Z|[+-]\d{2}(?::\d{2})?)?)?$")
 
 
-# One act's line in the ledger: which act, who claimed it, when, for how long, where it stands,
-# and what it produced. Written before the act and updated after it, so an act that executed
-# and was never recorded is distinguishable from one that never ran (SPEC.md 4.9).
 @dataclass(frozen=True)
 class EffectRecord:
+    """One act's line in the ledger.
+
+    Which act, who claimed it, when, for how long, where it stands, and what it produced.
+    Written before the act and updated after it, so an act that executed and was never
+    recorded is distinguishable from one that never ran (SPEC.md 4.9).
+    """
+
     idempotency_key: str = ""
     tool_name: str = ""
     state: EffectState = EffectState.IN_FLIGHT
@@ -42,9 +46,12 @@ class EffectRecord:
     detail: str | None = None
     recorded_on: datetime | None = None
 
-    # The FileEffectLedgerBroker wire: camelCase names, null values omitted (WhenWritingNull),
-    # enums as camelCase strings, properties in declaration order.
     def to_json_dict(self) -> dict:
+        """Return the record as the FileEffectLedgerBroker writes it.
+
+        camelCase names, null values omitted (WhenWritingNull), enums as camelCase strings,
+        properties in declaration order.
+        """
         values = {
             "idempotencyKey": self.idempotency_key,
             "toolName": self.tool_name,
@@ -61,9 +68,12 @@ class EffectRecord:
 
         return {key: value for key, value in values.items() if value is not None}
 
-    # Case-sensitive camelCase names; an absent property keeps its default.
     @classmethod
     def from_json_dict(cls, data: dict) -> EffectRecord:
+        """Read a record the FileEffectLedgerBroker wrote.
+
+        Names are case-sensitive camelCase; an absent property keeps its default.
+        """
         if not isinstance(data, dict):
             raise ValueError("The JSON value could not be converted to EffectRecord.")
 
@@ -107,15 +117,18 @@ def _as_string(value: Any) -> str | None:
     raise ValueError("The JSON value could not be converted to System.String.")
 
 
-# JsonStringEnumConverter(JsonNamingPolicy.CamelCase): InFlight -> "inFlight".
 def _enum_to_json(value: Any) -> str:
+    """Write an enum member's name in camelCase.
+
+    Mirrors JsonStringEnumConverter(JsonNamingPolicy.CamelCase): InFlight -> "inFlight".
+    """
     words = value.name.split("_")
 
     return words[0].lower() + "".join(word.capitalize() for word in words[1:])
 
 
-# Reads the enum's name ignoring case, or its integer value.
 def _enum_from_json(enum_type: Any, value: Any) -> Any:
+    """Read an enum member by its name, ignoring case, or by its integer value."""
     if isinstance(value, int) and not isinstance(value, bool):
         return enum_type(value)
 
@@ -132,9 +145,12 @@ def _enum_from_json(enum_type: Any, value: Any) -> Any:
     raise ValueError(f"The JSON value could not be converted to {enum_type.__name__}.")
 
 
-# System.Text.Json writes a DateTimeOffset as yyyy-MM-ddTHH:mm:ss.FFFFFFFzzz: the fraction
-# trimmed of trailing zeros and dropped when zero, the offset always as +HH:mm.
 def _format_date_time_offset(value: datetime) -> str:
+    """Write a moment the way System.Text.Json writes a DateTimeOffset.
+
+    yyyy-MM-ddTHH:mm:ss.FFFFFFFzzz: the fraction trimmed of trailing zeros and dropped when
+    zero, the offset always as +HH:mm.
+    """
     if value.tzinfo is None or value.utcoffset() is None:
         value = value.astimezone()
 
@@ -152,8 +168,8 @@ def _format_date_time_offset(value: datetime) -> str:
     return text + f"{sign}{offset_minutes // 60:02d}:{offset_minutes % 60:02d}"
 
 
-# ISO 8601 as System.Text.Json reads a DateTimeOffset; no offset means the local one.
 def _parse_date_time_offset(value: Any) -> datetime:
+    """Read ISO 8601 as System.Text.Json reads a DateTimeOffset; no offset means the local one."""
     match = _DATE_TIME_OFFSET_PATTERN.match(value) if isinstance(value, str) else None
 
     if match is None:

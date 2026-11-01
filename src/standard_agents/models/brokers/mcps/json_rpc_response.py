@@ -14,10 +14,14 @@ from standard_agents.models.brokers.mcps.tool_call_result import ToolCallResult
 _MISSING = object()
 
 
-# Wire names follow JsonNamingPolicy.CamelCase; reads are case-insensitive and null values are
-# omitted on write (WhenWritingNull), as the McpBroker's serializer options leave them.
 @dataclass(frozen=True)
 class JsonRpcResponse:
+    """A JSON-RPC response to tools/call: its result or its error.
+
+    Wire names follow JsonNamingPolicy.CamelCase; reads are case-insensitive and null values are
+    omitted on write (WhenWritingNull), as the HttpMcpBroker's serializer options leave them.
+    """
+
     result: ToolCallResult | None
     error: JsonRpcError | None
 
@@ -34,8 +38,8 @@ class JsonRpcResponse:
         if not isinstance(data, dict):
             raise ValueError("The JSON value could not be converted to JsonRpcResponse.")
 
-        result = _read(data, "result")
-        error = _read(data, "error")
+        result = _read_ignoring_case(data, "result")
+        error = _read_ignoring_case(data, "error")
 
         return cls(
             result=(
@@ -46,8 +50,11 @@ class JsonRpcResponse:
                 else JsonRpcError.from_json_dict(error)))
 
 
-# PropertyNameCaseInsensitive: every key matching ignoring case is read, the last one wins.
-def _read(data: dict, name: str) -> Any:
+def _read_ignoring_case(data: dict, name: str) -> Any:
+    """Read a property the way PropertyNameCaseInsensitive does.
+
+    Every key that matches the name ignoring case is read, and the last one wins.
+    """
     found = _MISSING
 
     for key, value in data.items():

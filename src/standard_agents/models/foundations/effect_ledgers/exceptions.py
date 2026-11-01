@@ -7,50 +7,24 @@ from xeptions import Xeption
 
 
 class EffectLedgerDependencyException(Xeption):
-    def __init__(
-        self,
-        message: str,
-        inner_exception: BaseException | None = None,
-    ) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class EffectLedgerServiceException(Xeption):
-    def __init__(
-        self,
-        message: str,
-        inner_exception: BaseException | None = None,
-    ) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class EffectLedgerValidationException(Xeption):
-    def __init__(
-        self,
-        message: str,
-        inner_exception: BaseException | None = None,
-    ) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class FailedEffectLedgerDependencyException(Xeption):
-    def __init__(
-        self,
-        message: str,
-        inner_exception: BaseException | None = None,
-    ) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class FailedEffectLedgerServiceException(Xeption):
-    def __init__(
-        self,
-        message: str,
-        inner_exception: BaseException | None = None,
-    ) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class InvalidEffectLedgerException(Xeption):
-    def __init__(self, message: str) -> None:
-        super().__init__(message)
+    pass

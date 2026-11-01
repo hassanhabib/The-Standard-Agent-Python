@@ -3,6 +3,12 @@
 # Licensed under the The Standard Software License (TSSL)
 # ---------------------------------------------------------------
 
+"""What an MCP tools/list request returns.
+
+Wire names follow JsonNamingPolicy.CamelCase; reads are case-insensitive and null values are
+omitted on write (WhenWritingNull), as the HttpMcpBroker's serializer options leave them.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -13,17 +19,18 @@ from standard_agents.models.brokers.mcps.json_rpc_error import JsonRpcError
 _MISSING = object()
 
 
-# The schema rides as the raw JSON it arrived as: the broker hands it on as text and never
-# interprets it, so a server's own vocabulary reaches the model unchanged.
-#
-# Wire names follow JsonNamingPolicy.CamelCase; reads are case-insensitive and null values are
-# omitted on write (WhenWritingNull), as the McpBroker's serializer options leave them.
 @dataclass(frozen=True)
 class ToolListEntry:
+    """One tool in a tools/list page.
+
+    The schema rides as the raw JSON it arrived as: the broker hands it on as text and never
+    interprets it, so a server's own vocabulary reaches the model unchanged.
+    """
+
     name: str
     description: str | None
 
-    # A JsonElement? in C#: kept as the parsed JSON it arrived as; None when absent or null.
+    # The parsed JSON it arrived as (a JsonElement?); None when absent or null.
     input_schema: Any | None
 
     def to_json_dict(self) -> dict:
@@ -40,11 +47,11 @@ class ToolListEntry:
         if not isinstance(data, dict):
             raise ValueError("The JSON value could not be converted to ToolListEntry.")
 
-        input_schema = _read(data, "inputSchema")
+        input_schema = _read_ignoring_case(data, "inputSchema")
 
         return cls(
-            name=_as_string(_read(data, "name")),
-            description=_as_string(_read(data, "description")),
+            name=_as_string(_read_ignoring_case(data, "name")),
+            description=_as_string(_read_ignoring_case(data, "description")),
             input_schema=None if input_schema is _MISSING else input_schema)
 
 
@@ -70,7 +77,7 @@ class ToolListResult:
         if not isinstance(data, dict):
             raise ValueError("The JSON value could not be converted to ToolListResult.")
 
-        tools = _read(data, "tools")
+        tools = _read_ignoring_case(data, "tools")
 
         if tools is _MISSING or tools is None:
             parsed_tools = None
@@ -84,7 +91,7 @@ class ToolListResult:
 
         return cls(
             tools=parsed_tools,
-            next_cursor=_as_string(_read(data, "nextCursor")))
+            next_cursor=_as_string(_read_ignoring_case(data, "nextCursor")))
 
 
 @dataclass(frozen=True)
@@ -105,8 +112,8 @@ class JsonRpcToolListResponse:
         if not isinstance(data, dict):
             raise ValueError("The JSON value could not be converted to JsonRpcToolListResponse.")
 
-        result = _read(data, "result")
-        error = _read(data, "error")
+        result = _read_ignoring_case(data, "result")
+        error = _read_ignoring_case(data, "error")
 
         return cls(
             result=(
@@ -117,8 +124,11 @@ class JsonRpcToolListResponse:
                 else JsonRpcError.from_json_dict(error)))
 
 
-# PropertyNameCaseInsensitive: every key matching ignoring case is read, the last one wins.
-def _read(data: dict, name: str) -> Any:
+def _read_ignoring_case(data: dict, name: str) -> Any:
+    """Read a property the way PropertyNameCaseInsensitive does.
+
+    Every key that matches the name ignoring case is read, and the last one wins.
+    """
     found = _MISSING
 
     for key, value in data.items():
@@ -128,8 +138,11 @@ def _read(data: dict, name: str) -> Any:
     return found
 
 
-# An absent constructor parameter is default(string), which is null.
 def _as_string(value: Any) -> str | None:
+    """Read a JSON string, reading an absent or null value as None.
+
+    An absent constructor parameter is default(string), which is null.
+    """
     if value is _MISSING or value is None:
         return None
 

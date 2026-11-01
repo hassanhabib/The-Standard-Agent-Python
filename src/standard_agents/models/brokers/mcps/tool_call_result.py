@@ -13,13 +13,17 @@ from standard_agents.models.brokers.mcps.tool_call_content import ToolCallConten
 _MISSING = object()
 
 
-# Wire names follow JsonNamingPolicy.CamelCase; reads are case-insensitive and null values are
-# omitted on write (WhenWritingNull), as the McpBroker's serializer options leave them.
 @dataclass(frozen=True)
 class ToolCallResult:
+    """What a tools/call returned: its content and any structured content.
+
+    Wire names follow JsonNamingPolicy.CamelCase; reads are case-insensitive and null values are
+    omitted on write (WhenWritingNull), as the HttpMcpBroker's serializer options leave them.
+    """
+
     content: tuple[ToolCallContent, ...] | None
 
-    # A JsonElement? in C#: kept as the parsed JSON it arrived as; None when absent or null.
+    # The parsed JSON it arrived as (a JsonElement?); None when absent or null.
     structured_content: Any | None
 
     def to_json_dict(self) -> dict:
@@ -39,8 +43,8 @@ class ToolCallResult:
         if not isinstance(data, dict):
             raise ValueError("The JSON value could not be converted to ToolCallResult.")
 
-        content = _read(data, "content")
-        structured_content = _read(data, "structuredContent")
+        content = _read_ignoring_case(data, "content")
+        structured_content = _read_ignoring_case(data, "structuredContent")
 
         if content is _MISSING or content is None:
             parsed_content = None
@@ -58,8 +62,11 @@ class ToolCallResult:
                 None if structured_content is _MISSING else structured_content))
 
 
-# PropertyNameCaseInsensitive: every key matching ignoring case is read, the last one wins.
-def _read(data: dict, name: str) -> Any:
+def _read_ignoring_case(data: dict, name: str) -> Any:
+    """Read a property the way PropertyNameCaseInsensitive does.
+
+    Every key that matches the name ignoring case is read, and the last one wins.
+    """
     found = _MISSING
 
     for key, value in data.items():

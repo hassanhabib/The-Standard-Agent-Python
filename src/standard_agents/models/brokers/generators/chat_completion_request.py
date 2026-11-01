@@ -13,10 +13,14 @@ from standard_agents.models.brokers.generators.chat_message import ChatMessage
 _MISSING = object()
 
 
-# Wire names follow JsonNamingPolicy.SnakeCaseLower; reads are case-insensitive and nulls are
-# written, as the broker's serializer options leave them.
 @dataclass(frozen=True)
 class ChatCompletionRequest:
+    """A chat completion request as the broker sends it.
+
+    Wire names follow JsonNamingPolicy.SnakeCaseLower; reads are case-insensitive and nulls
+    are written, as the broker's serializer options leave them.
+    """
+
     model: str
     messages: tuple[ChatMessage, ...]
     stream: bool
@@ -41,11 +45,11 @@ class ChatCompletionRequest:
         if not isinstance(data, dict):
             raise ValueError("The JSON value could not be converted to ChatCompletionRequest.")
 
-        model = _read(data, "model")
-        messages = _read(data, "messages")
-        stream = _read(data, "stream")
-        temperature = _read(data, "temperature")
-        max_tokens = _read(data, "max_tokens")
+        model = _read_ignoring_case(data, "model")
+        messages = _read_ignoring_case(data, "messages")
+        stream = _read_ignoring_case(data, "stream")
+        temperature = _read_ignoring_case(data, "temperature")
+        max_tokens = _read_ignoring_case(data, "max_tokens")
 
         if messages is _MISSING or messages is None:
             parsed_messages = None
@@ -65,8 +69,11 @@ class ChatCompletionRequest:
             max_tokens=0 if max_tokens is _MISSING else _as_int32(max_tokens))
 
 
-# PropertyNameCaseInsensitive: every key matching ignoring case is read, the last one wins.
-def _read(data: dict, name: str) -> Any:
+def _read_ignoring_case(data: dict, name: str) -> Any:
+    """Read a property the way PropertyNameCaseInsensitive does.
+
+    Every key that matches the name ignoring case is read, and the last one wins.
+    """
     found = _MISSING
 
     for key, value in data.items():
@@ -76,8 +83,11 @@ def _read(data: dict, name: str) -> Any:
     return found
 
 
-# An absent constructor parameter is default(string), which is null.
 def _as_string(value: Any) -> str | None:
+    """Read a JSON string, reading an absent or null value as None.
+
+    An absent constructor parameter is default(string), which is null.
+    """
     if value is _MISSING or value is None:
         return None
 

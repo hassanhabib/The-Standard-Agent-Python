@@ -10,14 +10,19 @@ from standard_agents.models.brokers.sessions.agent_session import AgentTurn
 from standard_agents.models.orchestrations.agents.tool_exchange import ToolExchange
 
 
-# What one caller asked for, on one request (docs/per-request-inference.md 3). Exists at the
-# entry's signature and never travels below it: the loop carries ResolvedInference, the output
-# of precedence, so no tier can ever see a value precedence discarded.
-# A record, not an interface: a request does not do anything, it is something. Deliberately
-# absent: executable tools, permissions, budget, redaction, approvals, principal. caller_tools
-# grants the model vocabulary, never the agent capability.
 @dataclass(frozen=True)
 class PromptRequest:
+    """What one caller asked for, on one request (docs/per-request-inference.md 3).
+
+    Exists at the entry's signature and never travels below it: the loop carries
+    ResolvedInference, the output of precedence, so no tier can ever see a value precedence
+    discarded.
+
+    A record, not an interface: a request does not do anything, it is something. Deliberately
+    absent: executable tools, permissions, budget, redaction, approvals, principal. caller_tools
+    grants the model vocabulary, never the agent capability.
+    """
+
     prompt: str = ""
 
     # Session identity is data about the request and rides the record. Cancellation does not:

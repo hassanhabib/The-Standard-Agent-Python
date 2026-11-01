@@ -7,50 +7,24 @@ from xeptions import Xeption
 
 
 class FailedKnowledgeDependencyException(Xeption):
-    def __init__(
-        self,
-        message: str,
-        inner_exception: BaseException | None = None,
-    ) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class FailedKnowledgeServiceException(Xeption):
-    def __init__(
-        self,
-        message: str,
-        inner_exception: BaseException | None = None,
-    ) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class InvalidKnowledgeException(Xeption):
-    def __init__(self, message: str) -> None:
-        super().__init__(message)
+    pass
 
 
 class KnowledgeDependencyException(Xeption):
-    def __init__(
-        self,
-        message: str,
-        inner_exception: BaseException | None = None,
-    ) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class KnowledgeServiceException(Xeption):
-    def __init__(
-        self,
-        message: str,
-        inner_exception: BaseException | None = None,
-    ) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class KnowledgeValidationException(Xeption):
-    def __init__(
-        self,
-        message: str,
-        inner_exception: BaseException | None = None,
-    ) -> None:
-        super().__init__(message, inner_exception)
+    pass

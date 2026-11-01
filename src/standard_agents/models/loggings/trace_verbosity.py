@@ -3,10 +3,10 @@
 # Licensed under the The Standard Software License (TSSL)
 # ---------------------------------------------------------------
 
-from enum import Enum
+from enum import IntEnum
 
 
-class TraceVerbosity(Enum):
+class TraceVerbosity(IntEnum):
     SUMMARY = 0
     NATURES = 1
     FULL = 2

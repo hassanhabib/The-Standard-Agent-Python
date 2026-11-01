@@ -3,21 +3,24 @@
 # Licensed under the The Standard Software License (TSSL)
 # ---------------------------------------------------------------
 
+"""The V1 generator contract's shape.
+
+A conversation of typed messages, and tools declared as data rather than described in prose.
+
+V0 sends one system prompt and one user prompt, and reads the model's choice out of the first
+line of its text (ACTION: / TOOL: / FINAL:). That works everywhere, which is why it stays the
+Core contract, but it forfeits what hosted models are actually trained on, cannot express
+parallel calls, and has no way to tie a result back to the call that asked for it. V1 exists
+for the providers that do better; V0 keeps working untouched, and the five provider packages
+compile against it until they choose to move.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
 
 
-# The V1 generator contract's shape: a conversation of typed messages, and tools declared as
-# data rather than described in prose.
-#
-# V0 sends one system prompt and one user prompt, and reads the model's choice out of the first
-# line of its text (ACTION: / TOOL: / FINAL:). That works everywhere, which is why it stays the
-# Core contract, but it forfeits what hosted models are actually trained on, cannot express
-# parallel calls, and has no way to tie a result back to the call that asked for it. V1 exists
-# for the providers that do better; V0 keeps working untouched, and the five provider packages
-# compile against it until they choose to move.
 class MessageRole(Enum):
     SYSTEM = 0
     USER = 1
@@ -27,10 +30,14 @@ class MessageRole(Enum):
     TOOL = 3
 
 
-# One call the model asked for. The id is what makes a result attributable to a request, which
-# is the thing the text protocol cannot express.
 @dataclass(frozen=True)
 class ModelToolCall:
+    """One call the model asked for.
+
+    The id is what makes a result attributable to a request, which is the thing the text
+    protocol cannot express.
+    """
+
     id: str
     name: str
     arguments_json: str
@@ -48,18 +55,22 @@ class ConversationMessage:
     tool_call_id: str = ""
 
 
-# A tool offered to the model, as data rather than as a sentence in a prompt.
 @dataclass(frozen=True)
 class ToolDefinition:
+    """A tool offered to the model, as data rather than as a sentence in a prompt."""
+
     name: str
     description: str
     parameters_json: str
 
 
-# What a V1 generation produced: text, tool calls, or both, and what it cost, when the
-# provider says (SPEC.md 3.4).
 @dataclass(frozen=True)
 class GenerationResult:
+    """What a V1 generation produced.
+
+    Text, tool calls, or both, and what it cost, when the provider says (SPEC.md 3.4).
+    """
+
     content: str = ""
     tool_calls: tuple[ModelToolCall, ...] = ()
 
@@ -73,4 +84,4 @@ class GenerationResult:
 
     @property
     def has_tool_calls(self) -> bool:
-        return len(self.tool_calls) > 0
+        return bool(self.tool_calls)

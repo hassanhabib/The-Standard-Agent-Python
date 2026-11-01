@@ -7,50 +7,24 @@ from xeptions import Xeption
 
 
 class AgentCoordinationDependencyException(Xeption):
-    def __init__(
-        self,
-        message: str,
-        inner_exception: BaseException | None = None,
-    ) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class AgentCoordinationDependencyValidationException(Xeption):
-    def __init__(
-        self,
-        message: str,
-        inner_exception: BaseException | None = None,
-    ) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class AgentCoordinationValidationException(Xeption):
-    def __init__(
-        self,
-        message: str,
-        inner_exception: BaseException | None = None,
-    ) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class FailedRunManagementServiceException(Xeption):
-    def __init__(
-        self,
-        message: str,
-        inner_exception: BaseException | None = None,
-    ) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class InvalidAgentException(Xeption):
-    def __init__(self, message: str) -> None:
-        super().__init__(message)
+    pass
 
 
 class RunManagementServiceException(Xeption):
-    def __init__(
-        self,
-        message: str,
-        inner_exception: BaseException | None = None,
-    ) -> None:
-        super().__init__(message, inner_exception)
+    pass

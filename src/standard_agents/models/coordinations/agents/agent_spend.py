@@ -7,10 +7,14 @@ import threading
 from decimal import Decimal
 
 
-# What one run has consumed so far. Tokens accumulate from what providers actually reported:
-# SPEC.md 3.4 forbids presenting an estimate as a measurement, so an unreported call adds
-# nothing here rather than adding a guess.
 class AgentSpend:
+    """What one run has consumed so far.
+
+    Tokens accumulate from what providers actually reported: SPEC.md 3.4 forbids presenting an
+    estimate as a measurement, so an unreported call adds nothing here rather than adding a
+    guess.
+    """
+
     def __init__(self) -> None:
         self._tokens = 0
         self._tokens_lock = threading.Lock()

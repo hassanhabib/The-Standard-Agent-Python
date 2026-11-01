@@ -11,10 +11,14 @@ from typing import Any
 _MISSING = object()
 
 
-# Wire names follow JsonNamingPolicy.CamelCase; reads are case-insensitive and null values are
-# omitted on write (WhenWritingNull), as the McpBroker's serializer options leave them.
 @dataclass(frozen=True)
 class JsonRpcError:
+    """The error a JSON-RPC response carries.
+
+    Wire names follow JsonNamingPolicy.CamelCase; reads are case-insensitive and null values are
+    omitted on write (WhenWritingNull), as the HttpMcpBroker's serializer options leave them.
+    """
+
     code: int
     message: str
 
@@ -31,15 +35,18 @@ class JsonRpcError:
         if not isinstance(data, dict):
             raise ValueError("The JSON value could not be converted to JsonRpcError.")
 
-        code = _read(data, "code")
+        code = _read_ignoring_case(data, "code")
 
         return cls(
             code=0 if code is _MISSING else _as_int32(code),
-            message=_as_string(_read(data, "message")))
+            message=_as_string(_read_ignoring_case(data, "message")))
 
 
-# PropertyNameCaseInsensitive: every key matching ignoring case is read, the last one wins.
-def _read(data: dict, name: str) -> Any:
+def _read_ignoring_case(data: dict, name: str) -> Any:
+    """Read a property the way PropertyNameCaseInsensitive does.
+
+    Every key that matches the name ignoring case is read, and the last one wins.
+    """
     found = _MISSING
 
     for key, value in data.items():
@@ -49,8 +56,11 @@ def _read(data: dict, name: str) -> Any:
     return found
 
 
-# An absent constructor parameter is default(string), which is null.
 def _as_string(value: Any) -> str | None:
+    """Read a JSON string, reading an absent or null value as None.
+
+    An absent constructor parameter is default(string), which is null.
+    """
     if value is _MISSING or value is None:
         return None
 

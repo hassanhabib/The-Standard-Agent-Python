@@ -6,8 +6,9 @@
 from enum import Enum
 
 
-# What the ledger says about an act the run is about to perform (SPEC.md 4.9).
 class EffectClaimVerdict(Enum):
+    """What the ledger says about an act the run is about to perform (SPEC.md 4.9)."""
+
     # First time: the claim is this run's, and the act may proceed.
     PROCEED = 0
 

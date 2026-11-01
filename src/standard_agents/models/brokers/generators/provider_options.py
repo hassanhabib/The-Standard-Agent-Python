@@ -41,24 +41,32 @@ _SHORT_ESCAPES = {
 }
 
 
-# What sanitizing a caller's provider options produced: the JSON that may reach the wire, the
-# core-owned keys that were stripped from it, and whether the whole bag was unreadable.
 @dataclass(frozen=True)
 class SanitizedProviderOptions:
+    """What sanitizing a caller's provider options produced.
+
+    The JSON that may reach the wire, the core-owned keys that were stripped from it, and
+    whether the whole bag was unreadable.
+    """
+
     json: str | None
     stripped_keys: tuple[str, ...]
     malformed: bool
 
 
-# The core-owned-keys rule (docs/per-request-inference.md 4.4): every key the core writes on the
-# wire is non-overridable. Enforced at the boundary by sanitize, so no broker, built-in or
-# third-party, can ever be handed a passthrough that adds a tool, swaps the messages, or beats a
-# value precedence already resolved, and again by merge_into, because this is the perimeter and
-# one enforcement point is one forgotten call away from none.
 class ProviderOptions:
+    """The core-owned-keys rule (docs/per-request-inference.md 4.4).
+
+    Every key the core writes on the wire is non-overridable. Enforced at the boundary by
+    sanitize, so no broker, built-in or third-party, can ever be handed a passthrough that adds
+    a tool, swaps the messages, or beats a value precedence already resolved, and again by
+    merge_into, because this is the perimeter and one enforcement point is one forgotten call
+    away from none.
+    """
+
     @staticmethod
     def sanitize(provider_options_json: str | None) -> SanitizedProviderOptions:
-        if _is_null_or_white_space(provider_options_json):
+        if _is_blank(provider_options_json):
             return SanitizedProviderOptions(json=None, stripped_keys=(), malformed=False)
 
         try:
@@ -76,7 +84,7 @@ class ProviderOptions:
             del options[key]
 
         return SanitizedProviderOptions(
-            json=_to_json_string(options) if len(options) > 0 else None,
+            json=_to_json_string(options) if options else None,
             stripped_keys=stripped,
             malformed=False)
 
@@ -87,22 +95,19 @@ class ProviderOptions:
         if sanitized.json is None:
             return
 
-        options = json.loads(sanitized.json)
-
-        # Whole values, detached before they land: a node belongs to one tree at a time.
-        for key in list(options.keys()):
-            value = options[key]
-            del options[key]
-            request[key] = value
+        request.update(json.loads(sanitized.json))
 
 
-# A number as it was written, the way a parsed JsonNode keeps the raw token and writes it back.
 class _RawNumber(str):
-    pass
+    """A number as it was written, the way a parsed JsonNode keeps the raw token."""
 
 
-# string.IsNullOrWhiteSpace, with char.IsWhiteSpace's own set.
-def _is_null_or_white_space(text: str | None) -> bool:
+def _is_blank(text: str | None) -> bool:
+    """Whether text is None or only whitespace, as string.IsNullOrWhiteSpace decides.
+
+    Uses char.IsWhiteSpace's set, which str.isspace does not match: U+001C..U+001F are not
+    whitespace to .NET.
+    """
     if text is None:
         return True
 
@@ -116,8 +121,8 @@ def _reject_constant(constant: str) -> Any:
     raise ValueError(f"'{constant}' is an invalid JSON literal.")
 
 
-# JsonNode.Parse: strict JSON, no NaN or Infinity, nesting no deeper than 64.
 def _parse_node(text: str) -> Any:
+    """Parse as JsonNode.Parse does: strict JSON, no NaN or Infinity, nesting no deeper than 64."""
     node = json.loads(
         text,
         parse_int=_RawNumber,
@@ -142,11 +147,15 @@ def _ensure_depth(node: Any, depth: int) -> None:
             _ensure_depth(child, depth)
 
 
-# JsonNode.ToJsonString with default options: compact, written with JavaScriptEncoder.Default.
 def _to_json_string(node: Any) -> str:
+    """Write as JsonNode.ToJsonString does with default options.
+
+    Compact, and written with JavaScriptEncoder.Default.
+    """
     if node is None:
         return "null"
 
+    # Identity, not truthiness: a JSON boolean is told apart from the numbers 1 and 0.
     if node is True:
         return "true"
 
@@ -173,9 +182,12 @@ def _to_json_string(node: Any) -> str:
     raise TypeError(f"Cannot write {type(node).__name__} as JSON.")
 
 
-# JavaScriptEncoder.Default: printable Basic Latin passes except the HTML-sensitive characters;
-# everything else is escaped, as \uXXXX in upper-case hex, surrogate pairs as two escapes.
 def _escape(text: str) -> str:
+    """Quote and escape a string as JavaScriptEncoder.Default does.
+
+    Printable Basic Latin passes except the HTML-sensitive characters; everything else is
+    escaped, as \\uXXXX in upper-case hex, surrogate pairs as two escapes.
+    """
     parts = ['"']
 
     for character in text:

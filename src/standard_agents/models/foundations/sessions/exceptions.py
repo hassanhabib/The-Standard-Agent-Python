@@ -7,74 +7,36 @@ from xeptions import Xeption
 
 
 class FailedSessionDependencyException(Xeption):
-    def __init__(
-        self,
-        message: str,
-        inner_exception: BaseException | None = None,
-    ) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class FailedSessionServiceException(Xeption):
-    def __init__(
-        self,
-        message: str,
-        inner_exception: BaseException | None = None,
-    ) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class InvalidSessionException(Xeption):
-    def __init__(self, message: str) -> None:
-        super().__init__(message)
+    pass
 
 
 class SessionDependencyException(Xeption):
-    def __init__(
-        self,
-        message: str,
-        inner_exception: BaseException | None = None,
-    ) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class SessionDependencyValidationException(Xeption):
-    def __init__(
-        self,
-        message: str,
-        inner_exception: BaseException | None = None,
-    ) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class SessionServiceException(Xeption):
-    def __init__(
-        self,
-        message: str,
-        inner_exception: BaseException | None = None,
-    ) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class SessionValidationException(Xeption):
-    def __init__(
-        self,
-        message: str,
-        inner_exception: BaseException | None = None,
-    ) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class StaleSessionException(Xeption):
-    """
-    A session write based on a read that is no longer current: another prompt in the same session
-    wrote first. The store refused it rather than letting the last writer erase a completed turn;
-    the caller re-reads and tries again.
-    """
+    """A session write based on a read that is no longer current.
 
-    def __init__(
-        self,
-        message: str,
-        inner_exception: BaseException | None = None,
-    ) -> None:
-        super().__init__(message, inner_exception)
+    Another prompt in the same session wrote first. The store refused it rather than letting the
+    last writer erase a completed turn; the caller re-reads and tries again.
+    """

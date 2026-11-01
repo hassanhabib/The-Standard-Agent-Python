@@ -10,19 +10,24 @@ from standard_agents.models.clients.agents.agent_stream_event import AgentStream
 from standard_agents.models.orchestrations.agents.agent_status import AgentStatus
 
 
-# The streamed run (SPEC.md 4.14): an enumeration of the run's events that, once the
-# enumeration completes, carries the same structured outcome the batched door returns. One run,
-# two readings: the events as they happen, and how it ended.
 class AgentRunStream:
+    """The streamed run (SPEC.md 4.14).
+
+    An enumeration of the run's events that, once the enumeration completes, carries the same
+    structured outcome the batched door returns. One run, two readings: the events as they
+    happen, and how it ended.
+    """
+
     def __init__(
             self,
             build: Callable[
                 [Callable[[AgentOutcome], None]],
                 AsyncIterable[AgentStreamEvent]]) -> None:
+
         # How the run ended, defined once the enumeration completes (SPEC.md 4.14). Before that
         # it reads as a failed run, exactly the seed the batched door starts from.
-        self._outcome: AgentOutcome = AgentOutcome("", AgentStatus.FAILED)
-        self._events: AsyncIterable[AgentStreamEvent] = build(self._set_outcome)
+        self._outcome = AgentOutcome("", AgentStatus.FAILED)
+        self._events = build(self._set_outcome)
 
     @property
     def outcome(self) -> AgentOutcome:

@@ -13,10 +13,14 @@ from standard_agents.models.brokers.classifiers.chat_choice import ChatChoice
 _MISSING = object()
 
 
-# Wire names follow JsonNamingPolicy.SnakeCaseLower; reads are case-insensitive and nulls are
-# written, as the broker's serializer options leave them.
 @dataclass(frozen=True)
 class ChatCompletionResponse:
+    """A chat completion response: the choices the model returned.
+
+    Wire names follow JsonNamingPolicy.SnakeCaseLower; reads are case-insensitive and nulls
+    are written, as the broker's serializer options leave them.
+    """
+
     choices: tuple[ChatChoice, ...]
 
     def to_json_dict(self) -> dict:
@@ -33,7 +37,7 @@ class ChatCompletionResponse:
         if not isinstance(data, dict):
             raise ValueError("The JSON value could not be converted to ChatCompletionResponse.")
 
-        choices = _read(data, "choices")
+        choices = _read_ignoring_case(data, "choices")
 
         if choices is _MISSING or choices is None:
             return cls(choices=None)
@@ -47,8 +51,11 @@ class ChatCompletionResponse:
                 for choice in choices))
 
 
-# PropertyNameCaseInsensitive: every key matching ignoring case is read, the last one wins.
-def _read(data: dict, name: str) -> Any:
+def _read_ignoring_case(data: dict, name: str) -> Any:
+    """Read a property the way PropertyNameCaseInsensitive does.
+
+    Every key that matches the name ignoring case is read, and the last one wins.
+    """
     found = _MISSING
 
     for key, value in data.items():

@@ -3,6 +3,12 @@
 # Licensed under the The Standard Software License (TSSL)
 # ---------------------------------------------------------------
 
+"""What an MCP initialize request returns.
+
+Wire names follow JsonNamingPolicy.CamelCase; reads are case-insensitive and null values are
+omitted on write (WhenWritingNull), as the HttpMcpBroker's serializer options leave them.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -13,8 +19,6 @@ from standard_agents.models.brokers.mcps.json_rpc_error import JsonRpcError
 _MISSING = object()
 
 
-# Wire names follow JsonNamingPolicy.CamelCase; reads are case-insensitive and null values are
-# omitted on write (WhenWritingNull), as the McpBroker's serializer options leave them.
 @dataclass(frozen=True)
 class InitializeResult:
     protocol_version: str | None
@@ -31,7 +35,7 @@ class InitializeResult:
         if not isinstance(data, dict):
             raise ValueError("The JSON value could not be converted to InitializeResult.")
 
-        return cls(protocol_version=_as_string(_read(data, "protocolVersion")))
+        return cls(protocol_version=_as_string(_read_ignoring_case(data, "protocolVersion")))
 
 
 @dataclass(frozen=True)
@@ -52,8 +56,8 @@ class JsonRpcInitializeResponse:
         if not isinstance(data, dict):
             raise ValueError("The JSON value could not be converted to JsonRpcInitializeResponse.")
 
-        result = _read(data, "result")
-        error = _read(data, "error")
+        result = _read_ignoring_case(data, "result")
+        error = _read_ignoring_case(data, "error")
 
         return cls(
             result=(
@@ -64,8 +68,11 @@ class JsonRpcInitializeResponse:
                 else JsonRpcError.from_json_dict(error)))
 
 
-# PropertyNameCaseInsensitive: every key matching ignoring case is read, the last one wins.
-def _read(data: dict, name: str) -> Any:
+def _read_ignoring_case(data: dict, name: str) -> Any:
+    """Read a property the way PropertyNameCaseInsensitive does.
+
+    Every key that matches the name ignoring case is read, and the last one wins.
+    """
     found = _MISSING
 
     for key, value in data.items():
@@ -75,8 +82,11 @@ def _read(data: dict, name: str) -> Any:
     return found
 
 
-# An absent constructor parameter is default(string), which is null.
 def _as_string(value: Any) -> str | None:
+    """Read a JSON string, reading an absent or null value as None.
+
+    An absent constructor parameter is default(string), which is null.
+    """
     if value is _MISSING or value is None:
         return None
 

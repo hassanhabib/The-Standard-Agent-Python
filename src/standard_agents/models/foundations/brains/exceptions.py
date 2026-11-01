@@ -7,75 +7,38 @@ from xeptions import Xeption
 
 
 class BrainDependencyException(Xeption):
-    def __init__(
-        self,
-        message: str,
-        inner_exception: BaseException | None = None,
-    ) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class BrainDependencyValidationException(Xeption):
-    def __init__(
-        self,
-        message: str,
-        inner_exception: BaseException | None = None,
-    ) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class BrainServiceException(Xeption):
-    def __init__(
-        self,
-        message: str,
-        inner_exception: BaseException | None = None,
-    ) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class BrainValidationException(Xeption):
-    def __init__(
-        self,
-        message: str,
-        inner_exception: BaseException | None = None,
-    ) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class FailedBrainDependencyException(Xeption):
-    def __init__(
-        self,
-        message: str,
-        inner_exception: BaseException | None = None,
-    ) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class FailedBrainServiceException(Xeption):
-    def __init__(
-        self,
-        message: str,
-        inner_exception: BaseException | None = None,
-    ) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class InvalidBrainException(Xeption):
-    def __init__(self, message: str) -> None:
-        super().__init__(message)
+    pass
 
 
 class UnreachableBrainException(Xeption):
-    """
-    Nothing answered at all: a refused connection, a name that resolves to nothing, a request that
-    never left the machine (SPEC.md §4.10, v1.14). The person's next step is the address and
-    whatever should be listening at it, not support, so this is the sentence they are shown. The
-    native fault is kept as the inner exception for whoever investigates.
-    """
+    """Nothing answered at all (SPEC.md §4.10, v1.14).
 
-    def __init__(
-        self,
-        message: str,
-        inner_exception: BaseException | None = None,
-    ) -> None:
-        super().__init__(message, inner_exception)
+    A refused connection, a name that resolves to nothing, a request that never left the
+    machine. The person's next step is the address and whatever should be listening at it, not
+    support, so this is the sentence they are shown. The native fault is kept as the inner
+    exception for whoever investigates.
+    """

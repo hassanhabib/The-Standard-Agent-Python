@@ -14,7 +14,7 @@ class RedactionRules:
     # Semantics differ only at the Unicode edges: .NET \w (and so \b) also matches
     # nonspacing marks (Mn) and every connector punctuation (Pc), while Python str \w
     # matches str.isalnum() characters and "_" only. \d is Unicode Nd in both.
-    default: ClassVar[tuple[RedactionRule, ...]] = (
+    DEFAULT: ClassVar[tuple[RedactionRule, ...]] = (
         RedactionRule(
             label="EMAIL",
             pattern=r"[\w.+-]+@[\w-]+\.[\w.-]+",
