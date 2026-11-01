@@ -205,3 +205,31 @@ async def test_should_never_select_away_the_callers_tools():
     # then
     assert any(definition.name == "read_file" for definition in shown[0])
     assert not any(definition.name == "web_search" for definition in shown[0])
+
+
+# Selection narrows the OFFERING only (SPEC.md 4.15): an unselected tool behaves exactly like an
+# undescribed one, reachable if the Brain names it, governed by the same perimeter, never offered.
+# The callable surface never shrinks per run.
+async def test_should_keep_an_unselected_tool_callable_by_name():
+    # given: the selection offers web_search only, but the Brain names code_search anyway
+    code_search = _NamedTool("code_search")
+    calls = 0
+
+    def reply(tools: Sequence[ToolDefinition]) -> GenerationResult:
+        nonlocal calls
+        calls += 1
+
+        if calls == 1:
+            return GenerationResult(tool_calls=(ModelToolCall("call_1", "code_search", "{}"),))
+
+        return GenerationResult(content="done")
+
+    agent = (_agent_with(reply, _NamedTool("web_search"), code_search)
+        .on_select_tools(_selecting("web_search")))
+
+    # when
+    answer = await agent.process_prompt("search the code")
+
+    # then
+    assert answer == "done"
+    assert code_search.executions == 1
