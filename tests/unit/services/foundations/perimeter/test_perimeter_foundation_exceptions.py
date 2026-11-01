@@ -22,7 +22,9 @@ from standard_agents.models.foundations.effect_ledgers.exceptions import (
     FailedEffectLedgerDependencyException)
 from standard_agents.models.foundations.policies.exceptions import (
     FailedPolicyDependencyException,
-    PolicyDependencyException)
+    FailedPolicyServiceException,
+    PolicyDependencyException,
+    PolicyServiceException)
 
 
 async def test_should_throw_dependency_exception_on_authorize_if_policy_engine_is_unreachable(
@@ -169,3 +171,32 @@ async def test_should_throw_critical_dependency_exception_on_claim_effect_if_acc
 
     assert logging_broker.mock_calls == [
         call.log_critical(same_exception_as(expected_effect_ledger_dependency_exception))]
+
+
+async def test_should_throw_service_exception_on_authorize_if_service_error_occurs(
+        policy_service, policy_broker, logging_broker, create_random_effect, same_exception_as):
+
+    # given
+    random_effect = create_random_effect()
+    service_error = Exception()
+
+    failed_policy_service_exception = FailedPolicyServiceException(
+        message="Failed policy service error occurred, contact support.",
+        inner_exception=service_error)
+
+    expected_policy_service_exception = PolicyServiceException(
+        message="Policy service error occurred, contact support.",
+        inner_exception=failed_policy_service_exception)
+
+    policy_broker.authorize.side_effect = service_error
+
+    # when
+    with pytest.raises(PolicyServiceException) as raised:
+        await policy_service.authorize_effect(random_effect)
+
+    # then
+    assert raised.value.same_exception_as(expected_policy_service_exception)
+    assert policy_broker.mock_calls == [call.authorize(random_effect)]
+
+    assert logging_broker.mock_calls == [
+        call.log_error(same_exception_as(expected_policy_service_exception))]
