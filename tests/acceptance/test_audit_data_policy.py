@@ -21,6 +21,7 @@ import pytest
 from standard_agents.brokers.knowledges.knowledge_broker import KnowledgeBroker
 from standard_agents.brokers.memories.memory_broker import MemoryBroker
 from standard_agents.brokers.skills.skill_broker import SkillBroker
+from standard_agents.models.foundations.brains.redaction_rule import RedactionRule
 from standard_agents.standard_agent import StandardAgent
 from standard_agents.tools.tool import Tool
 
@@ -112,3 +113,23 @@ async def test_should_withhold_payloads_from_the_decision_log_by_default(
     assert "Tool 'echo' output" in decision_log
     assert '"payloadLength":' in decision_log
     assert '"payloadHash":' in decision_log
+
+
+async def test_should_redact_payloads_in_the_decision_log_when_redaction_is_configured(
+        echoing_agent,
+        audit_path):
+    # given: payload capture on, and a redaction rule for card numbers
+    card_rule = RedactionRule(label="CARD", pattern=r"\d{4}-\d{4}-\d{4}-\d{4}")
+
+    agent = (echoing_agent
+        .redact(card_rule)
+        .audit_payloads())
+
+    # when
+    await agent.process_prompt(f"my card is {_CARD_NUMBER}")
+    decision_log = _read_decision_log(audit_path)
+
+    # then: the payloads are on the record, tokenized the way the Brain saw them
+    assert _CARD_NUMBER not in decision_log
+    assert "CARD" in decision_log
+    assert '"payload":' in decision_log
