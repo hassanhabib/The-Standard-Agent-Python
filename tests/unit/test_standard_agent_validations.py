@@ -34,3 +34,23 @@ class TestStandardAgentValidations:
 
         # then
         assert expected_exception.same_exception_as(actual_exception.value)
+
+    @pytest.mark.parametrize("invalid_turns", [0, -1])
+    def test_should_raise_configuration_exception_on_max_turns_if_turns_are_invalid(
+        self,
+        invalid_turns: int) -> None:
+
+        # given
+        agent = StandardAgent()
+
+        expected_exception = InvalidAgentConfigurationException(
+            message="Invalid agent configuration. Please correct the errors and try again.")
+
+        expected_exception.upsert_data_list("max_turns", "Value must be at least 1")
+
+        # when
+        with pytest.raises(InvalidAgentConfigurationException) as actual_exception:
+            agent.max_turns(invalid_turns)
+
+        # then
+        assert expected_exception.same_exception_as(actual_exception.value)
