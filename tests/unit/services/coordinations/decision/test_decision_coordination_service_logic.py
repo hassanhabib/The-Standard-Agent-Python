@@ -318,3 +318,24 @@ async def test_should_carry_native_narration_on_think(
     # then
     assert actual_context.direction_type == "calculator"
     assert actual_context.narration == "Let me check..."
+
+
+async def test_should_return_empty_answer_without_judging_on_think(
+        decision_coordination_service,
+        brain_service,
+        judge_service,
+        create_random_agent_context,
+        setup_gate_allows):
+
+    # given
+    input_context = create_random_agent_context()
+    setup_gate_allows()
+    brain_service.generate.return_value = "FINAL:"
+
+    # when
+    actual_context = await decision_coordination_service.think(input_context)
+
+    # then
+    assert actual_context.direction_type == "ReturnResponse"
+    assert actual_context.payload == ""
+    assert judge_service.evaluate.mock_calls == []
