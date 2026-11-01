@@ -8,6 +8,8 @@ from collections.abc import Awaitable, Callable
 from xeptions import Xeption
 from standard_agents.brokers.loggings.ilogging_broker import ILoggingBroker
 from standard_agents.models.foundations.internal_tools.exceptions import (
+    FailedInternalToolServiceException,
+    InternalToolServiceException,
     InternalToolValidationException,
     InvalidInternalToolException)
 
@@ -22,6 +24,27 @@ async def try_catch_returning_boolean(
         raise await create_and_log_validation_exception(
             logging_broker,
             invalid_internal_tool_exception)
+    except Exception as exception:
+        failed_internal_tool_service_exception = FailedInternalToolServiceException(
+            message="Failed internal tool service error occurred, contact support.",
+            inner_exception=exception)
+
+        raise await create_and_log_service_exception(
+            logging_broker,
+            failed_internal_tool_service_exception)
+
+
+async def create_and_log_service_exception(
+    logging_broker: ILoggingBroker,
+    exception: Xeption) -> InternalToolServiceException:
+
+    internal_tool_service_exception = InternalToolServiceException(
+        message="Internal tool service error occurred, contact support.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(internal_tool_service_exception)
+
+    return internal_tool_service_exception
 
 
 async def create_and_log_validation_exception(
