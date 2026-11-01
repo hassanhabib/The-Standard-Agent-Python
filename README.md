@@ -44,7 +44,7 @@ Everything else is opt-in, with a default that behaves as if the capability were
 agent = (StandardAgent()
     .skills("skills")                  # who it is: Markdown, read in name order (Data)
     .memory("memory.txt")              # one memory per line (Data)
-    .on_knowledge(search_journal)      # grounding for this prompt (Data)
+    .on_knowledge(search_documents)      # grounding for this prompt (Data)
     .on_gate(screen)                   # screen the request before the brain sees it (Decision)
     .on_judge(review)                  # review the answer before the user sees it (Decision)
     .tool(CalculatorTool())            # what it can do (Direction)
@@ -159,26 +159,14 @@ services, and porting it well is a release of its own rather than a corner of th
 | Gate verdict caching per run, `route:` verdicts, skill conflict detection | Not ported. The Gate screens the prompt each turn. |
 | ReturnService catch-all | Not ported: nothing in that routine can raise into it, so no test could reach it. |
 
-## Building a planning agent on it
-
-The framework is built so an agent like a planning agent over a local PyTorch model sits on it
-without changing it:
-
-- **The model** becomes a broker of its own in the agent's project, over the local PyTorch model, with
-  primitives such as "imagine the outcomes of these act lines" and "score the goal after this
-  journal". Any loop (decoding, beam search) belongs in a service above it, not in the broker.
-- **The world** (the journal of acts and outcomes, and carrying out acts) becomes a broker too: read
-  through Data (`use_knowledge`, `use_memory`) and acted on through Direction (an `ITool`).
-- **Planning** becomes an orchestration in that project, over the model and world foundations,
-  following the same validation and exception rules as the services here.
-- **The text brain** the loop talks to is then an `IGeneratorBroker` that asks the planning
-  orchestration for the next act and answers `ACTION: act: <line>` or `FINAL: <outcome>`.
-
 ## Tests
 
 ```bash
+python -m pip install -e ".[test]"
 python -m pytest -q
 ```
+
+How to contribute, and the rules every change follows: [CONTRIBUTING.md](CONTRIBUTING.md).
 
 Unit tests mock every dependency and assert the exact calls (`mock_calls == [...]`) so no other call
 can slip through. Acceptance tests in `tests/acceptance` drive the whole agent through the real

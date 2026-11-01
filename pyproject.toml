@@ -5,19 +5,37 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "standard-agents"
 version = "0.1.0.0"
-description = "The Python port of The Standard AI Agent Framework: Agent = Orchestration(Data, Decision, Direction)."
+description = "The Standard AI Agent Framework for Python: Agent = Orchestration(Data, Decision, Direction)."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { file = "LICENSE.txt" }
 authors = [{ name = "Hassan Habib", email = "hassanhabib@live.com" }]
+keywords = ["agents", "llm", "the-standard", "tri-nature"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Typing :: Typed",
+]
 dependencies = []
 
 [project.optional-dependencies]
 test = ["pytest>=8"]
 
+[project.urls]
+Homepage = "https://github.com/hassanhabib/The-Standard-Agent-Python"
+Specification = "https://github.com/hassanhabib/The-Standard-Agent-Specs"
+
 [tool.setuptools.packages.find]
-include = ["standard_agents*", "xeptions*"]
+where = ["src"]
+
+[tool.setuptools.package-data]
+standard_agents = ["py.typed"]
+xeptions = ["py.typed"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["."]
+pythonpath = ["src", "."]
