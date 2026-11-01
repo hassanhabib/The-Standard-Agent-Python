@@ -11,6 +11,10 @@ from standard_agents.models.orchestrations.agents.agent_status import AgentStatu
 from standard_agents.services.foundations.internal_tools.iinternal_tool_service import (
     IInternalToolService)
 from standard_agents.services.foundations.returns.ireturn_service import IReturnService
+from standard_agents.services.orchestrations.direction.direction_orchestration_service_exceptions import (
+    try_catch)
+from standard_agents.services.orchestrations.direction.direction_orchestration_service_validations import (
+    validate_context)
 from standard_agents.services.orchestrations.direction.idirection_orchestration_service import (
     IDirectionOrchestrationService)
 
@@ -34,6 +38,16 @@ class DirectionOrchestrationService(IDirectionOrchestrationService):
         self.logging_broker = logging_broker
 
     async def act(self, context: AgentContext) -> AgentContext:
+        async def returning_context_function() -> AgentContext:
+            validate_context(context)
+
+            return await self.act_on(context)
+
+        return await try_catch(self.logging_broker, returning_context_function)
+
+    # Return to the caller when the decision ends the run; otherwise act through a tool the agent
+    # owns, and let the next turn see what came of it.
+    async def act_on(self, context: AgentContext) -> AgentContext:
         terminal_status = TERMINAL_STATUSES.get(context.direction_type.lower())
 
         if terminal_status is not None:
