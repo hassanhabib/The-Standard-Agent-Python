@@ -9,6 +9,8 @@ from xeptions import Xeption
 from standard_agents.brokers.loggings.ilogging_broker import ILoggingBroker
 from standard_agents.models.orchestrations.agents.agent_context import AgentContext
 from standard_agents.models.foundations.external_tools.exceptions import (
+    ExternalToolDependencyException,
+    ExternalToolServiceException,
     ExternalToolValidationException)
 from standard_agents.models.foundations.internal_tools.exceptions import (
     InternalToolDependencyException,
@@ -44,7 +46,9 @@ async def try_catch(
             dependency_validation_exception.inner_exception)
     except (
         InternalToolDependencyException,
-        InternalToolServiceException) as dependency_exception:
+        InternalToolServiceException,
+        ExternalToolDependencyException,
+        ExternalToolServiceException) as dependency_exception:
 
         raise await create_and_log_dependency_exception(
             logging_broker,
