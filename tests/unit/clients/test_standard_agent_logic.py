@@ -148,3 +148,27 @@ async def test_should_compose_bare_brain_on_process_prompt_without_guardians(
 
     # then
     assert actual_result == "Hello there!"
+
+
+async def test_should_compose_core_profile_agent_on_process_prompt_without_mcp_configured(
+        create_skill_broker,
+        create_generator_broker,
+        allowing_classifier_broker,
+        passing_verifier_broker,
+        empty_memory_broker,
+        empty_knowledge_broker):
+
+    # given
+    agent = (StandardAgent()
+        .use_skills(create_skill_broker(Skill(content="skills")))
+        .use_generator(create_generator_broker("FINAL: composed"))
+        .use_gate(allowing_classifier_broker)
+        .use_judge(passing_verifier_broker)
+        .use_memory(empty_memory_broker)
+        .use_knowledge(empty_knowledge_broker))
+
+    # when
+    actual_result = await agent.process_prompt(prompt="prompt")
+
+    # then
+    assert actual_result == "composed"
