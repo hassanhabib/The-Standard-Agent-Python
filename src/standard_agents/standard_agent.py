@@ -11,6 +11,9 @@ import os
 from collections.abc import AsyncIterator, Awaitable, Callable
 from datetime import timedelta
 
+from standard_agents._standard_agent_composition import (
+    render_tool_catalog,
+    render_tool_catalog_entries)
 from standard_agents.agent import Agent
 from standard_agents.brokers.approvals.not_configured_approval_broker import (
     NotConfiguredApprovalBroker)
@@ -169,6 +172,11 @@ class StandardAgent(Agent):
 
         return self
 
+    def tool(self, tool: Tool) -> StandardAgent:
+        self._tools.append(tool)
+
+        return self
+
     def on_brain(self, generate: Callable[[str, str], Awaitable[str]]) -> StandardAgent:
         self._generator_broker = FunctionGeneratorBroker(generate)
 
@@ -292,9 +300,10 @@ class StandardAgent(Agent):
             retrieval_service=RetrievalOrchestrationService(
                 skill_service=skill_service,
                 knowledge_service=knowledge_service,
-                tool_catalog="",
+                tool_catalog=render_tool_catalog(all_tools),
                 logging_broker=logging,
-                external_tool_service=external_tool_service),
+                external_tool_service=external_tool_service,
+                tool_catalog_entries=render_tool_catalog_entries(all_tools)),
             recollection_service=RecollectionOrchestrationService(
                 memory_service=memory_service,
                 session_service=SessionService(
