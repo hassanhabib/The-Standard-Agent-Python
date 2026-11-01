@@ -322,3 +322,35 @@ async def test_should_carry_on_without_a_session_when_the_server_has_no_initiali
     # then: its tools still reach the agent, and nothing announces a session that never opened
     assert [tool.name for tool in actual_tools] == ["lookup"]
     assert not any("notifications/initialized" in body for body in server.bodies)
+
+
+async def test_should_follow_the_cursor_until_the_catalog_ends():
+    # given: a server that pages its catalog, as servers with many tools do
+    def respond(request, body):
+        message = json.loads(body)
+        cursor = (message.get("params") or {}).get("cursor")
+
+        if message["method"] == "tools/list" and cursor is None:
+            return ScriptedServerHandler.json(
+                http.HTTPStatus.OK,
+                '{"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"first"}],'
+                + '"nextCursor":"page-2"}}')
+
+        if message["method"] == "tools/list" and cursor == "page-2":
+            return ScriptedServerHandler.json(
+                http.HTTPStatus.OK,
+                '{"jsonrpc":"2.0","id":3,"result":{"tools":[{"name":"second"}]}}')
+
+        return ScriptedServerHandler.json(
+            http.HTTPStatus.OK,
+            '{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-06-18"}}')
+
+    server = ScriptedServerHandler(respond)
+    broker = create_broker(server)
+
+    # when
+    actual_tools = await broker.list_tools()
+
+    # then: every page reaches the agent, in order, and the walk stops where the server says
+    assert [tool.name for tool in actual_tools] == ["first", "second"]
+    assert sum("tools/list" in body for body in server.bodies) == 2
