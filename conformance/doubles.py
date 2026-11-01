@@ -3,6 +3,7 @@
 # Licensed under the The Standard Software License (TSSL)
 # ---------------------------------------------------------------
 
+from standard_agents.brokers.classifiers.iclassifier_broker import IClassifierBroker
 from standard_agents.brokers.generators.igenerator_broker import IGeneratorBroker
 from standard_agents.brokers.verifiers.iverifier_broker import IVerifierBroker
 from standard_agents.tools.itool import ITool
@@ -24,13 +25,28 @@ class ScriptedGeneratorBroker(IGeneratorBroker):
         return reply
 
 
+class RecordingClassifierBroker(IClassifierBroker):
+    def __init__(self, verdict: str) -> None:
+        self.verdict = verdict
+        self.rubrics: list[str] = []
+        self.inputs: list[str] = []
+
+    async def classify(self, system_prompt: str, input: str) -> str:
+        self.rubrics.append(system_prompt)
+        self.inputs.append(input)
+
+        return self.verdict
+
+
 class RecordingVerifierBroker(IVerifierBroker):
     def __init__(self, score: str) -> None:
         self.score = score
         self.tasks: list[str] = []
+        self.rubrics: list[str] = []
 
     async def verify(self, system_prompt: str, task: str, candidate: str) -> str:
         self.tasks.append(task)
+        self.rubrics.append(system_prompt)
 
         return self.score
 
