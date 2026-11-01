@@ -69,8 +69,6 @@ live in `src/xeptions` and `src/restfulsense`, and the wheel must not ship them 
 - `StdioMcpBroker` raises `TypeError` when given a command without arguments (`list(None)`),
   has no `async with` lifecycle (cleanup rides `atexit`), finds child processes through `/proc`
   only, and resolves the command by hand where `shutil.which` would do (Phase 4).
-- `OpenAiGeneratorBroker` applies the host's `handler` to streamed calls only; `generate()`
-  goes through a client that builds its own opener (Phase 4).
 - Type hints that do not hold: `AnthropicGeneratorBrokerV1(api_key: str)` accepts None, the MCP
   tool list models type fields that may be None as non-optional, and `HttpMcpBroker._post`
   returns `tuple[Any, str]` where a `type[T]` gives `T` (Phase 4).
