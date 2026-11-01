@@ -18,8 +18,10 @@ from restfulsense import (
     HttpResponseUrlNotFoundException)
 from standard_agents.models.foundations.gates.exceptions import (
     FailedGateDependencyException,
+    FailedGateServiceException,
     GateDependencyException,
     GateDependencyValidationException,
+    GateServiceException,
     InvalidGateException)
 
 
@@ -125,3 +127,32 @@ async def test_should_throw_dependency_exception_on_screen_if_dependency_error_o
 
     assert logging_broker.mock_calls == [
         call.log_error(same_exception_as(expected_gate_dependency_exception))]
+
+
+async def test_should_throw_service_exception_on_screen_if_service_error_occurs_and_log_it(
+        gate_service, classifier_broker, logging_broker, same_exception_as, create_random_string):
+
+    # given
+    random_input = create_random_string()
+    service_error = Exception()
+
+    failed_gate_service_exception = FailedGateServiceException(
+        message="Failed gate service error occurred, contact support.",
+        inner_exception=service_error)
+
+    expected_gate_service_exception = GateServiceException(
+        message="Gate service error occurred, contact support.",
+        inner_exception=failed_gate_service_exception)
+
+    classifier_broker.classify.side_effect = service_error
+
+    # when
+    with pytest.raises(GateServiceException) as raised:
+        await gate_service.screen(random_input)
+
+    # then
+    assert raised.value.same_exception_as(expected_gate_service_exception)
+    assert classifier_broker.mock_calls == [call.classify(random_input)]
+
+    assert logging_broker.mock_calls == [
+        call.log_error(same_exception_as(expected_gate_service_exception))]
