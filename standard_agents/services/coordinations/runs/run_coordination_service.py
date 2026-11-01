@@ -5,6 +5,8 @@
 
 from standard_agents.brokers.loggings.ilogging_broker import ILoggingBroker
 from standard_agents.models.clients.agents.agent_outcome import AgentOutcome
+from standard_agents.models.orchestrations.agents.agent_context import AgentContext
+from standard_agents.models.orchestrations.agents.agent_status import AgentStatus
 from standard_agents.services.coordinations.runs.irun_coordination_service import (
     IRunCoordinationService)
 from standard_agents.services.orchestrations.data.idata_orchestration_service import (
@@ -33,4 +35,13 @@ class RunCoordinationService(IRunCoordinationService):
         self.max_turns = max_turns
 
     async def run(self, prompt: str) -> AgentOutcome:
-        raise NotImplementedError
+        context = AgentContext(prompt=prompt)
+
+        for turn in range(self.max_turns):
+            await self.logging_broker.log_turn(turn)
+            context = await self.data_orchestration_service.recall(context)
+            context = await self.decision_orchestration_service.think(context)
+            context = await self.direction_orchestration_service.act(context)
+
+            if context.status is not AgentStatus.WORKING:
+                return AgentOutcome(result=context.result, status=context.status)
