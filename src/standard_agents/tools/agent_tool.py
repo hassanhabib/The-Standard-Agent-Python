@@ -50,7 +50,12 @@ class AgentTool(Tool):
         handed_off = (self._handoff
             .replace(_PROMPT_PLACEHOLDER, outer_run.prompt if outer_run is not None else "")
             .replace(_INPUT_PLACEHOLDER, input))
-        outcome = await self._agent.run(handed_off, cancellation=None)
+        # The outer run's signal rides the ambient run the way its identity does, so the nested
+        # run observes the same stop the outer loop observes: cancelling the outer run stops the
+        # whole tree at the next turn boundary (SPEC.md 4.10). Outside any run, there is none.
+        outcome = await self._agent.run(
+            handed_off,
+            cancellation=outer_run.cancellation if outer_run is not None else None)
 
         # How the handoff ended, recorded on the OUTER run (the nested run's own ambient state
         # never flows back across the await). The string returned below cannot carry a status,

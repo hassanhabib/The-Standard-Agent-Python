@@ -891,7 +891,15 @@ class StandardAgent(Agent):
             *,
             session_id: str = "",
             cancellation: asyncio.Event | None = None) -> str:
-        return await (await self._resolve_agent()).process_prompt(prompt)
+        agent = await self._resolve_agent()
+
+        if isinstance(prompt, PromptRequest):
+            return (await agent.run(prompt, cancellation=cancellation)).result
+
+        return await agent.process_prompt(
+            prompt,
+            session_id=session_id,
+            cancellation=cancellation)
 
     async def run_request(
             self,
