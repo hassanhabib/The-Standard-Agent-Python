@@ -26,7 +26,7 @@ from standard_agents.services.orchestrations.data.retrievals.retrieval_orchestra
     import RetrievalOrchestrationService
 from xeptions import Xeption
 
-TOOL_CATALOG = "- calculator — Evaluate arithmetic. parameters: {}"
+TOOL_CATALOG = "- calculator \u2014 Evaluate arithmetic. parameters: {}"
 
 
 class SameExceptionAs:

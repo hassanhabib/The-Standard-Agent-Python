@@ -58,5 +58,5 @@ async def test_should_expand_skills_marker_into_the_described_skill_catalog(tmp_
     await agent.process_prompt("hello")
 
     # then: the marker expanded into the described-skill index, and is gone
-    assert "- weather — answers weather questions" in captured_system_prompt
+    assert "- weather \u2014 answers weather questions" in captured_system_prompt
     assert "{{skills}}" not in captured_system_prompt
