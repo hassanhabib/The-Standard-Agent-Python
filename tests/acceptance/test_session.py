@@ -14,9 +14,13 @@ import asyncio
 from collections.abc import Callable
 from unittest.mock import create_autospec
 
+import pytest
+
 from standard_agents.brokers.knowledges.knowledge_broker import KnowledgeBroker
 from standard_agents.brokers.memories.memory_broker import MemoryBroker
 from standard_agents.brokers.skills.skill_broker import SkillBroker
+from standard_agents.models.coordinations.agents.exceptions import (
+    AgentCoordinationValidationException)
 from standard_agents.standard_agent import StandardAgent
 
 
@@ -171,3 +175,27 @@ async def test_should_stay_stateless_without_a_session(tmp_path):
 
     # then: absent a session the agent is exactly as stateless as it always was
     assert "Paris" not in captured_prompt
+
+
+# Found in the 2026-09-04 principal review (F-06): a session id is caller-provided and the record
+# carried no owner, so two callers sharing or guessing one id shared one history. A session
+# records the principal that opened it, and a different principal is refused as a validation
+# failure, never served a quietly shared conversation.
+async def test_should_refuse_a_session_owned_by_another_principal(tmp_path):
+    # given
+    sessions_path = str(tmp_path / "sessions")
+
+    adas_agent = (_new_agent(sessions_path, lambda user_prompt: "FINAL: noted")
+        .principal(lambda: "ada"))
+
+    bobs_agent = (_new_agent(sessions_path, lambda user_prompt: "FINAL: noted")
+        .principal(lambda: "bob"))
+
+    await adas_agent.process_prompt("remember my order", session_id="order-42")
+
+    # when
+    bobs_prompt = bobs_agent.process_prompt("what was the order?", session_id="order-42")
+
+    # then
+    with pytest.raises(AgentCoordinationValidationException):
+        await bobs_prompt
