@@ -30,3 +30,27 @@ async def test_should_return_and_terminate_on_act_if_direction_type_is_return_re
     assert return_service.mock_calls == [call.return_payload(answer)]
     assert internal_tool_service.mock_calls == []
     assert external_tool_service.mock_calls == []
+
+
+async def test_should_await_input_and_terminate_on_act_if_direction_type_is_await_input(
+        direction_coordination_service,
+        internal_tool_service,
+        external_tool_service,
+        return_service,
+        create_context_with_direction,
+        create_random_string):
+
+    # given
+    question = create_random_string()
+    input_context = create_context_with_direction("AwaitInput", question)
+    return_service.return_payload.return_value = question
+
+    # when
+    actual_context = await direction_coordination_service.act(input_context)
+
+    # then
+    assert actual_context.result == question
+    assert actual_context.status is AgentStatus.AWAITING_INPUT
+    assert return_service.mock_calls == [call.return_payload(question)]
+    assert internal_tool_service.mock_calls == []
+    assert external_tool_service.mock_calls == []
