@@ -10,8 +10,8 @@ from standard_agents.models.orchestrations.agents.agent_context import AgentCont
 
 ACTION_PREFIX = "ACTION:"
 FINAL_PREFIX = "FINAL:"
-SAY_PREFIX = "SAY:"
 RETURN_RESPONSE_DIRECTION = "ReturnResponse"
+RESPOND_INTENT = "Respond"
 REFUSE_DIRECTION = "Refuse"
 REFUSE_VERDICT = "refuse"
 REFUSAL_MESSAGE = "I'm not able to help with that."
@@ -21,9 +21,8 @@ def is_refusal(verdict: str) -> bool:
     return verdict.lower().startswith(REFUSE_VERDICT)
 
 
-# The text protocol the brain answers in, the same as the C# framework's: an optional
-# "SAY: <progress>" line, then exactly one "ACTION: <tool>: <input>" or "FINAL: <answer>". A reply
-# with neither prefix is taken as the answer itself.
+# The reference text protocol (SPEC.md 6.0): "ACTION: <tool>: <input>" to act, "FINAL: <answer>"
+# to answer. A reply with neither prefix is taken as the answer itself.
 def build_user_message(context: AgentContext) -> str:
     user_message = f"Task: {context.prompt}"
     observations = context.memories + context.knowledge + context.observations
@@ -37,20 +36,10 @@ def build_user_message(context: AgentContext) -> str:
     return user_message
 
 
-def peel_narration(reply: str) -> tuple[str, str]:
-    leading = reply.lstrip()
-
-    if leading.upper().startswith(SAY_PREFIX) is False:
-        return "", reply
-
-    narration_line, _, choice = leading.partition("\n")
-
-    return narration_line[len(SAY_PREFIX):].strip(), choice.strip()
-
-
+# A tool call is read from the first line only (SPEC.md 6.0). This implementation does not voice
+# narration, so a SAY: line is not peeled: it is the first line, and the reply is read as is.
 def interpret(context: AgentContext, reply: str) -> AgentContext:
-    narration, choice = peel_narration(reply)
-    first_line = choice.split("\n")[0].strip()
+    first_line = reply.split("\n")[0].strip()
 
     if first_line.upper().startswith(ACTION_PREFIX):
         tool_name, _, tool_input = first_line[len(ACTION_PREFIX):].partition(":")
@@ -58,21 +47,21 @@ def interpret(context: AgentContext, reply: str) -> AgentContext:
         if tool_name.strip() != "":
             return dataclasses.replace(
                 context,
+                intent=tool_name.strip(),
                 direction_type=tool_name.strip(),
                 payload=tool_input.strip(),
-                narration=narration,
                 raw_reply=reply)
 
-    answer = choice
+    answer = reply
 
-    if choice.upper().startswith(FINAL_PREFIX):
-        answer = choice[len(FINAL_PREFIX):].strip()
+    if reply.upper().startswith(FINAL_PREFIX):
+        answer = reply[len(FINAL_PREFIX):].strip()
 
     return dataclasses.replace(
         context,
+        intent=RESPOND_INTENT,
         direction_type=RETURN_RESPONSE_DIRECTION,
         payload=answer,
-        narration=narration,
         raw_reply=reply)
 
 

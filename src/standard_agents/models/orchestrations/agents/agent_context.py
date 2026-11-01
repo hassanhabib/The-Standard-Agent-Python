@@ -22,6 +22,7 @@ class AgentContext:
     observations: tuple[str, ...] = ()
 
     # Decision: what the brain chose, in the loop's terms.
+    intent: str = ""
     direction_type: str = ""
     payload: str = ""
     narration: str = ""
