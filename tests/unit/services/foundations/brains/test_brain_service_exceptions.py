@@ -223,3 +223,34 @@ async def test_should_throw_service_exception_on_generate_if_service_error_occur
 
     assert logging_broker.mock_calls == [
         call.log_error(same_exception_as(expected_brain_service_exception))]
+
+
+async def test_should_throw_critical_dependency_exception_on_generate_stream_if_nothing_answered_and_log_it(
+        brain_service,
+        generator_broker,
+        logging_broker,
+        same_exception_as,
+        create_random_string,
+        throwing_stream,
+        drain):
+    """The same sentence the batched path gives.
+
+    Whichever way the brain was asked, nothing answering is an address to check, not a fault to
+    take to support (SPEC.md 4.10, v1.14).
+    """
+    # given
+    random_system_prompt = create_random_string()
+    random_user_prompt = create_random_string()
+    http_request_exception = HttpRequestException()
+    expected_brain_dependency_exception = _unreachable_brain_exception(http_request_exception)
+    generator_broker.generate_stream.return_value = throwing_stream(http_request_exception)
+
+    # when
+    with pytest.raises(BrainDependencyException) as raised:
+        await drain(brain_service.generate_stream(random_system_prompt, random_user_prompt))
+
+    # then
+    assert raised.value.same_exception_as(expected_brain_dependency_exception)
+
+    assert logging_broker.mock_calls == [
+        call.log_critical(same_exception_as(expected_brain_dependency_exception))]
