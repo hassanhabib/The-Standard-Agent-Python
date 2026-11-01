@@ -10,6 +10,8 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING, Any
 
+from standard_agents.models.clients.agents.exceptions import InvalidAgentConfigurationException
+
 if TYPE_CHECKING:
     from standard_agents.standard_agent import StandardAgent
 
@@ -49,3 +51,10 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
 
         case "citeKnowledge":
             agent.cite_knowledge(cite=value)
+
+        case _:
+            raise InvalidAgentConfigurationException(
+                message=(
+                    f"Unknown configuration key '{key}'. A key this agent does not know is a "
+                    + "control you believe is on and is not, so it refuses to compose. "
+                    + "The keys are the builder verbs, camelCased \u2014 see docs/how-to.md."))
