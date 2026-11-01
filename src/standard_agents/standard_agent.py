@@ -31,7 +31,9 @@ from standard_agents.brokers.files.file_broker import FileBroker
 from standard_agents.brokers.files.local_file_broker import LocalFileBroker
 from standard_agents.brokers.generators.function_generator_broker import FunctionGeneratorBroker
 from standard_agents.brokers.generators.generator_broker import GeneratorBroker
+from standard_agents.brokers.generators.generator_broker_v1 import GeneratorBrokerV1
 from standard_agents.brokers.generators.openai_generator_broker import OpenAiGeneratorBroker
+from standard_agents.brokers.generators.openai_generator_broker_v1 import OpenAiGeneratorBrokerV1
 from standard_agents.brokers.knowledges.knowledge_broker import KnowledgeBroker
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.brokers.loggings.stdlib_logging_broker import StdlibLoggingBroker
@@ -126,6 +128,8 @@ class StandardAgent(Agent):
         self._logging_broker: LoggingBroker | None = None
         self._usage_broker: UsageBroker = RatioUsageBroker()
         self._brain_settings: InferenceSettings | None = None
+        self._generator_broker_v1: GeneratorBrokerV1 | None = None
+        self._native_brain_source: Callable[[], GeneratorBrokerV1] | None = None
         self._local_gate_screen: Callable[[str, str], Awaitable[str]] | None = None
         self._local_judge_evaluate: Callable[[str, str], Awaitable[str]] | None = None
         self._memory_path = "memory.txt"
@@ -183,6 +187,29 @@ class StandardAgent(Agent):
 
         self._brain_settings = InferenceSettings(
             api_url, api_key, model, temperature, max_tokens, timeout_seconds)
+
+        return self
+
+    def native_brain(
+            self,
+            api_url: str,
+            api_key: str,
+            model: str,
+            *,
+            temperature: float = 0.7,
+            max_tokens: int = 1024) -> StandardAgent:
+
+        _validate_api_url(api_url)
+
+        self._generator_broker_v1 = None
+
+        self._native_brain_source = lambda: OpenAiGeneratorBrokerV1(
+            api_url,
+            api_key,
+            model,
+            temperature,
+            max_tokens,
+            timeout_seconds=120)
 
         return self
 
