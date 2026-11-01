@@ -310,3 +310,36 @@ async def test_should_carry_the_caller_owned_transcript_on_the_text_protocol():
     # then
     assert "What is 2+2?" in captured_user_prompt
     assert "4" in captured_user_prompt
+
+
+# When a session exists it wins: the deployment's record of the conversation beats the caller's
+# retelling of it, the same precedence every request field obeys (design 4).
+async def test_should_let_the_sessions_history_win_over_the_requests(sessions_path):
+    # given: a real session holding a real prior turn
+    captured_user_prompt = ""
+    call = 0
+
+    async def brain(system_prompt, user_prompt):
+        nonlocal captured_user_prompt, call
+        captured_user_prompt = user_prompt
+        call += 1
+
+        return "FINAL: Tokyo" if call == 1 else "FINAL: ok"
+
+    agent = (_bare_agent()
+        .sessions(sessions_path)
+        .on_brain(brain))
+
+    await agent.process_prompt("Capital of Japan?", session_id="transcript-1")
+
+    request = PromptRequest(
+        prompt="and then?",
+        session_id="transcript-1",
+        history=(AgentTurn("a retelling that never happened", "made up"),))
+
+    # when
+    await agent.process_prompt(request)
+
+    # then: the session's turn is what the brain saw, not the caller's retelling
+    assert "Capital of Japan?" in captured_user_prompt
+    assert "a retelling that never happened" not in captured_user_prompt
