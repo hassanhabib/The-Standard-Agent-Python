@@ -6,9 +6,15 @@
 import dataclasses
 from unittest.mock import call
 
+import pytest
+
+from standard_agents.models.coordinations.directions.perimeter_policy import PerimeterPolicy
 from standard_agents.models.loggings.agent_run import AgentRun
 from standard_agents.models.orchestrations.agents.agent_context import AgentContext
 from standard_agents.models.orchestrations.agents.agent_status import AgentStatus
+from standard_agents.models.orchestrations.effects.risk_level import RiskLevel
+from standard_agents.services.coordinations.direction.direction_coordination_service import (
+    DirectionCoordinationService)
 
 
 async def test_should_return_and_terminate_on_act_if_direction_type_is_return_response(
@@ -289,6 +295,71 @@ async def test_should_answer_a_third_identical_ask_with_the_note_alone_on_act(
         assert second.result.startswith("the whole page")
         assert "the whole page" not in third.result
         assert "asked for a third time with the same arguments" in third.result
+
+
+async def test_should_look_again_at_a_scope_the_run_has_since_written_to_on_act(
+        scoped_file_service,
+        internal_tool_service,
+        create_context_with_direction):
+    """Watched in both reference implementations.
+
+    A model edited a file and read it back to check its edit, and was handed the file as it was
+    before the edit, because the read had the same tool and the same arguments as the read
+    before it (SPEC.md 4.9, v1.14).
+    """
+    # Inside a run, as every act is: what a run has written is the run's to know.
+    with AgentRun.begin():
+        # given
+        internal_tool_service.handles.return_value = True
+        internal_tool_service.run.side_effect = _file_tools("version one", "version two")
+
+        first_read = await scoped_file_service.act(
+            create_context_with_direction("read_file", "a.txt"))
+
+        written = await scoped_file_service.act(
+            dataclasses.replace(first_read, direction_type="write_file", payload="version two"))
+
+        # when
+        second_read = await scoped_file_service.act(
+            dataclasses.replace(written, direction_type="read_file", payload="a.txt"))
+
+        # then
+        # The look after the write is a new question: it runs, and sees what the write left.
+        assert second_read.result == "version two"
+        assert internal_tool_service.run.mock_calls.count(call("read_file", "a.txt")) == 2
+
+
+@pytest.fixture
+def scoped_file_service(new_perimeter, new_execution, logging_broker):
+    """A file tool pair over one scope: a SAFE read and a SENSITIVE write.
+
+    Both name the same file, the way a coding agent's tools do.
+    """
+    return DirectionCoordinationService(
+        perimeter_service=new_perimeter(),
+        execution_service=new_execution(),
+        logging_broker=logging_broker,
+        policy=PerimeterPolicy(
+            tool_risk={"write_file": RiskLevel.SENSITIVE},
+            tool_scope={
+                "read_file": lambda _: "a.txt",
+                "write_file": lambda _: "a.txt"}))
+
+
+def _file_tools(*read_outcomes: str):
+    """The read answers each outcome in turn; the write of "version two" answers "written"."""
+    remaining_read_outcomes = iter(read_outcomes)
+
+    def run(name: str, input: str) -> str | None:
+        if (name, input) == ("read_file", "a.txt"):
+            return next(remaining_read_outcomes)
+
+        if (name, input) == ("write_file", "version two"):
+            return "written"
+
+        return None
+
+    return run
 
 
 def _count_containing(observations: tuple[str, ...], *texts: str) -> int:
