@@ -67,3 +67,13 @@ def test_should_treat_a_malformed_bag_as_nothing_and_say_it_was_malformed():
     # then: nothing reaches the wire, and the boundary can say why
     assert sanitized.json is None
     assert sanitized.malformed is True
+
+
+def test_should_treat_an_absent_bag_as_nothing_quietly():
+    # when
+    sanitized = ProviderOptions.sanitize(None)
+
+    # then
+    assert sanitized.json is None
+    assert sanitized.stripped_keys == ()
+    assert sanitized.malformed is False
