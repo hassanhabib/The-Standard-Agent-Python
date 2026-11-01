@@ -1,0 +1,48 @@
+# Porting plan: a 100% match with Standard.Agents (C#)
+
+The owner's target, set 2026-11-01:
+
+- **The C# framework wins, exactly.** Where the C# reference implementation and SPEC.md disagree
+  (a `Revising` status, guardian brokers that bind their rubric at construction, the Custom Judge's
+  arguments, recall that appends every turn), this library mirrors C#. The README records each
+  point where the specification says otherwise.
+- **Done means** all 88 conformance vectors pass, the four readiness profiles (Core, Reliable,
+  Enterprise, Critical) certify, and every C# unit and acceptance test has a Python twin.
+- **Network brokers ship**, built on the standard library only: the OpenAI-compatible and Anthropic
+  brains, and MCP clients over HTTP and standard input and output. The library still makes no call
+  a host did not compose.
+
+Publishing to PyPI is on hold until the target is met.
+
+## How progress is measured
+
+```bash
+python tools/parity.py ../The-Standard-Agent/Standard.Agents.Tests.Unit --missing
+python -m conformance ../The-Standard-Agent/conformance/vectors --profile Critical
+```
+
+`parity.py` matches every C# `[Fact]` and `[Theory]` to a Python test by name
+(`ShouldAddMemoryAsync` is `test_should_add_memory`). Ported tests take the C# name exactly, so the
+Python suite reads like the C# one. At the start: 2 of 577.
+
+## Phases
+
+Each phase lands as a series of PRs, one operation each, with FAIL/PASS commits. A phase is done
+when its tests are at parity and the whole suite is green.
+
+| Phase | Scope | C# tests |
+|---|---|---|
+| 1. Skeleton | The C# models (`AgentContext` in full, `AgentStatus` with `Revising`, `AgentOutcome`, `AgentFailure`, `PromptRequest`, `AgentStreamEvent`, effects, sessions, usage), the C# logging broker, and the C# tiers: foundations, then the Retrieval, Recollection, Inference, Guardian, Execution and Perimeter orchestrations, the Data, Decision and Direction coordinations, and `RunManagementService` | Services: 241 |
+| 2. The door | `StandardAgent` in full, `IAgent`, `AgentTool`, `RememberTool`, composition from JSON, tier discipline | Clients, Tools, Architecture, Packaging: 92 |
+| 3. Capabilities | Acceptance, one capability per PR in the C# order: revision, retrieval and citation, memory opt-out, rules, sessions and resumption, perimeter, permissions, approvals, the effect ledger, compensation, identity, redaction, budgets, resilience, failure codes, the decision log, traces, telemetry, per-request inference, caller tools, contracts, selection, narration, streamed outcome, native tool calls | Acceptance: 179 |
+| 4. Wire | Standard-library clients and their wire contracts: OpenAI-compatible text and native, Anthropic native, provider options, MCP over HTTP (JSON and event-stream replies, sessions, pagination), MCP over standard input and output | Wire: 40 |
+| 5. Certification | The conformance runner driving every vector field; Core, Reliable, Enterprise and Critical certified in CI | 88 vectors |
+| 6. Host (not yet chosen) | `Standard.Agents.Host`: the OpenAI-compatible HTTP exposer, its gates and principal resolution | Controllers, Acceptance/Host: 36 |
+
+After Phase 1 the capability work is independent enough to run in parallel, one session per
+capability group, each in its own worktree.
+
+## Version
+
+The library is unpublished at 1.0.0.0. When it reaches parity it takes the C# version it matches
+(Standard.Agents is at 6.0.0.0 today), so one number means one behaviour in both languages.
