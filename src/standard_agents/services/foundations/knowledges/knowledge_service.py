@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import math
+import os
 import re
 from collections.abc import Iterator, Sequence
 
@@ -41,18 +42,22 @@ class KnowledgeService:
         self.logging_broker = logging_broker
 
     async def retrieve_knowledge(self, query: str) -> Sequence[str]:
+        knowledge_results = await self._select_sourced_knowledge(query)
+
+        return tuple(knowledge_result.text for knowledge_result in knowledge_results)
+
+    async def retrieve_sourced_knowledge(self, query: str) -> Sequence[KnowledgeResult]:
+        return await self._select_sourced_knowledge(query)
+
+    async def _select_sourced_knowledge(self, query: str) -> Sequence[KnowledgeResult]:
+        """One retrieval behind both doors.
+
+        The plain door can then never rank or filter differently from the sourced one: it is the
+        same passages with what travels beside them left off.
+        """
         if self.file_broker is not None:
             return await self._select_knowledge_from_files(self.file_broker, query)
 
-        if self.sourced_knowledge_broker is not None:
-            knowledge_results = await self.sourced_knowledge_broker.select_sourced_knowledge(
-                query)
-
-            return tuple(knowledge_result.text for knowledge_result in knowledge_results)
-
-        return await self.knowledge_broker.select_knowledge(query)
-
-    async def retrieve_sourced_knowledge(self, query: str) -> Sequence[KnowledgeResult]:
         if self.sourced_knowledge_broker is not None:
             return await self.sourced_knowledge_broker.select_sourced_knowledge(query)
 
@@ -63,7 +68,7 @@ class KnowledgeService:
     async def _select_knowledge_from_files(
             self,
             file_broker: FileBroker,
-            query: str) -> Sequence[str]:
+            query: str) -> Sequence[KnowledgeResult]:
 
         if not file_broker.directory_exists(self.knowledge_path):
             return ()
@@ -78,13 +83,17 @@ class KnowledgeService:
                 self.knowledge_path, self.search_pattern, SearchOption.ALL_DIRECTORIES),
             key=_ordinal)
 
-        documents = [
-            await file_broker.read_file(document_path) for document_path in document_paths]
+        documents: list[str] = []
+        document_sources: list[str] = []
+
+        for document_path in document_paths:
+            documents.append(await file_broker.read_file(document_path))
+            document_sources.append(self._source_of(document_path))
 
         document_frequency = _document_frequency(documents)
-        scored_passages: list[tuple[str, float]] = []
+        scored_passages: list[KnowledgeResult] = []
 
-        for document in documents:
+        for document, document_source in zip(documents, document_sources):
             for passage in _passages(document):
                 score = _score(query_terms, passage, document_frequency, len(documents))
 
@@ -92,13 +101,28 @@ class KnowledgeService:
                 # match however low the floor is set. Silence is the right answer when nothing
                 # is relevant: returning the corpus instead is how a retriever becomes noise.
                 if score > 0 and score >= self.minimum_score:
-                    scored_passages.append((passage, score))
+                    scored_passages.append(
+                        KnowledgeResult(text=passage, score=score, source=document_source))
 
         # Stable, as OrderByDescending is: equal scores keep the order the documents were read.
-        scored_passages.sort(key=lambda scored_passage: scored_passage[1], reverse=True)
+        scored_passages.sort(key=lambda scored_passage: scored_passage.score, reverse=True)
 
         # Take(n) takes nothing for a negative n, where a negative slice would take from the end.
-        return tuple(passage for passage, _ in scored_passages[:max(self.max_results, 0)])
+        return tuple(scored_passages[:max(self.max_results, 0)])
+
+    def _source_of(self, document_path: str) -> str:
+        """The document's path relative to the knowledge folder, with forward slashes.
+
+        The same document is then cited the same way on every machine that serves it. Paths
+        with different roots have no relative form, so the path is kept as it is, as
+        Path.GetRelativePath keeps it.
+        """
+        try:
+            relative_path = os.path.relpath(document_path, self.knowledge_path)
+        except ValueError:
+            relative_path = document_path
+
+        return relative_path.replace("\\", "/")
 
 
 def _lift_unsourced(document: str) -> KnowledgeResult:
