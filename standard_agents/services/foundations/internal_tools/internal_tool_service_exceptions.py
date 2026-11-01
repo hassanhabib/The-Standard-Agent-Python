@@ -34,6 +34,18 @@ async def try_catch_returning_boolean(
             failed_internal_tool_service_exception)
 
 
+async def try_catch_returning_string(
+    logging_broker: ILoggingBroker,
+    returning_string_function: Callable[[], Awaitable[str]]) -> str:
+
+    try:
+        return await returning_string_function()
+    except InvalidInternalToolException as invalid_internal_tool_exception:
+        raise await create_and_log_validation_exception(
+            logging_broker,
+            invalid_internal_tool_exception)
+
+
 async def create_and_log_service_exception(
     logging_broker: ILoggingBroker,
     exception: Xeption) -> InternalToolServiceException:
