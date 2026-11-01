@@ -8,6 +8,7 @@ from __future__ import annotations
 import asyncio
 import atexit
 import copy
+import functools
 import importlib.metadata
 import json
 import os
@@ -70,7 +71,9 @@ class StdioMcpBroker(McpBroker):
     """An MCP server spoken to over its standard input and output.
 
     Pass server_output and server_input for streams already open, or pass command to start the
-    server as a process (on first use, and again on the first use after it exits).
+    server as a process (on first use, and again on the first use after it exits). A process the
+    broker started is stopped, with every process it started, when the interpreter exits, as the
+    C# stops it when the host exits; aclose(), or leaving an async with block, stops it sooner.
     """
 
     def __init__(
@@ -95,11 +98,17 @@ class StdioMcpBroker(McpBroker):
             process_arguments = list(arguments)
 
             async def connect_to_process() -> tuple[ServerOutput, ServerInput]:
-                return await _start_server_process(
+                server_process = await _start_server_process(
                     command,
                     process_arguments,
                     environment_variables,
                     working_directory)
+
+                self._server_process = server_process
+                self._stop_at_exit = functools.partial(_stop_server_process, server_process)
+                atexit.register(self._stop_at_exit)
+
+                return server_process.stdout, server_process.stdin
 
             self._connect = connect_to_process
 
@@ -111,6 +120,29 @@ class StdioMcpBroker(McpBroker):
         self._is_start_of_output = True
         self._request_id = 0
         self._is_initialized = False
+        self._server_process: asyncio.subprocess.Process | None = None
+        self._stop_at_exit: Callable[[], None] | None = None
+
+    async def aclose(self) -> None:
+        """Stop the server process this broker started, and every process it started.
+
+        The next use starts the server again. Streams handed to the broker are the caller's,
+        and are left as they are.
+        """
+        async with self._exchange_lock:
+            server_process = self._server_process
+
+            if server_process is None:
+                return
+
+            atexit.unregister(self._stop_at_exit)
+            self._server_process = None
+            self._stop_at_exit = None
+            self._is_initialized = False
+
+            await asyncio.to_thread(_stop_server_process, server_process)
+            server_process.stdin.close()
+            await server_process.wait()
 
     async def call(self, name: str, arguments_json: str) -> str:
         parameters = {
@@ -400,7 +432,7 @@ async def _start_server_process(
         command: str,
         arguments: list[str],
         environment_variables: Mapping[str, str] | None,
-        working_directory: str | None) -> tuple[ServerOutput, ServerInput]:
+        working_directory: str | None) -> asyncio.subprocess.Process:
 
     server_environment = dict(os.environ)
 
@@ -427,9 +459,7 @@ async def _start_server_process(
         limit=_LINE_LIMIT,
         creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
 
-    atexit.register(_stop_server_process, server_process)
-
-    return server_process.stdout, server_process.stdin
+    return server_process
 
 
 def _stop_server_process(server_process: asyncio.subprocess.Process) -> None:
