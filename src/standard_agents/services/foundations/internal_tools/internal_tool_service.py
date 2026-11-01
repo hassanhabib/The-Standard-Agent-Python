@@ -5,8 +5,14 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.brokers.tools.tool_broker import ToolBroker
+from standard_agents.models.foundations.internal_tools.exceptions import (
+    InternalToolValidationException,
+    InvalidInternalToolException)
 
 
 class InternalToolService:
@@ -17,7 +23,10 @@ class InternalToolService:
         self.logging_broker = logging_broker
 
     async def handles(self, name: str) -> bool:
-        return await self.tool_broker.has(name)
+        async with _handling_exceptions(self.logging_broker):
+            _validate_name(name)
+
+            return await self.tool_broker.has(name)
 
     async def run(self, name: str, input: str) -> str:
         return await self.tool_broker.run(name, input)
@@ -28,3 +37,31 @@ class InternalToolService:
         Returns what was done, or an empty string when the tool declared no way back.
         """
         raise NotImplementedError
+
+
+def _validate_name(name: str | None) -> None:
+    if not name or name.isspace():
+        raise InvalidInternalToolException(
+            message="Invalid internal tool. Please correct the error and try again.")
+
+
+@asynccontextmanager
+async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[None]:
+    try:
+        yield
+    except InvalidInternalToolException as invalid_internal_tool_exception:
+        raise await _create_and_log_validation_exception(
+            logging_broker, invalid_internal_tool_exception)
+
+
+async def _create_and_log_validation_exception(
+        logging_broker: LoggingBroker,
+        exception: Exception) -> InternalToolValidationException:
+
+    internal_tool_validation_exception = InternalToolValidationException(
+        message="Internal tool validation error occurred, fix the error and try again.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(internal_tool_validation_exception)
+
+    return internal_tool_validation_exception
