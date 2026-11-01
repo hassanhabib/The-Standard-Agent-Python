@@ -39,7 +39,8 @@ class RESTFulApiFactoryClient:
             self,
             base_url: str,
             headers: dict[str, str] | None = None,
-            timeout_seconds: float = 100.0) -> None:
+            timeout_seconds: float = 100.0,
+            opener: urllib.request.OpenerDirector | None = None) -> None:
 
         # HttpClient.BaseAddress takes an absolute address only, and Timeout a positive one.
         if not urllib.parse.urlsplit(base_url).scheme:
@@ -52,9 +53,14 @@ class RESTFulApiFactoryClient:
         self._headers = dict(headers or {})
         self._timeout_seconds = timeout_seconds
 
-        # HttpClient sends no User-Agent of its own, so this opener sends none either.
-        self._opener = urllib.request.build_opener()
-        self._opener.addheaders = []
+        # The opener is the transport, as the HttpClient is in C#: a host that owns its handler
+        # hands over an opener built on it. HttpClient sends no User-Agent of its own, so the
+        # opener built here sends none either.
+        if opener is None:
+            opener = urllib.request.build_opener()
+            opener.addheaders = []
+
+        self._opener = opener
 
     async def post_content(self, relative_url: str, content: dict) -> dict:
         request_json = json.dumps(content, separators=(",", ":"))

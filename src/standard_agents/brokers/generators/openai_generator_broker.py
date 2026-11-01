@@ -68,7 +68,8 @@ class OpenAiGeneratorBroker(GeneratorBroker):
         self._api_client = RESTFulApiFactoryClient(
             base_url=self._base_address,
             headers={"Authorization": self._authorization},
-            timeout_seconds=self._timeout_seconds)
+            timeout_seconds=self._timeout_seconds,
+            opener=self._opener)
 
         self._model = model
         self._temperature = temperature
