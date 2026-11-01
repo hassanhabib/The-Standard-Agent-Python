@@ -73,7 +73,7 @@ class AnthropicGeneratorBrokerV1(GeneratorBrokerV1):
 
     def __init__(
             self,
-            api_key: str,
+            api_key: str | None,
             model: str,
             temperature: float = 0.7,
             max_tokens: int = 1024,
