@@ -4,6 +4,7 @@
 # ---------------------------------------------------------------
 
 import dataclasses
+import uuid
 from unittest.mock import call
 
 import pytest
@@ -12,6 +13,7 @@ from standard_agents.models.coordinations.directions.perimeter_policy import Per
 from standard_agents.models.loggings.agent_run import AgentRun
 from standard_agents.models.orchestrations.agents.agent_context import AgentContext
 from standard_agents.models.orchestrations.agents.agent_status import AgentStatus
+from standard_agents.models.orchestrations.agents.tool_exchange import ToolExchange
 from standard_agents.models.orchestrations.effects.risk_level import RiskLevel
 from standard_agents.services.coordinations.direction.direction_coordination_service import (
     DirectionCoordinationService)
@@ -327,6 +329,46 @@ async def test_should_look_again_at_a_scope_the_run_has_since_written_to_on_act(
         # The look after the write is a new question: it runs, and sees what the write left.
         assert second_read.result == "version two"
         assert internal_tool_service.run.mock_calls.count(call("read_file", "a.txt")) == 2
+
+
+async def test_should_look_again_at_a_scope_written_to_before_the_run_was_resumed_on_act(
+        scoped_file_service,
+        internal_tool_service,
+        create_context_with_direction):
+    """A run read a file, wrote to it, and paused.
+
+    Resumed, it keeps its identity, so the ledger still holds the read from before the write,
+    and it begins with nothing performed. The writes before the pause are in the conversation it
+    was resumed with, and a count read from the run alone handed the resumed read the file as it
+    was before the write.
+    """
+    # given
+    run_id = uuid.uuid4().hex
+    internal_tool_service.handles.return_value = True
+    internal_tool_service.run.side_effect = _file_tools("version one", "version two")
+
+    with AgentRun.begin(run_id):
+        first_read = await scoped_file_service.act(
+            create_context_with_direction("read_file", "a.txt"))
+
+        written = await scoped_file_service.act(
+            dataclasses.replace(first_read, direction_type="write_file", payload="version two"))
+
+    resumed = dataclasses.replace(
+        written,
+        direction_type="read_file",
+        payload="a.txt",
+        tool_exchanges=(
+            ToolExchange("call-1", "read_file", "a.txt", "version one"),
+            ToolExchange("call-2", "write_file", "version two", "written")))
+
+    # when
+    with AgentRun.begin(run_id):
+        second_read = await scoped_file_service.act(resumed)
+
+    # then
+    assert second_read.result == "version two"
+    assert internal_tool_service.run.mock_calls.count(call("read_file", "a.txt")) == 2
 
 
 @pytest.fixture
