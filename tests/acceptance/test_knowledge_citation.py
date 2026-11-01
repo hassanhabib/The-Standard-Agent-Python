@@ -1,0 +1,85 @@
+# ---------------------------------------------------------------
+# Copyright (c) Hassan Habib All rights reserved.
+# Licensed under the The Standard Software License (TSSL)
+# ---------------------------------------------------------------
+
+"""SPEC.md 4.2: a grounded answer cites its sources.
+
+The agent cites, not the model. Asking a model to name its sources produces a citation when the
+model feels like writing one, which is not a citation anyone can rely on: a bank's policy bot, a
+helpdesk answering from runbooks and a coding agent answering from API references all need the
+line to be a fact the run knows. These pin the rules that make it one: opt-in, after the Judge,
+the same on every door, and never on a run that did not answer.
+"""
+
+from unittest.mock import create_autospec
+
+from standard_agents.brokers.memories.memory_broker import MemoryBroker
+from standard_agents.brokers.skills.skill_broker import SkillBroker
+from standard_agents.models.clients.agents.agent_stream_event_type import AgentStreamEventType
+from standard_agents.models.clients.agents.prompt_request import PromptRequest
+from standard_agents.models.foundations.knowledges.knowledge_result import KnowledgeResult
+from standard_agents.models.orchestrations.agents.agent_status import AgentStatus
+from standard_agents.standard_agent import StandardAgent
+
+_REFUNDS_SOURCE = "Refund Policy (2026)"
+_SHIPPING_SOURCE = "Shipping Handbook"
+_ANSWER = "Enterprise customers may request a refund within 90 days."
+
+
+def _grounding_results() -> list[KnowledgeResult]:
+    return [
+        KnowledgeResult(
+            text="Refund policy. Enterprise customers may request a refund within 90 days.",
+            score=0.91,
+            source=_REFUNDS_SOURCE),
+        KnowledgeResult(
+            text="Refunds go back to the original payment method.",
+            score=0.42,
+            source=_SHIPPING_SOURCE)]
+
+
+def _empty_skill_broker() -> SkillBroker:
+    skill_broker = create_autospec(SkillBroker, instance=True)
+    skill_broker.select_skills.return_value = []
+
+    return skill_broker
+
+
+def _empty_memory_broker() -> MemoryBroker:
+    memory_broker = create_autospec(MemoryBroker, instance=True)
+    memory_broker.select_memories.return_value = []
+
+    return memory_broker
+
+
+def _grounded_agent(brain) -> StandardAgent:
+    knowledge_results = _grounding_results()
+
+    async def retrieve(query):
+        return knowledge_results
+
+    return (StandardAgent()
+        .use_skills(_empty_skill_broker())
+        .use_memory(_empty_memory_broker())
+        .on_sourced_knowledge(retrieve)
+        .on_brain(brain))
+
+
+def _answering(answer: str):
+    async def brain(system_prompt, user_prompt):
+        return f"FINAL: {answer}"
+
+    return brain
+
+
+async def test_should_cite_the_sources_that_grounded_an_answer():
+    # given
+    agent = _grounded_agent(_answering(_ANSWER)).cite_knowledge()
+    expected_result = f"{_ANSWER}\n\nSource: {_REFUNDS_SOURCE}\nSource: {_SHIPPING_SOURCE}"
+
+    # when
+    actual_result = await agent.process_prompt("what is the refund window?")
+
+    # then
+    assert actual_result == expected_result
