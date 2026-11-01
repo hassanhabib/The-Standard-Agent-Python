@@ -114,3 +114,18 @@ async def test_should_post_tools_call_with_arguments_as_an_object_and_increasing
 
     assert header_of(server.requests[-1], "Authorization") == "Bearer static-token"
     assert actual_text == "owed: 12"
+
+
+async def test_should_throw_http_request_exception_on_a_json_rpc_error():
+    # given: a well-formed 200 carrying a protocol error
+    server = ScriptedServerHandler.answering(
+        '{"jsonrpc":"2.0","id":1,"error":{"code":-32601,"message":"unknown tool"}}')
+
+    broker = create_broker(server)
+
+    # when
+    with pytest.raises(HttpRequestException) as raised:
+        await broker.call("nope", "{}")
+
+    # then: the server's own words, as a native exception for the foundation to localize
+    assert raised.value.message == "unknown tool"
