@@ -387,3 +387,32 @@ async def test_should_ask_again_when_the_tool_names_no_scope():
     # every act of the tool is its own question
     assert asked == 2
     assert tool.transfers == 2
+
+
+# The other half of gap 4, and the one that makes it safe: a grant is for the scope it was given
+# for. Approving a write to one file is not approving writes to every file.
+async def test_should_ask_again_for_a_different_scope():
+    # given: two writes to DIFFERENT paths
+    tool = _WriteFileTool()
+    asked = 0
+
+    async def approve(effect):
+        nonlocal asked
+        asked += 1
+
+        return ApprovalDecision.APPROVED
+
+    agent = (_agent_acting(
+        tool,
+        "ACTION: write_file: /project/a.txt first",
+        "ACTION: write_file: /project/b.txt second",
+        "FINAL: done")
+            .require_approval("write_file")
+            .on_approval(approve))
+
+    # when
+    await agent.process_prompt("write two files")
+
+    # then: a grant is for what it was granted for; approving one path is not approving the next
+    # one
+    assert asked == 2
