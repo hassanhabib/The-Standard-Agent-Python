@@ -167,3 +167,13 @@ async def test_should_throw_json_exception_on_a_malformed_body():
     # when, then
     with pytest.raises(json.JSONDecodeError):
         await broker.generate(CONVERSATION, TOOLS)
+
+
+async def test_should_time_out_when_the_provider_never_answers():
+    # given: a server that holds the connection past the broker's timeout
+    server = ScriptedServerHandler.hanging()
+    broker = create_broker(server, timeout_seconds=1)
+
+    # when, then: the timeout is the broker's, so a hung provider cannot hang the run
+    with pytest.raises(TimeoutError):
+        await broker.generate(CONVERSATION, TOOLS)
