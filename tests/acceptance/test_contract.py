@@ -60,3 +60,22 @@ async def test_should_return_the_answer_when_it_satisfies_the_contract():
     # then
     assert '"amount"' in actual_answer
     assert '"currency"' in actual_answer
+
+
+# The whole point: a shape violation is a revision signal, not an exception and not a silent pass.
+# The model is told what was wrong and asked again within the turn budget.
+async def test_should_revise_when_the_answer_does_not_satisfy_the_contract():
+    # given: prose first, then the shape that was asked for
+    agent = (_agent_answering(
+            "FINAL: The amount is one hundred US dollars.",
+            'FINAL: { "amount": 100, "currency": "USD" }')
+        .contract(INVOICE_SCHEMA)
+        .max_turns(5))
+
+    # when
+    actual_answer = await agent.process_prompt("what is owed")
+
+    # then: a draft that does not satisfy the contract is re-thought, and the second draft is
+    # the one the caller receives
+    assert '"amount"' in actual_answer
+    assert "one hundred US dollars" not in actual_answer
