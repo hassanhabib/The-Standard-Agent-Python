@@ -8,7 +8,10 @@
 # agent the fluent code composes. Tools and callables stay code; JSON reaches everything that is
 # data.
 
+import pytest
+
 from standard_agents.models.clients.agents.agent_failure_codes import AgentFailureCodes
+from standard_agents.models.foundations.knowledges.knowledge_result import KnowledgeResult
 from standard_agents.standard_agent import StandardAgent
 from standard_agents.tools.tool import Tool
 
@@ -91,3 +94,44 @@ async def test_should_stop_a_run_going_in_circles_from_json(tmp_path, monkeypatc
     assert tool.calls == 1
     assert actual_outcome.failure is not None
     assert actual_outcome.failure.code == AgentFailureCodes.GOING_IN_CIRCLES
+
+
+# Citation is a deployment's decision (SPEC.md 4.2), so it is data: true cites with the default
+# prefix, a string cites with that prefix. The knowledge itself is code here, the same way a tool
+# is: a sourced broker is outside the document.
+@pytest.mark.parametrize(("cite_knowledge", "expected_prefix"), [
+    ("true", "Source: "),
+    ('"Reference: "', "Reference: "),
+])
+async def test_should_cite_knowledge_from_json(
+        tmp_path,
+        monkeypatch,
+        cite_knowledge,
+        expected_prefix):
+
+    # given
+    monkeypatch.chdir(tmp_path)
+
+    knowledge_results = [
+        KnowledgeResult(
+            text="Enterprise customers may request a refund within 90 days.",
+            score=0.9,
+            source="Refund Policy"),
+    ]
+
+    async def retrieve(query):
+        return knowledge_results
+
+    async def brain(system_prompt, user_prompt):
+        return "FINAL: 90 days."
+
+    agent = (StandardAgent
+        .from_json('{ "citeKnowledge": ' + cite_knowledge + " }")
+        .on_sourced_knowledge(retrieve)
+        .on_brain(brain))
+
+    # when
+    actual_result = await agent.process_prompt("what is the refund window?")
+
+    # then
+    assert actual_result == f"90 days.\n\n{expected_prefix}Refund Policy"
