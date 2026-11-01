@@ -68,12 +68,6 @@ def bare_shell(create_skill_broker, empty_memory_broker, empty_knowledge_broker)
         .use_knowledge(empty_knowledge_broker))
 
 
-# OpenAiGeneratorBroker.generate posts through RESTFulApiFactoryClient, which builds its own
-# opener and never sees the host's handler (only generate_stream rides it). A broker defect, not
-# the agent's: the agent hands the handler over, and this turns red the day the broker uses it.
-@pytest.mark.xfail(
-    reason="OpenAiGeneratorBroker.generate ignores the host's handler (restfulsense client)",
-    strict=True)
 async def test_should_route_the_brain_through_the_supplied_http_handler(bare_shell):
     # given: a host-owned handler under the text-protocol brain
     handler = RecordingHandler(CHAT_COMPLETION)
