@@ -198,3 +198,31 @@ async def test_should_follow_the_cursor_over_standard_input_until_the_catalog_en
 
     # then
     assert [tool.name for tool in actual_tools] == ["first", "second"]
+
+
+async def test_should_carry_on_when_the_server_has_no_initialize_over_standard_input():
+    # given: a server older than the lifecycle: it knows its tools, not initialize
+    def respond(message):
+        method = message.get("method")
+
+        if method == "initialize":
+            return answer(
+                message,
+                '{"jsonrpc":"2.0","id":{id},"error":{"code":-32601,"message":"Method not found"}}')
+
+        if method == "tools/list":
+            return answer(
+                message,
+                '{"jsonrpc":"2.0","id":{id},"result":{"tools":[{"name":"lookup"}]}}')
+
+        return []
+
+    server = ScriptedStdioServer(respond)
+    broker = create_broker(server)
+
+    # when
+    actual_tools = await broker.list_tools()
+
+    # then: its tools still reach the agent, and nothing announces a session that never opened
+    assert [tool.name for tool in actual_tools] == ["lookup"]
+    assert not any("notifications/initialized" in line for line in server.lines)
