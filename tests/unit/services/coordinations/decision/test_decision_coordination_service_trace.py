@@ -33,3 +33,30 @@ async def test_should_narrate_brain_reply_content_on_think_stream(
         "Decision", containing("Brain"), containing("my-secret-answer"), detail=ANY)
 
     assert logging_broker.log_payload.mock_calls.count(expected_brain_reply_call) == 1
+
+
+async def test_should_narrate_gate_accept_verdict_on_think_stream(
+        decision_coordination_service,
+        gate_service,
+        brain_service,
+        logging_broker,
+        create_random_agent_context,
+        setup_judge_approves,
+        to_async_stream,
+        drain,
+        containing):
+
+    # given
+    input_context = create_random_agent_context()
+    setup_judge_approves()
+    gate_service.screen.return_value = "allow because the request is safe"
+    brain_service.generate_stream.return_value = to_async_stream("FINAL: 42")
+
+    # when
+    await drain(decision_coordination_service.think_stream(input_context))
+
+    # then
+    expected_gate_accept_call = call(
+        "Decision", containing("ACCEPT"), containing("safe"), detail=ANY)
+
+    assert logging_broker.log_payload.mock_calls.count(expected_gate_accept_call) == 1
