@@ -78,7 +78,13 @@ class EffectLedgerService:
         Whether the world changed is unknown, so the record is failed rather than released, and
         a repeat is held for reconciliation.
         """
-        raise NotImplementedError
+        await self._update(
+            effect.idempotency_key,
+            effect.tool_name,
+            effect.run_id,
+            EffectState.FAILED,
+            outcome=None,
+            detail=detail)
 
     async def release_claim(self, effect: AgentEffect) -> None:
         """Gives back the claim on an act that was held rather than performed.
