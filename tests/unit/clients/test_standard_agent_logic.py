@@ -4,6 +4,7 @@
 # ---------------------------------------------------------------
 
 from standard_agents.models.clients.agents.exceptions import InvalidAgentCompositionException
+from standard_agents.models.loggings.trace_verbosity import TraceVerbosity
 from standard_agents.standard_agent import StandardAgent
 
 
@@ -52,6 +53,17 @@ def test_should_return_same_instance_on_each_builder_method():
         .knowledge(path="Knowledge")
         .mcp(endpoint_url="https://mcp/")
         .log_to(path="log.txt"))
+
+    # then
+    assert chained is agent
+
+
+def test_should_chain_log_to_with_verbosity():
+    # given
+    agent = StandardAgent()
+
+    # when
+    chained = agent.log_to(path="log.txt", verbosity=TraceVerbosity.NATURES)
 
     # then
     assert chained is agent
