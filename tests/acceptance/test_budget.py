@@ -172,3 +172,18 @@ async def test_should_measure_a_rejected_draft_on_the_text_protocol():
     # then: the rejected draft and the accepted one were both measured
     assert judged == 2
     assert usage_calls == 4
+
+
+async def test_should_not_stop_a_run_that_was_given_no_budget():
+    """The default is wide open: counting always happens, blocking does not. An agent given no
+    budget must not acquire one by having become measurable."""
+    # given
+    tool = _CountingTool()
+    agent = _agent_with(_always_calls_the_tool, tool).max_turns(3)
+
+    # when
+    actual_result = await agent.process_prompt("what is one plus one")
+
+    # then
+    assert "budget" not in actual_result
+    assert tool.calls > 0
