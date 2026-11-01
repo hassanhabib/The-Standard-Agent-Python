@@ -52,3 +52,28 @@ async def test_should_post_a_chat_completion_and_read_the_answer():
     assert messages[1]["content"] == "what is owed?"
 
     assert actual_answer == "FINAL: 12"
+
+
+async def test_should_stream_data_frames_until_the_done_sentinel():
+    # given: an SSE body with a comment, a non-data field, blank lines, an empty delta, the
+    # sentinel, and a frame after the sentinel that must never be read
+    server = ScriptedServerHandler.answering(
+        ": keep-alive\n"
+        + "event: message\n"
+        + 'data: {"choices":[{"delta":{"content":"FIN"}}]}\n\n'
+        + 'data: {"choices":[{"delta":{"content":"AL: "}}]}\n\n'
+        + 'data: {"choices":[{"delta":{}}]}\n\n'
+        + 'data: {"choices":[{"delta":{"content":"12"}}]}\n\n'
+        + "data: [DONE]\n\n"
+        + 'data: {"choices":[{"delta":{"content":"NOT READ"}}]}\n\n',
+        media_type="text/event-stream")
+
+    broker = create_broker(server)
+
+    # when
+    streamed = [chunk async for chunk in broker.generate_stream("be brief", "what is owed?")]
+
+    # then: the request asked to stream; only content deltas came out, in order, then stop
+    body = json.loads(server.bodies[0])
+    assert body["stream"] is True
+    assert streamed == ["FIN", "AL: ", "12"]
