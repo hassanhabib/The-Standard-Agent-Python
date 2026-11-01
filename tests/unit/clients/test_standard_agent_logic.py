@@ -235,3 +235,22 @@ async def test_should_stream_response_on_stream_prompt(
         if stream_event.type is AgentStreamEventType.RESPONSE)
 
     assert streamed_response == "Hi there."
+
+
+async def test_should_use_custom_brain_on_process_prompt(create_skill_broker, empty_memory_broker):
+    # given
+    expected_answer = "answer from the custom brain"
+
+    async def brain(system_prompt, user_prompt):
+        return expected_answer
+
+    agent = (StandardAgent()
+        .use_skills(create_skill_broker())
+        .use_memory(empty_memory_broker)
+        .on_brain(brain))
+
+    # when
+    actual_result = await agent.process_prompt(prompt="compute something")
+
+    # then
+    assert actual_result == expected_answer
