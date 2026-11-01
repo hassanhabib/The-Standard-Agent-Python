@@ -44,3 +44,21 @@ async def test_should_report_a_held_run_truthfully_through_the_string_run_adapte
     assert actual_outcome == expected_outcome
     assert actual_stoppable_outcome == expected_outcome
     assert actual_answer == HELD_RESULT
+
+
+async def test_should_stream_a_held_run_through_the_string_stream_adapter():
+    # given
+    agent = HoldingAgent()
+    streamed_events = []
+
+    # when
+    async for stream_event in agent.process_prompt_stream("wire the money"):
+        streamed_events.append(stream_event)
+
+    # then
+    held_events = [
+        stream_event for stream_event in streamed_events
+        if stream_event.type is AgentStreamEventType.STATUS
+        and stream_event.content == HELD_RESULT]
+
+    assert len(held_events) == 1
