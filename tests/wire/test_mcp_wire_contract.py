@@ -219,3 +219,35 @@ async def test_should_initialize_once_before_the_first_request():
     assert isinstance(initialize["params"]["capabilities"], dict)
     assert initialize["params"]["clientInfo"]["name"] == "Standard.Agents"
     assert messages[1].get("id") is None
+
+
+async def test_should_carry_the_session_and_the_negotiated_version_after_initialize():
+    # given: a server that opens a session and settles on an older protocol version
+    def respond(request, body):
+        if '"initialize"' in body:
+            initialize_response = ScriptedServerHandler.json(
+                http.HTTPStatus.OK,
+                '{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-03-26",'
+                + '"capabilities":{"tools":{}},"serverInfo":{"name":"s","version":"1"}}}')
+
+            initialize_response.headers["Mcp-Session-Id"] = "session-7"
+
+            return initialize_response
+
+        return ScriptedServerHandler.json(
+            http.HTTPStatus.OK,
+            '{"jsonrpc":"2.0","id":3,"result":{"tools":[]}}')
+
+    server = ScriptedServerHandler(respond)
+    broker = create_broker(server)
+
+    # when
+    await broker.list_tools()
+
+    # then: initialize opens the session; everything after it carries the session and the
+    # version the server chose
+    assert header_of(server.requests[0], "Mcp-Session-Id") is None
+
+    for request in server.requests[1:]:
+        assert header_of(request, "Mcp-Session-Id") == "session-7"
+        assert header_of(request, "MCP-Protocol-Version") == "2025-03-26"
