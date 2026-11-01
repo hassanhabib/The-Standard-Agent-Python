@@ -112,3 +112,23 @@ async def test_should_set_intent_to_tool_name_on_think_if_action(
 
     # then
     assert actual_context.intent == "calculator"
+
+
+async def test_should_set_intent_to_respond_on_think_if_final(
+        decision_coordination_service,
+        brain_service,
+        create_random_agent_context,
+        setup_gate_allows,
+        setup_judge_approves):
+
+    # given
+    input_context = create_random_agent_context()
+    setup_gate_allows()
+    setup_judge_approves()
+    brain_service.generate.return_value = "FINAL: 42"
+
+    # when
+    actual_context = await decision_coordination_service.think(input_context)
+
+    # then
+    assert actual_context.intent == "Respond"
