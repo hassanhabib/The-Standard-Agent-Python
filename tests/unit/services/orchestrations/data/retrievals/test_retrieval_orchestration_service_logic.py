@@ -169,3 +169,29 @@ async def test_should_retrieve_remote_tools(
     assert skill_service.mock_calls == []
     assert knowledge_service.mock_calls == []
     assert logging_broker.mock_calls == []
+
+
+@pytest.mark.parametrize(
+    "remote_discovery_exception",
+    _remote_discovery_exceptions(),
+    ids=REMOTE_DISCOVERY_EXCEPTION_IDS)
+async def test_should_retrieve_no_remote_tools_when_discovery_fails(
+        remote_discovery_exception,
+        retrieval_orchestration_service,
+        skill_service,
+        knowledge_service,
+        external_tool_service,
+        logging_broker):
+    """A server that cannot be asked offers nothing this turn; the foundation logged why."""
+    # given
+    external_tool_service.retrieve_tools.side_effect = remote_discovery_exception
+
+    # when
+    actual_tools = await retrieval_orchestration_service.retrieve_remote_tools()
+
+    # then
+    assert len(actual_tools) == 0
+    assert external_tool_service.mock_calls == [call.retrieve_tools()]
+    assert skill_service.mock_calls == []
+    assert knowledge_service.mock_calls == []
+    assert logging_broker.mock_calls == []
