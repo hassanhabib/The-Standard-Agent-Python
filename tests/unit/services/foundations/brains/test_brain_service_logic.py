@@ -52,3 +52,31 @@ async def test_should_pass_prompts_through_unaltered_on_generate(
         call.generate(system_prompt_with_formatting, user_prompt_with_formatting)]
 
     assert logging_broker.mock_calls == []
+
+
+async def test_should_generate_stream(
+        brain_service,
+        generator_broker,
+        logging_broker,
+        create_random_string,
+        to_async_stream,
+        drain):
+
+    # given
+    random_system_prompt = create_random_string()
+    random_user_prompt = create_random_string()
+    random_tokens = ["Hello", ", ", "world"]
+    expected_tokens = random_tokens
+    generator_broker.generate_stream.return_value = to_async_stream(*random_tokens)
+
+    # when
+    actual_tokens = await drain(
+        brain_service.generate_stream(random_system_prompt, random_user_prompt))
+
+    # then
+    assert actual_tokens == expected_tokens
+
+    assert generator_broker.mock_calls == [
+        call.generate_stream(random_system_prompt, random_user_prompt)]
+
+    assert logging_broker.mock_calls == []
