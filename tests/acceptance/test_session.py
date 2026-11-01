@@ -73,3 +73,27 @@ async def test_should_carry_conversation_across_prompts(tmp_path):
     # then: the follow-up carries what came before
     assert "capital of France" in captured_second_prompt
     assert "Paris" in captured_second_prompt
+
+
+# The property that makes resumption real: the session is the state, the instance is not. An
+# implementation whose continuity depends on the original instance still being alive has not
+# implemented this (SPEC.md 4.11).
+async def test_should_resume_a_conversation_on_a_different_agent_instance(tmp_path):
+    # given: the first agent answers, then is discarded entirely
+    sessions_path = str(tmp_path / "sessions")
+    first_agent = _new_agent(sessions_path, lambda user_prompt: "FINAL: Paris")
+    await first_agent.process_prompt("what is the capital of France?", session_id="user-7")
+    del first_agent
+
+    captured_prompts = []
+
+    second_agent = _new_agent(
+        sessions_path,
+        answer_for=lambda user_prompt: "FINAL: about 2.1 million",
+        capture=captured_prompts.append)
+
+    # when: a different instance picks the conversation up
+    await second_agent.process_prompt("and its population?", session_id="user-7")
+
+    # then
+    assert "Paris" in captured_prompts[-1]
