@@ -231,3 +231,22 @@ async def test_should_retrieve_remote_tools(
     assert skill_service.mock_calls == []
     assert memory_service.mock_calls == []
     assert logging_broker.mock_calls == []
+
+
+async def test_should_fan_in_routed_skills_using_context_route_on_recall(
+        data_coordination_service,
+        skill_service,
+        memory_service,
+        create_random_agent_context,
+        create_random_string):
+    # given
+    route_label = create_random_string()
+    input_context = dataclasses.replace(create_random_agent_context(), route=route_label)
+    skill_service.retrieve_skills.return_value = create_random_string()
+    memory_service.recall_memories.return_value = []
+
+    # when
+    await data_coordination_service.recall(input_context)
+
+    # then: Data fans skills in on the Gate's route label (carried by the loop)
+    assert skill_service.mock_calls.count(call.retrieve_skills(route_label)) == 1
