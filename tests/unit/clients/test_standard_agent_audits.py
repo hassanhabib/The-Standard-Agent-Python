@@ -58,3 +58,23 @@ async def test_should_write_to_custom_audit_delegate_on_process_prompt(answering
     assert captured_records
     assert any(record.kind is AuditKind.RUN for record in captured_records)
     assert sequences == sorted(sequences)
+
+
+async def test_should_stamp_principal_on_every_audit_record_on_process_prompt(answering_agent):
+    # given
+    expected_principal = "user-42"
+    captured_records = []
+
+    async def write(record):
+        captured_records.append(record)
+
+    agent = (answering_agent
+        .principal(lambda: expected_principal)
+        .on_audit(write))
+
+    # when
+    await agent.process_prompt(prompt="what is the answer?")
+
+    # then
+    assert captured_records
+    assert all(record.principal == expected_principal for record in captured_records)
