@@ -13,7 +13,9 @@ from standard_agents.brokers.sessions.db_concurrency_exception import DBConcurre
 from standard_agents.brokers.sessions.session_broker import SessionBroker
 from standard_agents.models.brokers.sessions.agent_session import AgentSession
 from standard_agents.models.foundations.sessions.exceptions import (
+    FailedSessionDependencyException,
     InvalidSessionException,
+    SessionDependencyException,
     SessionDependencyValidationException,
     SessionValidationException,
     StaleSessionException)
@@ -87,6 +89,8 @@ async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[N
 
         raise await _create_and_log_dependency_validation_exception(
             logging_broker, stale_session_exception)
+    except OSError as os_error:
+        raise await _create_and_log_dependency_exception(logging_broker, os_error)
 
 
 async def _create_and_log_validation_exception(
@@ -113,3 +117,23 @@ async def _create_and_log_dependency_validation_exception(
     await logging_broker.log_error(session_dependency_validation_exception)
 
     return session_dependency_validation_exception
+
+
+async def _create_and_log_dependency_exception(
+        logging_broker: LoggingBroker,
+        exception: Exception) -> SessionDependencyException:
+
+    session_dependency_exception = _create_dependency_exception(exception)
+    await logging_broker.log_error(session_dependency_exception)
+
+    return session_dependency_exception
+
+
+def _create_dependency_exception(exception: Exception) -> SessionDependencyException:
+    failed_session_dependency_exception = FailedSessionDependencyException(
+        message="Failed session dependency error occurred, contact support.",
+        inner_exception=exception)
+
+    return SessionDependencyException(
+        message="Session dependency error occurred, contact support.",
+        inner_exception=failed_session_dependency_exception)
