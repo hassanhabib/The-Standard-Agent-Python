@@ -24,6 +24,7 @@ from standard_agents.services.orchestrations.decision.inferences.inference_orche
 _REFUSE_VERDICT = "refuse"
 _ROUTE_VERDICT = "route"
 _REFUSE_DIRECTION = "Refuse"
+_RETURN_RESPONSE_DIRECTION = "ReturnResponse"
 _AWAIT_INPUT_DIRECTION = "AwaitInput"
 _CONFLICT_PREFIX = "CONFLICT:"
 _CONFLICT_OPTION_SEPARATOR = "||"
@@ -142,6 +143,17 @@ class DecisionCoordinationService:
         if preferred is not None:
             return context, False
 
+        chosen = _match_choice(context.prompt, conflict)
+
+        if chosen is not None:
+            learned_context = dataclasses.replace(
+                context,
+                direction_type=_RETURN_RESPONSE_DIRECTION,
+                payload=f"Understood — I'll follow '{chosen.skill}' for that from now on.",
+                remember=f"{_PREFERENCE_PREFIX}{key}::{chosen.skill}")
+
+            return learned_context, True
+
         question_context = dataclasses.replace(
             context,
             direction_type=_AWAIT_INPUT_DIRECTION,
@@ -164,6 +176,10 @@ def _find_preference(observations: Sequence[str], key: str) -> str | None:
     return record[len(prefix):] if record is not None else None
 
 
+def _match_choice(prompt: str, conflict: SkillConflict) -> SkillDirective | None:
+    return next((option for option in conflict.options if option.skill in prompt), None)
+
+
 def _parse_conflict(verdict: str | None) -> SkillConflict | None:
     if verdict is None or not verdict.startswith(_CONFLICT_PREFIX):
         return None
@@ -178,7 +194,7 @@ def _parse_conflict(verdict: str | None) -> SkillConflict | None:
 def _to_directive(option: str) -> SkillDirective:
     skill, instruction = option.split(_CONFLICT_LABEL_SEPARATOR, 1)
 
-    return SkillDirective(skill, instruction)
+    return SkillDirective(skill.strip(), instruction.strip())
 
 
 def _build_clarification_question(conflict: SkillConflict) -> str:
