@@ -41,6 +41,8 @@ class TierMap:
 
     def __init__(self, package: types.ModuleType) -> None:
         modules = tuple(_modules_of(package))
+        self.services_package = f"{package.__name__}.services"
+        self.module_names = tuple(module.__name__ for module in modules)
         self.classes = tuple(dict.fromkeys(
             value
             for module in modules
@@ -64,6 +66,13 @@ class TierMap:
             self.services_under("orchestrations")
             + self.services_under("coordinations")
             + self.services_under("managements"))
+
+    def service_tiers(self) -> tuple[str, ...]:
+        """Every package directly under services, whatever it holds."""
+        return tuple(dict.fromkeys(
+            module_name.removeprefix(f"{self.services_package}.").split(".")[0]
+            for module_name in self.module_names
+            if module_name.startswith(f"{self.services_package}.")))
 
     def brokers(self) -> tuple[type, ...]:
         return tuple(

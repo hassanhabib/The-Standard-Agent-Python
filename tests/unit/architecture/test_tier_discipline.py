@@ -196,3 +196,23 @@ def test_should_not_let_any_broker_depend_on_a_nature_broker(tier_map):
         "a broker is a thin liaison to ONE resource (Invariant 3). A broker that reaches another "
         "nature's resource has business flow in it, and it is the hardest kind to see because "
         "it sits underneath everything else.")
+
+
+def test_should_check_every_service_tier_that_exists(tier_map):
+    """A tier nobody lists is a tier nobody checks: once a comment, now a rule.
+
+    Every package under standard_agents.services must be one of the four checked tiers. When the
+    loop moved to managements, it left every rule in this module for as long as nobody noticed,
+    and a future tier gets no such window.
+    """
+    # given
+    checked_tiers = {"foundations", "orchestrations", "coordinations", "managements"}
+
+    # when
+    actual_tiers = set(tier_map.service_tiers())
+
+    # then
+    assert actual_tiers <= checked_tiers, (
+        f"[{', '.join(sorted(actual_tiers - checked_tiers))}] is a tier absent from the checked "
+        "list, and a tier absent from the checked list is a tier nobody is checking, which is "
+        "how the loop's move to managements went unwatched")
