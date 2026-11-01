@@ -115,3 +115,30 @@ async def test_should_retrieve_instructions_with_local_tools_only_when_remote_di
     assert external_tool_service.mock_calls == [call.retrieve_tools()]
     assert knowledge_service.mock_calls == []
     assert logging_broker.mock_calls == []
+
+
+async def test_should_not_retrieve_remote_tools_on_retrieve_instructions_when_the_marker_is_absent(
+        retrieval_orchestration_service,
+        skill_service,
+        knowledge_service,
+        external_tool_service,
+        logging_broker,
+        create_random_string):
+    """An agent that never advertises never pays a discovery call: the marker is the opt-in."""
+    # given
+    random_route = create_random_string()
+    input_route = random_route
+    skills_without_marker = "You are a calculator agent."
+    expected_instructions = skills_without_marker
+    skill_service.retrieve_skills.return_value = skills_without_marker
+
+    # when
+    actual_instructions = await retrieval_orchestration_service.retrieve_instructions(
+        input_route)
+
+    # then
+    assert actual_instructions == expected_instructions
+    assert skill_service.mock_calls == [call.retrieve_skills(input_route)]
+    assert external_tool_service.mock_calls == []
+    assert knowledge_service.mock_calls == []
+    assert logging_broker.mock_calls == []
