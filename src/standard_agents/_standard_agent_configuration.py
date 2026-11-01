@@ -13,6 +13,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
 from standard_agents.models.clients.agents.exceptions import (
+    InvalidAgentApiUrlException,
     InvalidAgentBudgetException,
     InvalidAgentConfigurationException)
 
@@ -25,7 +26,21 @@ def apply_document(agent: StandardAgent, document_json: str) -> None:
     document = json.loads(document_json)
 
     for key, value in document.items():
+        _apply_entry(agent, key, value)
+
+
+def _apply_entry(agent: StandardAgent, key: str, value: Any) -> None:
+    # The document reaches the same verbs code does, so a verb's refusal is rewrapped into the
+    # document's own exception naming the entry the author must fix (they are looking at a JSON
+    # file, not a stack trace), with the verb's refusal preserved beneath it.
+    try:
         _apply(agent, key, value)
+    except InvalidAgentApiUrlException as invalid_agent_api_url_exception:
+        raise InvalidAgentConfigurationException(
+            message=(
+                f"The '{key}' entry's 'apiUrl' is not an endpoint base the route can be "
+                + "appended to. " + invalid_agent_api_url_exception.message),
+            inner_exception=invalid_agent_api_url_exception)
 
 
 def _apply(agent: StandardAgent, key: str, value: Any) -> None:
@@ -38,6 +53,15 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
 
         case "description":
             agent.identity(agent.name, description=value)
+
+        case "brain":
+            agent.brain(
+                value["apiUrl"],
+                value.get("apiKey", ""),
+                value["model"],
+                temperature=value.get("temperature", 0.7),
+                max_tokens=value.get("maxTokens", 1024),
+                timeout_seconds=value.get("timeoutSeconds", 120))
 
         case "ruleGate":
             agent.rule_gate(*value)
@@ -107,4 +131,4 @@ def _apply_budget(agent: StandardAgent, budget: Any) -> None:
                 + "'costPerThousandTokens'. Cost is priced off the token count times that "
                 + "rate, so without it the spend is zero forever and the bound can never "
                 + "trip. Add your model's rate, or bound by 'maxTokens' instead."),
-            inner_exception=invalid_agent_budget_exception) from invalid_agent_budget_exception
+            inner_exception=invalid_agent_budget_exception)
