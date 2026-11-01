@@ -128,6 +128,7 @@ class StandardAgent(Agent):
         self._logging_broker: LoggingBroker | None = None
         self._usage_broker: UsageBroker = RatioUsageBroker()
         self._brain_settings: InferenceSettings | None = None
+        self._gate_settings: InferenceSettings | None = None
         self._generator_broker_v1: GeneratorBrokerV1 | None = None
         self._native_brain_source: Callable[[], GeneratorBrokerV1] | None = None
         self._local_gate_screen: Callable[[str, str], Awaitable[str]] | None = None
@@ -210,6 +211,23 @@ class StandardAgent(Agent):
             temperature,
             max_tokens,
             timeout_seconds=120)
+
+        return self
+
+    def gate(
+            self,
+            api_url: str,
+            api_key: str,
+            model: str,
+            *,
+            temperature: float = 0.0,
+            max_tokens: int = 16,
+            timeout_seconds: int = 30) -> StandardAgent:
+
+        _validate_api_url(api_url)
+
+        self._gate_settings = InferenceSettings(
+            api_url, api_key, model, temperature, max_tokens, timeout_seconds)
 
         return self
 
