@@ -55,7 +55,12 @@ class RetrievalOrchestrationService:
         raise NotImplementedError
 
     async def retrieve_remote_tools(self) -> Sequence[McpTool]:
-        raise NotImplementedError
+        """Every tool the servers declared, described or not.
+
+        The callers apply the opt-in themselves: selection judges described names, the native
+        list advertises described definitions, and the perimeter binds described names.
+        """
+        return await self.external_tool_service.retrieve_tools()
 
     async def _render_tool_catalog(self, skills: str) -> str:
         """Remote tools join the catalog only when the marker is present.
