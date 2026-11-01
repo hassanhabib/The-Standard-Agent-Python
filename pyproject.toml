@@ -35,6 +35,7 @@ where = ["src"]
 [tool.setuptools.package-data]
 standard_agents = ["py.typed", "prompts/guardians/*.md"]
 xeptions = ["py.typed"]
+restfulsense = ["py.typed"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
