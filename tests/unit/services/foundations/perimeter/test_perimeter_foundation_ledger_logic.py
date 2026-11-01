@@ -176,3 +176,36 @@ async def test_should_release_claim_if_record_is_in_flight(
         call.delete_record(random_effect.idempotency_key)]
 
     assert logging_broker.mock_calls == []
+
+
+async def test_should_not_release_claim_if_record_is_not_in_flight(
+        effect_ledger_service,
+        effect_ledger_broker,
+        logging_broker,
+        create_random_string,
+        create_random_effect,
+        create_random_date_time,
+        create_in_flight_record):
+
+    """A record with an outcome names an act that happened; releasing it would turn run-once
+    back into run-again.
+    """
+
+    # given
+    random_effect = create_random_effect()
+
+    completed_record = dataclasses.replace(
+        create_in_flight_record(random_effect, create_random_date_time()),
+        state=EffectState.COMPLETED,
+        outcome=create_random_string())
+
+    effect_ledger_broker.select_record.return_value = completed_record
+
+    # when
+    await effect_ledger_service.release_claim(random_effect)
+
+    # then
+    assert effect_ledger_broker.mock_calls == [
+        call.select_record(random_effect.idempotency_key)]
+
+    assert logging_broker.mock_calls == []
