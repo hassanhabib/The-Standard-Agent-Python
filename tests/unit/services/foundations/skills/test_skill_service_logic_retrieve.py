@@ -34,3 +34,28 @@ class TestSkillServiceLogicRetrieve(SkillServiceTests):
         assert actual_skills == expected_skills
         assert self.skill_broker_mock.mock_calls == [call.select_skills()]
         assert self.logging_broker_mock.mock_calls == []
+
+    # SPEC.md 4.2: a skill MAY carry its name and description as metadata, which is stripped
+    # from the body the brain reads, and the declared name is the one skills are ordered by.
+    def test_should_retrieve_skills_without_their_frontmatter(self) -> None:
+        # given
+        random_body = self.create_random_string() + "\n" + self.create_random_string()
+
+        described_skill = Skill(
+            name="z-" + self.create_random_string(),
+            content=(
+                "---\n"
+                + "name: a-first\n"
+                + f"description: {self.create_random_string()}\n"
+                + "---\n"
+                + random_body))
+
+        plain_skill = Skill(name="m-" + self.create_random_string(), content="plain")
+        expected_skills = random_body + "\n\n" + plain_skill.content
+        self.skill_broker_mock.select_skills.return_value = [plain_skill, described_skill]
+
+        # when
+        actual_skills = asyncio.run(self.skill_service.retrieve_skills())
+
+        # then
+        assert actual_skills == expected_skills
