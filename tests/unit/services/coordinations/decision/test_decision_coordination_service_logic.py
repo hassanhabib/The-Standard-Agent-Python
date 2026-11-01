@@ -229,3 +229,23 @@ async def test_should_route_structured_tool_call_on_think(
     assert actual_context.direction_type == "calculator"
     assert actual_context.intent == "calculator"
     assert "47*89" in actual_context.payload
+
+
+async def test_should_treat_malformed_tool_call_as_answer_on_think(
+        decision_coordination_service,
+        brain_service,
+        create_random_agent_context,
+        setup_gate_allows,
+        setup_judge_approves):
+
+    # given
+    input_context = create_random_agent_context()
+    setup_gate_allows()
+    setup_judge_approves()
+    brain_service.generate.return_value = "TOOL: this is not valid json"
+
+    # when
+    actual_context = await decision_coordination_service.think(input_context)
+
+    # then
+    assert actual_context.direction_type == "ReturnResponse"
