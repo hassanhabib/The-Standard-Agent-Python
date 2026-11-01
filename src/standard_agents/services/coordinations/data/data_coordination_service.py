@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Sequence
 
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
@@ -37,7 +38,9 @@ class DataCoordinationService:
         self.logging_broker = logging_broker
 
     async def recall(self, context: AgentContext) -> AgentContext:
-        raise NotImplementedError
+        system_prompt = await self.retrieval_service.retrieve_instructions(context.route)
+
+        return dataclasses.replace(context, system_prompt=system_prompt)
 
     async def remember(self, memory: str) -> None:
         raise NotImplementedError
