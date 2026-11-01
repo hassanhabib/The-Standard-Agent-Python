@@ -8,6 +8,8 @@ import copy
 import dataclasses
 from unittest.mock import call
 
+import pytest
+
 from standard_agents.models.foundations.judges.judgement import Judgement
 from standard_agents.models.orchestrations.agents.agent_status import AgentStatus
 from tests.unit.services.orchestrations.decision.decision_orchestration_service_tests import (
@@ -113,3 +115,24 @@ class TestDecisionOrchestrationServiceLogicThink(DecisionOrchestrationServiceTes
         assert self.judge_service_mock.mock_calls == [
             call.evaluate(input_context.prompt, random_answer)
         ]
+
+    @pytest.mark.parametrize("refusing_verdict", ["refuse", "Refuse: unsafe request"])
+    def test_should_think_and_refuse_when_gate_refuses(self, refusing_verdict: str) -> None:
+        # given
+        input_context = self.create_random_context()
+
+        expected_context = dataclasses.replace(
+            copy.deepcopy(input_context),
+            direction_type="Refuse",
+            payload="I'm not able to help with that.")
+
+        self.gate_service_mock.screen.return_value = refusing_verdict
+
+        # when
+        actual_context = asyncio.run(self.decision_orchestration_service.think(input_context))
+
+        # then
+        assert actual_context == expected_context
+        assert self.gate_service_mock.mock_calls == [call.screen(input_context.prompt)]
+        assert self.brain_service_mock.mock_calls == []
+        assert self.judge_service_mock.mock_calls == []
