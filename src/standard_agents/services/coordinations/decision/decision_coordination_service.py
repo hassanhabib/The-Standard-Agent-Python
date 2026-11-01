@@ -81,6 +81,7 @@ class DecisionCoordinationService:
 
             return
 
+        context = await self._routed_by_gate(context, verdict)
         decided = context
 
         def set_decided(interpreted: AgentContext) -> None:
