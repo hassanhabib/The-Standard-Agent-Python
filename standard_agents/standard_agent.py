@@ -4,7 +4,7 @@
 # ---------------------------------------------------------------
 
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterable
 
 from standard_agents.brokers.classifiers.function_classifier_broker import (
     FunctionClassifierBroker)
@@ -22,6 +22,7 @@ from standard_agents.brokers.knowledges.not_configured_knowledge_broker import (
 from standard_agents.brokers.loggings.ilogging_broker import ILoggingBroker
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.brokers.memories.file_memory_broker import FileMemoryBroker
+from standard_agents.brokers.memories.function_memory_broker import FunctionMemoryBroker
 from standard_agents.brokers.memories.imemory_broker import IMemoryBroker
 from standard_agents.brokers.memories.not_configured_memory_broker import (
     NotConfiguredMemoryBroker)
@@ -88,6 +89,16 @@ class StandardAgent:
 
         return self
 
+    def on_skills(self, select_skills: Callable[[], Awaitable[dict[str, str]]]) -> "StandardAgent":
+        self.skill_broker = FunctionSkillBroker(select_skills)
+
+        return self
+
+    def on_memory(self, select_all_memories: Callable[[], Awaitable[list[str]]]) -> "StandardAgent":
+        self.memory_broker = FunctionMemoryBroker(select_all_memories)
+
+        return self
+
     def memory(self, path: str) -> "StandardAgent":
         self.memory_broker = FileMemoryBroker(path)
 
@@ -146,6 +157,12 @@ class StandardAgent:
     # Tools accumulate: a second tool adds to the first. Names match without regard to case.
     def tool(self, tool: ITool) -> "StandardAgent":
         self.agent_tools[tool.name.lower()] = tool
+
+        return self
+
+    def tools(self, tools: Iterable[ITool]) -> "StandardAgent":
+        for tool in tools:
+            self.tool(tool)
 
         return self
 
