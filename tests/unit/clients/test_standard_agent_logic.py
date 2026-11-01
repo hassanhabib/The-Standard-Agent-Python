@@ -130,3 +130,21 @@ async def test_should_compose_on_process_prompt_if_generator_is_swapped_without_
 
     # then
     assert actual_result == "ok"
+
+
+async def test_should_compose_bare_brain_on_process_prompt_without_guardians(
+        create_skill_broker,
+        empty_memory_broker,
+        create_generator_broker):
+
+    # given
+    agent = (StandardAgent()
+        .use_skills(create_skill_broker())
+        .use_memory(empty_memory_broker)
+        .use_generator(create_generator_broker("Hello there!")))
+
+    # when
+    actual_result = await agent.process_prompt(prompt="Hi there!")
+
+    # then
+    assert actual_result == "Hello there!"
