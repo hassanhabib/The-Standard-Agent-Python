@@ -8,6 +8,7 @@ from __future__ import annotations
 import asyncio
 import dataclasses
 from collections.abc import AsyncIterator, Iterable, Mapping
+from contextlib import asynccontextmanager
 
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.brokers.telemetries.not_configured_telemetry_broker import (
@@ -20,6 +21,9 @@ from standard_agents.models.clients.agents.agent_run_stream import AgentRunStrea
 from standard_agents.models.clients.agents.agent_stream_event import AgentStreamEvent
 from standard_agents.models.clients.agents.prompt_request import PromptRequest
 from standard_agents.models.coordinations.agents.agent_budget import AgentBudget
+from standard_agents.models.coordinations.agents.exceptions import (
+    AgentCoordinationValidationException,
+    InvalidAgentException)
 from standard_agents.models.coordinations.agents.principal_resolver import PrincipalResolver
 from standard_agents.models.coordinations.agents.tool_narration import ToolNarration
 from standard_agents.models.coordinations.agents.tool_selector import ToolSelector
@@ -31,6 +35,8 @@ from standard_agents.services.coordinations.decision.decision_coordination_servi
     DecisionCoordinationService)
 from standard_agents.services.coordinations.direction.direction_coordination_service import (
     DirectionCoordinationService)
+from standard_agents.services.managements._text import is_blank
+from xeptions import Xeption
 
 _DEFAULT_MAX_TURNS = 7
 
@@ -168,36 +174,67 @@ class RunManagementService:
             request: PromptRequest,
             cancellation: asyncio.Event | None) -> AgentOutcome:
 
-        await self.logging_broker.log_reset()
+        async with _handling_exceptions(self.logging_broker):
+            _validate_prompt(request.prompt)
 
-        context = AgentContext(prompt=request.prompt)
+            await self.logging_broker.log_reset()
 
-        for turn in range(self.max_turns):
-            await self.logging_broker.log_turn(turn)
+            context = AgentContext(prompt=request.prompt)
 
-            context = await self.data_coordination_service.recall(context)
-            context = await self.decision_coordination_service.think(context)
+            for turn in range(self.max_turns):
+                await self.logging_broker.log_turn(turn)
+
+                context = await self.data_coordination_service.recall(context)
+                context = await self.decision_coordination_service.think(context)
+
+                if context.status is AgentStatus.REVISING:
+                    continue
+
+                context = await self.direction_coordination_service.act(context)
+
+                if context.status is not AgentStatus.WORKING:
+                    break
+
+            # Turns ran out with the loop still WORKING: no answer was ever delivered, and the
+            # last tool output is not one.
+            if context.status is AgentStatus.WORKING:
+                return AgentOutcome(_TURNS_EXHAUSTED_MESSAGE, context.status)
 
             if context.status is AgentStatus.REVISING:
-                continue
+                context = dataclasses.replace(
+                    context,
+                    result=_RETRIES_EXHAUSTED_MESSAGE,
+                    status=AgentStatus.REFUSED)
 
-            context = await self.direction_coordination_service.act(context)
+            if context.remember:
+                await self.data_coordination_service.remember(context.remember)
 
-            if context.status is not AgentStatus.WORKING:
-                break
+            return AgentOutcome(context.result, context.status)
 
-        # Turns ran out with the loop still WORKING: no answer was ever delivered, and the last
-        # tool output is not one.
-        if context.status is AgentStatus.WORKING:
-            return AgentOutcome(_TURNS_EXHAUSTED_MESSAGE, context.status)
 
-        if context.status is AgentStatus.REVISING:
-            context = dataclasses.replace(
-                context,
-                result=_RETRIES_EXHAUSTED_MESSAGE,
-                status=AgentStatus.REFUSED)
+def _validate_prompt(prompt: str | None) -> None:
+    if is_blank(prompt):
+        raise InvalidAgentException(
+            message="Invalid prompt. Please correct the error and try again.")
 
-        if context.remember:
-            await self.data_coordination_service.remember(context.remember)
 
-        return AgentOutcome(context.result, context.status)
+@asynccontextmanager
+async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[None]:
+    try:
+        yield
+    except InvalidAgentException as invalid_agent_exception:
+        raise await _create_and_log_validation_exception(
+            logging_broker, invalid_agent_exception)
+
+
+async def _create_and_log_validation_exception(
+        logging_broker: LoggingBroker,
+        exception: Xeption | None) -> AgentCoordinationValidationException:
+
+    agent_coordination_validation_exception = AgentCoordinationValidationException(
+        message="Agent coordination validation error occurred, fix the error and try again.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(agent_coordination_validation_exception)
+
+    return agent_coordination_validation_exception
