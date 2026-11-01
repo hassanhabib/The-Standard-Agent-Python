@@ -10,6 +10,7 @@ truncated at the start of every run, so a sink only ever held the last prompt an
 asking what the agent did yesterday got nothing.
 """
 
+import asyncio
 import hashlib
 import json
 from collections import defaultdict
@@ -75,6 +76,15 @@ def _runs_of(lines: list[str]) -> dict[str, list[str]]:
 
 def _sha256_hex(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _is_parseable(line: str) -> bool:
+    try:
+        json.loads(line)
+
+        return True
+    except json.JSONDecodeError:
+        return False
 
 
 async def test_should_retain_every_run_in_the_decision_log_on_process_prompt(
@@ -143,3 +153,34 @@ async def test_should_detect_an_altered_or_removed_record_in_the_decision_log(
     assert actual_intact_link is None
     assert actual_altered_link is not None
     assert actual_shortened_link is not None
+
+
+# SPEC.md 4.4 and 4.7: one instance serves prompts concurrently, records from concurrent runs MAY
+# interleave in the sink, and every record MUST still be attributable to exactly one run. This is
+# the assertion that caught run identity living in broker instance fields.
+async def test_should_keep_concurrent_runs_attributable_in_the_decision_log(
+        answering_agent,
+        audit_path):
+    # given
+    agent = answering_agent
+    expected_run_count = 64
+
+    # when: one agent instance, sixty-four prompts in flight at once
+    await asyncio.gather(*(
+        agent.process_prompt(prompt=f"question {index}")
+        for index in range(expected_run_count)))
+
+    # then
+    actual_lines = _read_all_lines(audit_path)
+
+    assert all(_is_parseable(line) for line in actual_lines)
+
+    runs = _runs_of(actual_lines)
+
+    assert len(runs) == expected_run_count
+
+    for run in runs.values():
+        sequences = [_sequence_of(line) for line in run]
+
+        assert len(set(sequences)) == len(sequences)
+        assert 0 in sequences
