@@ -333,3 +333,31 @@ async def test_should_carry_a_tool_exchange_across_prompts_in_one_session(tmp_pa
     assert answer is not None
     assert answer.tool_call_id == "call_7"
     assert answer.content == "4183"
+
+
+# The other half of the same property. Once a turn carries its calls, those calls have to be as
+# session-scoped as its words already are: one agent instance serving two conversations must
+# never hand one conversation's call to the other. Keeping the exchanges anywhere but the session,
+# on the instance or in a module global, satisfies the carrying test above and leaks here, and
+# nothing else in this suite would notice: every other session test runs with no tools.
+async def test_should_not_carry_one_sessions_tool_exchange_into_another(tmp_path):
+    # given
+    other_conversations = []
+
+    agent = _new_native_agent(
+        str(tmp_path / "sessions"),
+        _CalculatorTool(),
+        _calculating_once_then_answering(other_conversations))
+
+    # when: one instance, two conversations
+    await agent.process_prompt("what is 47 times 89?", session_id="alice")
+    await agent.process_prompt("what is the capital of France?", session_id="bob")
+
+    # then: bob is handed neither alice's call nor the answer that names it
+    other_conversation = other_conversations[-1] if other_conversations else []
+
+    assert not any(message.role == MessageRole.TOOL for message in other_conversation)
+
+    assert not any(
+        message.role == MessageRole.ASSISTANT and message.tool_calls
+        for message in other_conversation)
