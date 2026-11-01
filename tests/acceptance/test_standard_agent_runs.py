@@ -74,6 +74,46 @@ class TestStandardAgentRuns:
         assert brain_calls[0][0] == expected_system_prompt
         assert f"echo returned: {tool_input}" in brain_calls[1][1]
 
+    # Data, end to end: memories from a file, knowledge from the caller's own function, both in
+    # front of the brain before it decides.
+    def test_should_recall_memories_and_knowledge_for_the_brain(self, tmp_path: Path) -> None:
+        # given
+        input_prompt = create_random_string()
+        random_memory = create_random_string()
+        random_knowledge = create_random_string()
+        memory_file = tmp_path.joinpath("memory.txt")
+        memory_file.write_text(f"{random_memory}\n\n")
+        knowledge_queries = []
+        brain_calls = []
+
+        async def knowledge(query: str) -> list[str]:
+            knowledge_queries.append(query)
+
+            return [random_knowledge]
+
+        async def brain(system_prompt: str, user_prompt: str) -> str:
+            brain_calls.append(user_prompt)
+
+            return "FINAL: done"
+
+        expected_user_prompt = (
+            f"Task: {input_prompt}\n\n"
+            + "Observations so far:\n"
+            + f"- {random_memory}\n"
+            + f"- {random_knowledge}\n")
+
+        agent = (StandardAgent()
+            .memory(str(memory_file))
+            .on_knowledge(knowledge)
+            .on_brain(brain))
+
+        # when
+        asyncio.run(agent.run(input_prompt))
+
+        # then
+        assert knowledge_queries == [input_prompt]
+        assert brain_calls == [expected_user_prompt]
+
 
 class EchoTool(ITool):
     @property
