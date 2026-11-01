@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "standard-agents"
-version = "0.1.0.0"
+version = "1.0.0.0"
 description = "The Standard AI Agent Framework for Python: Agent = Orchestration(Data, Decision, Direction)."
 readme = "README.md"
 requires-python = ">=3.10"

@@ -2,19 +2,44 @@
 
 **`Agent = Orchestration(Data, Decision, Direction)`**
 
-The Python port of [The Standard AI Agent Framework](https://github.com/hassanhabib/The-Standard-Agent),
-built to [The Standard](https://github.com/hassanhabib/The-Standard): brokers, foundation services,
-orchestrations, a coordination and an exposer, every exception localized and categorized, and every
-routine written test-first (each test has a `-> FAIL` commit before its `-> PASS` commit).
+A Python implementation of [The Standard for Agents](https://github.com/hassanhabib/The-Standard-Agent-Specs/blob/main/SPEC.md),
+built to [The Standard](https://github.com/hassanhabib/The-Standard). The specification is the
+source of truth; the C# reference implementation,
+[Standard.Agents](https://github.com/hassanhabib/The-Standard-Agent), is one realization of it.
 
 - **Data**: what the agent *has* (skills, memory, knowledge). Verb: **Recall**
 - **Decision**: what the agent *thinks* (one brain, wrapped in a Gate and a Judge). Verb: **Think**
-- **Direction**: what the agent *does* (act through a tool, or return). Verb: **Act**
+- **Direction**: what the agent *does* (act through a tool, call out, or return). Verb: **Act**
 
 Orchestration is not a fourth nature. It is the loop that turns the three.
 
-The framework has no runtime dependencies and makes no network calls. The brain is whatever you
-compose: a local open-weight model behind `use_generator`, or your own function behind `on_brain`.
+The library has no runtime dependencies and makes no network calls of its own. The brain is
+whatever you compose: a local open-weight model behind `use_generator`, or your own function
+behind `on_brain`.
+
+## Conformance
+
+| | |
+|---|---|
+| Specification | SPEC.md **v1.18** |
+| Profile claimed | **Core** (SPEC.md 8.1) |
+| At version | **1.0.0.0** |
+| Evidence | `python -m conformance <vectors> --profile Core`, run in CI on every change |
+
+The evidence is reproducible by anyone (SPEC.md 1.1): the vectors are public, in the reference
+implementation's repository.
+
+```bash
+git clone --depth 1 https://github.com/hassanhabib/The-Standard-Agent.git reference
+python -m conformance reference/conformance/vectors --profile Core
+```
+
+Today the runner can drive 13 of the 88 vectors and the rest are reported `UNSUPPORTED`, never
+run half-configured. Of the 13, ten pass: the six Core vectors, plus `gate-refusal-short-circuits`,
+`constitution-binds-guardians`, `consumption-replaces-policy` and `judge-receives-the-task`. Three
+fail, as expected for Full capabilities that are not built: `structured-tool-call` (6.1) and
+`duplicate-effect-executes-once` and `a-replay-says-it-already-ran` (run-once, 4.9). No profile
+above Core is claimed.
 
 ## Install
 
@@ -22,7 +47,7 @@ compose: a local open-weight model behind `use_generator`, or your own function 
 pip install -e ".[test]"
 ```
 
-Python 3.10 or later.
+Python 3.10 or later. The package is typed (`py.typed`).
 
 ## One line, then one capability at a time
 
@@ -31,7 +56,7 @@ import asyncio
 from standard_agents import StandardAgent
 
 async def brain(system_prompt: str, user_prompt: str) -> str:
-    ...  # call your local model here; reply "ACTION: <tool>: <input>" or "FINAL: <answer>"
+    ...  # call your local model; reply "ACTION: <tool>: <input>" or "FINAL: <answer>"
 
 agent = StandardAgent().on_brain(brain)
 
@@ -42,36 +67,60 @@ Everything else is opt-in, with a default that behaves as if the capability were
 
 ```python
 agent = (StandardAgent()
-    .skills("skills")                  # who it is: Markdown, read in name order (Data)
+    .skills("skills")                  # who it is: Markdown, found recursively (Data)
     .memory("memory.txt")              # one memory per line (Data)
-    .on_knowledge(search_documents)      # grounding for this prompt (Data)
+    .on_knowledge(search_documents)    # grounding for this prompt (Data)
     .on_gate(screen)                   # screen the request before the brain sees it (Decision)
     .on_judge(review)                  # review the answer before the user sees it (Decision)
+    .constitution("constitution.md")   # one law above both guardians (Decision)
     .tool(CalculatorTool())            # what it can do (Direction)
+    .on_mcp(call_remote_tool)          # where an act it does not own is sent (Direction)
     .max_turns(7)
-    .log_to("log.txt")                 # turn-by-turn trace
+    .log_to("log.txt")                 # turn-by-turn trace, every line naming its run
     .on_brain(brain))
 
 outcome = asyncio.run(agent.run("What is 47 * 89?"))
-outcome.status   # AgentStatus.RESPONDED, REFUSED, AWAITING_INPUT or FAILED
+outcome.status   # AgentStatus.RESPONDED, REFUSED, AWAITING_INPUT, AWAITING_APPROVAL or FAILED
 outcome.result   # the answer, or what the run says instead of one
 ```
 
 Use `run` when how the run ended matters: a refusal and an answer read alike as text.
 
-### The three ways to reach anything
+### The three ways to reach a capability (SPEC.md 4.8)
 
-| Mode | Verb | Example |
-|---|---|---|
-| Local | a path | `.skills("skills")`, `.memory("memory.txt")`, `.log_to("log.txt")` |
-| Custom | `on_*`, your own async function | `.on_brain(fn)`, `.on_skills(fn)`, `.on_memory(fn)`, `.on_knowledge(fn)`, `.on_gate(fn)`, `.on_judge(fn)` |
-| External | `use_*`, a broker that implements the interface | `.use_generator(broker)`, `.use_skills(...)`, `.use_memory(...)`, `.use_knowledge(...)`, `.use_gate(...)`, `.use_judge(...)`, `.use_logging(...)` |
+| Capability | Local | External (a broker) | Custom (a function) |
+|---|---|---|---|
+| Skills | `skills(path)` | `use_skills` | `on_skills` |
+| Memory | `memory(path)` | `use_memory` | `on_memory` |
+| Trace | `log_to(path)` | `use_logging` | `on_log` |
+| Brain | not offered: running a model needs a runtime (a dependency) or an endpoint (a network), and Local may require neither | `use_generator` | `on_brain` |
+| Knowledge | not built: a folder needs ranked retrieval (4.2) | `use_knowledge` | `on_knowledge` |
+| Gate, Judge | not offered: a rule that branches is logic, which The Standard keeps out of brokers; a rule guardian is one line of `on_gate` / `on_judge` | `use_gate`, `use_judge` | `on_gate`, `on_judge` |
+| Remote tools | not built: a built-in client must speak the protocol's real transports (4.8) | `use_mcp` | `on_mcp` |
 
-### The reply protocol
+A test keeps this table honest: a capability missing a mode with no recorded reason fails the
+build.
 
-The brain answers in the same text protocol the C# framework uses: an optional `SAY: <progress>`
-line, then exactly one `ACTION: <tool>: <input>` or `FINAL: <answer>`. A reply with neither prefix is
-taken as the answer. Skills write the tool catalog in wherever they put `{{tools}}`.
+### The reply protocol (SPEC.md 6.0)
+
+`ACTION: <tool>: <input>` to act, read from the first line only; `FINAL: <answer>` to answer, and an
+answer may span lines; a reply with neither is the answer itself. This library does not voice
+narration, so a `SAY:` line is not peeled: it is read as the reply's first line, as 6.0 requires of
+an implementation without narration.
+
+Skills write the tool catalog in where they put `{{tools}}`, and the index of described skills
+where they put `{{skills}}`. Only a tool or skill with a description is advertised; an undescribed
+tool is still callable.
+
+### The guardians (SPEC.md 4.5)
+
+Each guardian's rubric is assembled from up to three layers, in order: an optional constitution, a
+policy (built in, or replaced in both guardians by `consumption(path)`), and the framework-owned
+contract, which is always present. The built-in policies and contracts ship as package Data in
+`standard_agents/prompts/guardians`. The Gate answers `accept`, `route: <label>` or
+`refuse: <reason>`; the Judge answers `SCORE:` and `REASON:`, and a score outside 0.0 to 1.0 is
+rejected. A draft the Judge rejects is never delivered: that turn decides nothing, the reason goes
+into the observations, and the next turn revises.
 
 ## The example agent
 
@@ -85,10 +134,9 @@ Status : RESPONDED
 Answer : 47 * 89 = 4183
 ```
 
-[examples/calculator_agent](examples/calculator_agent) is the C# demo in Python: skills from a folder,
-a calculator tool that parses arithmetic and never calls `eval`, a Gate that refuses requests for
-credentials, and a small local brain that speaks the ACTION / FINAL protocol, so it runs with no
-model and no network. Swap the brain for a model with `use_generator` and nothing else changes.
+[examples/calculator_agent](examples/calculator_agent): skills from a folder, a calculator tool
+that parses arithmetic and never calls `eval`, a Gate that refuses requests for credentials, and a
+small local brain that speaks the ACTION / FINAL protocol, so it runs with no model and no network.
 
 ## The architecture
 
@@ -97,67 +145,78 @@ StandardAgent                                    exposer: composition, run, proc
   RunCoordinationService                         the loop: Recall, Think, Act, until the run ends
     DataOrchestrationService      (Data)         skills, memories, knowledge
     DecisionOrchestrationService  (Decision)     gate, brain, judge
-    DirectionOrchestrationService (Direction)    internal tools, return
+    DirectionOrchestrationService (Direction)    internal tools, external tools, return
       SkillService, MemoryService, KnowledgeService,
       GateService, BrainService, JudgeService,
-      InternalToolService, ReturnService         foundations: validate, localize, categorize
+      InternalToolService, ExternalToolService,
+      ReturnService                              foundations: validate, localize, categorize
         ISkillBroker, IMemoryBroker, IKnowledgeBroker,
         IClassifierBroker, IGeneratorBroker, IVerifierBroker,
-        IToolBroker, ILoggingBroker              brokers: no logic, one resource each
+        IToolBroker, IMcpBroker, ILoggingBroker  brokers: one resource each
 ```
 
-Every service validates its own inputs, maps every exception it can see into four categories
-(validation, dependency validation, dependency, service), keeps the local exception as the inner
-exception all the way up, and logs the categorized exception once, before raising it.
+Every service validates its own inputs, maps every exception into four categories (validation,
+dependency validation, dependency, service), keeps the local exception as the inner exception all
+the way up, and logs the categorized exception once, before raising it. Each run has its own
+identity, a local of the call, so one instance serves concurrent prompts.
 
-## C# to Python mapping
+## Where the C# reference implementation and the specification differ
 
-| C# (Standard.Agents) | Python (standard_agents) | Why it differs, when it does |
-|---|---|---|
-| `interface IStorageBroker` | `class IStorageBroker(ABC)` with `@abstractmethod` | Python has no interfaces; an abstract base class is the local interface. |
-| `ValueTask<T> SelectAsync()` | `async def select(self) -> T` | Every public member stays asynchronous (Standard 1.5.1). Python names coroutines without an `Async` suffix. |
-| `PascalCase` methods, `camelCase` locals | `snake_case` everywhere, `PascalCase` classes | PEP 8. The words are the same: `retrieve_all_memories` is `RetrieveAllMemoriesAsync`. |
-| `partial class XService` across `XService.cs`, `.Validations.cs`, `.Exceptions.cs` | `x_service.py`, `x_service_validations.py`, `x_service_exceptions.py` | Python has no partial classes. The split is kept as three modules of plain functions the service imports, rather than mixins, so there is no inheritance to chase. |
-| `TryCatch(async () => { ... })` | `await try_catch(logging_broker, returning_function)` with a nested `async def` | Python lambdas cannot be `async`; a nested function is the same shape. |
-| `throw await CreateAndLogValidationExceptionAsync(e)` | `raise await create_and_log_validation_exception(logging_broker, e)` | Same. |
-| `Xeption` (NuGet) | `xeptions.Xeption`, beside the package | Ported, with `upsert_data_list`, `add_data`, `throw_if_contains_errors` and `same_exception_as`. It is a library, so it lives outside `standard_agents`. |
-| One file per exception class under `Models/.../Exceptions/` | One `exceptions.py` per entity under `models/.../{entity}/` | Python groups related classes in a module; the folder path is the same. |
-| `record AgentContext` with `with { ... }` | `@dataclass(frozen=True) AgentContext` with `dataclasses.replace` | Same immutability, Python idiom. Lists are tuples. |
-| `enum AgentStatus { Working, ... }` | `class AgentStatus(Enum): WORKING = 0 ...` | PEP 8 constant names. |
-| `ITool` with default members | `ITool(ABC)`: abstract `name` and `execute`, `description` defaults to `""` | Same. |
-| `ToolBroker(IEnumerable<ITool>)` builds a dictionary | `ToolBroker(dict[str, ITool])`, keyed by composition | The broker holds no loop; the exposer keys tools by lower-case name as they are added. |
-| `FileSkillBroker.SelectSkillsAsync()` loops and parses frontmatter | `select_skill_names()` and `select_skill_content(name)`; `SkillService` iterates | The broker rule forbids loops and branches in a broker; the C# broker breaks it, so the port moves the iteration up to the foundation. |
-| `RecollectionOrchestration` + `RetrievalOrchestration` under `DataCoordinationService` (and likewise for Decision and Direction) | One `DataOrchestrationService`, `DecisionOrchestrationService`, `DirectionOrchestrationService` | The Florance pattern decides the level, not the name. With the core set of foundations, each nature has two or three, so each nature is one orchestration. |
-| `RunManagementService` over three coordinations | `RunCoordinationService` over three orchestrations | One level lower for the same reason. |
-| Shared `AgentOrchestration*Exception` across the natures | `DataOrchestration*`, `DecisionOrchestration*`, `DirectionOrchestration*`, `RunCoordination*` | No shared exceptions across autonomous flows. |
-| `StandardAgent` fluent builder | `StandardAgent` fluent builder | Same door, same three verbs. |
-| xUnit, Moq, FluentAssertions, Tynamix.ObjectFiller, DeepCloner | pytest, `unittest.mock.create_autospec`, plain `assert`, `uuid`/`random`, `copy.deepcopy` | `assert mock.mock_calls == [call...]` is `Verify(...)` and `VerifyNoOtherCalls()` in one line. |
-| `XServiceTests` partial test classes | `XServiceTests` setup class; `TestXServiceLogicMethod(XServiceTests)` per file | One level of inheritance, the Python form of the shared partial constructor. |
-| `ShouldThrowValidationExceptionOnAddIf...AndLogItAsync` | `test_should_raise_validation_exception_on_add_if_..._and_log_it` | Python raises rather than throws. |
-| Local brain: `Standard.Agents.Decision.Brains.LlamaSharp` | Any `IGeneratorBroker` composed with `use_generator` | Provider packages stay outside the core, as in C#. |
+This library follows the specification at each of these points.
 
-## What was ported, and what was not
+| Point | SPEC.md | C# Standard.Agents | This library |
+|---|---|---|---|
+| Status | 3.1: a closed set of six | adds a seventh, `Revising` | the six; a rejected draft leaves the turn with no decision |
+| Who writes status | 3.2: Direction | Decision writes `Revising` | only Direction |
+| Gate broker | 4.1: `classify(systemPrompt, input)` | `ClassifyAsync(input)`, the rubric bound at construction (`AssessAsync(systemPrompt, input)` also exists) | `classify(system_prompt, input)` |
+| Judge broker | 4.1: `verify(systemPrompt, task, candidate)` | `VerifyAsync(task, candidate)`, the rubric bound at construction | `verify(system_prompt, task, candidate)` |
+| Custom Judge | 4.8: no more than the capability's own contract | `OnJudge(rubric, candidate)`, the task folded into the candidate text | `on_judge(rubric, task, candidate)` |
+| Recall into observations | 4.3: recall MAY seed observations | appends recalled memories and passages on every turn | adds each recalled item once |
 
-**Ported**, with tests at every layer: the Tri-Nature loop; skills (Local, Custom, External), memory
-(read), knowledge (Custom, External), the Gate, the Judge with revision, internal tools, return,
-refusal, the turn limit, the trace log, configuration validation, and the Xeption library.
+Where both fall short of the specification:
 
-**Not ported in this release**, each because it is its own capability in C#, with its own brokers and
-services, and porting it well is a release of its own rather than a corner of this one:
+- **Invariant 2** (prompts live in Data, never hardcoded): both write the user-message framing
+  (`Task:`, `Observations so far:`) and the revision feedback sentence in code, in Decision.
+- **The loop's trace reset** (5): the reference loop resets its trace at the start of each run;
+  this library writes a run identity on every turn instead and never resets, because truncating a
+  shared trace under concurrent runs (4.4) would erase another run's lines.
 
-| C# capability | Status |
+## What is not built
+
+Everything below is a Full or optional capability (SPEC.md 8.2), and none is claimed:
+structured `TOOL:` calls (6.1), provider-native tool calls (6.2), transfer and the fleet (6.3,
+4.8), narration and the streamed outcome (6.0, 4.14), the perimeter (effects, policy, approval,
+run-once, compensation, untrusted inbound, 4.9), redaction and allow-lists (4.6), the decision log
+(4.7), resilience, budgets, cancellation and failure codes (4.10, 3.6), sessions and memory writes
+(4.11), telemetry (4.12), per-request inference (4.13), selection (4.15), sourced knowledge and
+citation (3.7, 4.2), ranked local knowledge (4.2), guardian overreach neutralization (Invariant 6),
+the Gate's `route:` verdict steering skill selection (`retrieve_skills(route)` exists; nothing
+feeds it a route yet), and composition from a data document (4.8).
+
+## C# to Python
+
+| C# (Standard.Agents) | Python (standard_agents) |
 |---|---|
-| HTTP brains (`Brain(apiUrl, apiKey, model)`), native tool calling (V1 generators) | Not ported. The port makes no network calls; a local model is an `IGeneratorBroker` provider. |
-| Streaming (`StreamPromptAsync`, narration channel) | Not ported. `SAY:` narration is parsed into the context but not streamed. |
-| MCP servers, remote tools, agents as tools, transfer | Not ported. A tool name the agent does not own is never acted on; the brain is told so. |
-| Writing memories (`RememberTool`), sessions, caller-owned history | Not ported. Memory is recalled, not written. |
-| Local knowledge folders with ranking, citations | Not ported. Knowledge enters through `on_knowledge` or `use_knowledge`. |
-| Contract guardian (response schemas), constitution, consumption skills | Not ported. |
-| Redaction, policy, approvals, principals, effect ledger, compensation | Not ported. |
-| Budgets, usage measurement, resilience and retries, telemetry, audit | Not ported. |
-| Per-request inference options (`PromptRequest`) | Not ported. |
-| Gate verdict caching per run, `route:` verdicts, skill conflict detection | Not ported. The Gate screens the prompt each turn. |
-| ReturnService catch-all | Not ported: nothing in that routine can raise into it, so no test could reach it. |
+| `interface IStorageBroker` | `class IStorageBroker(ABC)` with `@abstractmethod` |
+| `ValueTask<T> SelectAsync()` | `async def select(self) -> T`; coroutines carry no `Async` suffix |
+| `PascalCase` members | `snake_case` members, `PascalCase` classes (PEP 8) |
+| `partial class XService` across three files | `x_service.py`, `x_service_validations.py`, `x_service_exceptions.py`: plain functions the service imports, so there is no inheritance to chase |
+| `TryCatch(async () => { ... })` | `await try_catch(logging_broker, returning_function)` over a nested `async def` |
+| `throw await CreateAndLog...Async(e)` | `raise await create_and_log_...(logging_broker, e)` |
+| `Xeption` (NuGet) | `xeptions.Xeption`, a library beside the package |
+| One file per exception class | one `exceptions.py` per entity, on the same folder path |
+| `record AgentContext` with `with { }` | `@dataclass(frozen=True)` with `dataclasses.replace` |
+| `enum AgentStatus { Working, ... }` | `class AgentStatus(Enum): WORKING = 0 ...` |
+| A coordination over two orchestrations per nature, under a management service | one orchestration per nature, under one coordination: with the core set of foundations the Florance pattern puts each one level lower |
+| `AgentOrchestration*Exception` shared by the natures | `DataOrchestration*`, `DecisionOrchestration*`, `DirectionOrchestration*`, `RunCoordination*` |
+| xUnit, Moq, FluentAssertions | pytest, `unittest.mock.create_autospec`; `mock_calls == [...]` is Verify plus VerifyNoOtherCalls |
+
+## Stability and versioning
+
+Releases follow The Standard's four-part version, `v<model>.<service>.<fix>.<build>`. The public
+contracts are the `StandardAgent` composition surface, `AgentOutcome`, `AgentStatus`, `ITool`, and
+the broker interfaces under `standard_agents.brokers`; a change to any of them is a model change
+and increments the first segment. Nothing has been published to a package index yet.
 
 ## Tests
 
@@ -167,11 +226,6 @@ python -m pytest -q
 ```
 
 How to contribute, and the rules every change follows: [CONTRIBUTING.md](CONTRIBUTING.md).
-
-Unit tests mock every dependency and assert the exact calls (`mock_calls == [...]`) so no other call
-can slip through. Acceptance tests in `tests/acceptance` drive the whole agent through the real
-brokers, with only the brain stood in. Brokers are not unit-tested, per The Standard; the
-acceptance tests exercise them.
 
 ## License
 
