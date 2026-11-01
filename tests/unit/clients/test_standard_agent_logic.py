@@ -4,6 +4,7 @@
 # ---------------------------------------------------------------
 
 import asyncio
+import uuid
 
 import pytest
 
@@ -384,3 +385,45 @@ async def test_should_keep_obsolete_local_aliases_behaving_like_the_custom_verbs
     assert actual_result == "42"
     assert gate_invocations
     assert judge_invocations
+
+
+async def test_should_prepend_constitution_to_guardian_rubrics_on_process_prompt(
+        create_skill_broker,
+        empty_memory_broker,
+        empty_knowledge_broker,
+        tmp_path):
+
+    # given
+    constitution_text = "CONSTITUTION: you must do no harm."
+    constitution_path = tmp_path / f"constitution-{uuid.uuid4().hex}.md"
+    constitution_path.write_text(constitution_text, encoding="utf-8")
+    captured_rubrics = {}
+
+    async def brain(system_prompt, user_prompt):
+        return "FINAL: 42"
+
+    async def gate(gate_rubric, prompt):
+        captured_rubrics["gate"] = gate_rubric
+
+        return "allow"
+
+    async def judge(judge_rubric, draft_answer):
+        captured_rubrics["judge"] = judge_rubric
+
+        return "1.0"
+
+    agent = (StandardAgent()
+        .use_skills(create_skill_broker())
+        .use_memory(empty_memory_broker)
+        .use_knowledge(empty_knowledge_broker)
+        .on_brain(brain)
+        .constitution(str(constitution_path))
+        .on_gate(gate)
+        .on_judge(judge))
+
+    # when
+    await agent.process_prompt(prompt="what is the answer?")
+
+    # then
+    assert constitution_text in captured_rubrics["gate"]
+    assert constitution_text in captured_rubrics["judge"]
