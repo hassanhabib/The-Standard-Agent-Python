@@ -91,8 +91,10 @@ class EffectLedgerService:
 
         Only an in-flight claim; a record with an outcome names an act that happened.
         """
-        await self.effect_ledger_broker.select_record(effect.idempotency_key)
-        await self.effect_ledger_broker.delete_record(effect.idempotency_key)
+        record = await self.effect_ledger_broker.select_record(effect.idempotency_key)
+
+        if record is not None and record.state is EffectState.IN_FLIGHT:
+            await self.effect_ledger_broker.delete_record(effect.idempotency_key)
 
     async def record_compensation_intent(self, idempotency_key: str) -> None:
         """Records that compensation was decided, before it is attempted."""

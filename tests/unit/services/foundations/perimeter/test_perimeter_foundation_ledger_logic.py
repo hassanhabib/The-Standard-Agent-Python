@@ -186,7 +186,6 @@ async def test_should_not_release_claim_if_record_is_not_in_flight(
         create_random_effect,
         create_random_date_time,
         create_in_flight_record):
-
     """A record with an outcome names an act that happened; releasing it would turn run-once
     back into run-again.
     """
