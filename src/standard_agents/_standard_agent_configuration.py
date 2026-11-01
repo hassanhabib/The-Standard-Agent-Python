@@ -23,10 +23,24 @@ if TYPE_CHECKING:
 
 def apply_document(agent: StandardAgent, document_json: str) -> None:
     """Configures the agent with every entry of the document, in the document's order."""
-    document = json.loads(document_json)
+    document = _parse_document(document_json)
 
     for key, value in document.items():
         _apply_entry(agent, key, value)
+
+
+def _parse_document(document_json: str) -> dict[str, Any]:
+    try:
+        parsed = json.loads(document_json)
+    except json.JSONDecodeError as exception:
+        raise InvalidAgentConfigurationException(
+            message=f"The configuration is not valid JSON: {exception}")
+
+    if not isinstance(parsed, dict):
+        raise InvalidAgentConfigurationException(
+            message="The configuration must be a JSON object with one key per capability.")
+
+    return parsed
 
 
 def _apply_entry(agent: StandardAgent, key: str, value: Any) -> None:
