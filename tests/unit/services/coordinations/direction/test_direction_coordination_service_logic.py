@@ -54,3 +54,25 @@ async def test_should_await_input_and_terminate_on_act_if_direction_type_is_awai
     assert return_service.mock_calls == [call.return_payload(question)]
     assert internal_tool_service.mock_calls == []
     assert external_tool_service.mock_calls == []
+
+
+async def test_should_refuse_and_terminate_on_act_if_direction_type_is_refuse(
+        direction_coordination_service,
+        internal_tool_service,
+        external_tool_service,
+        return_service,
+        create_context_with_direction):
+
+    # given
+    refusal = "I'm not able to help with that."
+    input_context = create_context_with_direction("Refuse", refusal)
+    return_service.return_payload.return_value = refusal
+
+    # when
+    actual_context = await direction_coordination_service.act(input_context)
+
+    # then
+    assert actual_context.result == refusal
+    assert actual_context.status is AgentStatus.REFUSED
+    assert internal_tool_service.mock_calls == []
+    assert external_tool_service.mock_calls == []
