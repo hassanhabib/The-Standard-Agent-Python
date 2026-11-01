@@ -131,3 +131,30 @@ async def test_should_expand_the_tools_marker_with_only_the_selected_tools():
 
     assert "web_search" in seen_system_prompt
     assert "code_search" not in seen_system_prompt
+
+
+# A selector is configuration, and configuration can drift: a name the agent does not carry is
+# ignored (SPEC.md 4.15), and the decision log records the TRUTH of what was offered, never the
+# selector's claim.
+async def test_should_ignore_selector_names_the_agent_does_not_carry():
+    # given
+    trace: list[AuditRecord] = []
+
+    async def write(record: AuditRecord) -> None:
+        trace.append(record)
+
+    agent = (_agent_with(
+            lambda tools: GenerationResult(content="hello!"),
+            _NamedTool("web_search"),
+            _NamedTool("code_search"))
+        .on_select_tools(_selecting("a_tool_from_last_year", "web_search"))
+        .on_audit(write))
+
+    # when
+    await agent.process_prompt("look something up")
+
+    # then: the built-in remember tool is described too, and the trace says so: the record
+    # states the truth of the whole offering, the framework's own tools included
+    assert any(
+        record.message == "Selection → offered [web_search]; withheld [code_search, remember]"
+        for record in trace)
