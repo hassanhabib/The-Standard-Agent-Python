@@ -13,6 +13,8 @@ from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.models.clients.agents.agent_stream_event import AgentStreamEvent
 from standard_agents.models.clients.agents.agent_stream_event_type import AgentStreamEventType
 from standard_agents.models.foundations.gates.skill_conflict import SkillConflict
+from standard_agents.models.foundations.judges.judgement import Judgement
+
 from standard_agents.models.foundations.gates.skill_directive import SkillDirective
 from standard_agents.models.orchestrations.agents.agent_context import AgentContext
 from standard_agents.models.orchestrations.agents.agent_status import AgentStatus
@@ -147,7 +149,12 @@ class DecisionCoordinationService:
             candidate=decided.payload)
 
         if judgement.score < _MINIMUM_ACCEPTABLE_SCORE:
-            return dataclasses.replace(context, status=AgentStatus.REVISING)
+            return dataclasses.replace(
+                context,
+                observations=(
+                    *context.observations,
+                    _revision_feedback(judgement, decided.payload)),
+                status=AgentStatus.REVISING)
 
         return None
 
@@ -205,6 +212,10 @@ class DecisionCoordinationService:
             payload=_build_clarification_question(conflict))
 
         return question_context, True
+
+
+def _revision_feedback(judgement: Judgement, draft: str) -> str:
+    return f"A previous draft was rejected on review: {draft}"
 
 
 def _fresh_of_last_turn(context: AgentContext) -> AgentContext:
