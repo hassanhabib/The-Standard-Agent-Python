@@ -111,6 +111,38 @@ class StandardAgent:
 
         return self
 
+    # External: a provider's broker. A local open-weight model (PyTorch, llama.cpp) is composed
+    # here, as an IGeneratorBroker of its own.
+    def use_generator(self, generator_broker: IGeneratorBroker) -> "StandardAgent":
+        self.generator_broker = generator_broker
+
+        return self
+
+    def use_skills(self, skill_broker: ISkillBroker) -> "StandardAgent":
+        self.skill_broker = skill_broker
+
+        return self
+
+    def use_memory(self, memory_broker: IMemoryBroker) -> "StandardAgent":
+        self.memory_broker = memory_broker
+
+        return self
+
+    def use_knowledge(self, knowledge_broker: IKnowledgeBroker) -> "StandardAgent":
+        self.knowledge_broker = knowledge_broker
+
+        return self
+
+    def use_gate(self, classifier_broker: IClassifierBroker) -> "StandardAgent":
+        self.classifier_broker = classifier_broker
+
+        return self
+
+    def use_judge(self, verifier_broker: IVerifierBroker) -> "StandardAgent":
+        self.verifier_broker = verifier_broker
+
+        return self
+
     # Tools accumulate: a second tool adds to the first. Names match without regard to case.
     def tool(self, tool: ITool) -> "StandardAgent":
         self.agent_tools[tool.name.lower()] = tool
@@ -121,6 +153,13 @@ class StandardAgent:
         run_coordination_service = self.compose_run_coordination_service()
 
         return await run_coordination_service.run(prompt)
+
+    # The one-line door: a prompt in, the answer's text out. Use run when how the run ended
+    # matters, because a refusal and an answer read alike as text.
+    async def process_prompt(self, prompt: str) -> str:
+        outcome = await self.run(prompt)
+
+        return outcome.result
 
     def compose_run_coordination_service(self) -> IRunCoordinationService:
         data_orchestration_service = DataOrchestrationService(
