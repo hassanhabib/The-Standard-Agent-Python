@@ -88,9 +88,9 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
                 value["apiUrl"],
                 value.get("apiKey", ""),
                 value["model"],
-                temperature=value.get("temperature", 0.7),
-                max_tokens=value.get("maxTokens", 1024),
-                timeout_seconds=value.get("timeoutSeconds", 120))
+                temperature=_number(value, key, "temperature", 0.7),
+                max_tokens=_whole_property(value, key, "maxTokens", 1024),
+                timeout_seconds=_whole_property(value, key, "timeoutSeconds", 120))
 
         case "nativeBrain":
             _shaped(value, key)
@@ -99,8 +99,8 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
                 value["apiUrl"],
                 value.get("apiKey", ""),
                 value["model"],
-                temperature=value.get("temperature", 0.7),
-                max_tokens=value.get("maxTokens", 1024))
+                temperature=_number(value, key, "temperature", 0.7),
+                max_tokens=_whole_property(value, key, "maxTokens", 1024))
 
         case "nativeBrainAnthropic":
             _shaped(value, key)
@@ -108,8 +108,8 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
             agent.native_brain_anthropic(
                 value["apiKey"],
                 value["model"],
-                temperature=value.get("temperature", 0.7),
-                max_tokens=value.get("maxTokens", 1024))
+                temperature=_number(value, key, "temperature", 0.7),
+                max_tokens=_whole_property(value, key, "maxTokens", 1024))
 
         case "skills" if isinstance(value, list):
             for source in value:
@@ -124,8 +124,8 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
             agent.knowledge(
                 value["path"],
                 pattern=value.get("pattern", "*.md"),
-                max_results=value.get("maxResults", 3),
-                min_score=value.get("minScore", 0.0))
+                max_results=_whole_property(value, key, "maxResults", 3),
+                min_score=_number(value, key, "minScore", 0.0))
 
         case "knowledge":
             agent.knowledge(value)
@@ -154,9 +154,9 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
                 value["apiUrl"],
                 value.get("apiKey", ""),
                 value["model"],
-                temperature=value.get("temperature", 0.0),
-                max_tokens=value.get("maxTokens", 16),
-                timeout_seconds=value.get("timeoutSeconds", 30))
+                temperature=_number(value, key, "temperature", 0.0),
+                max_tokens=_whole_property(value, key, "maxTokens", 16),
+                timeout_seconds=_whole_property(value, key, "timeoutSeconds", 30))
 
         case "ruleGate":
             agent.rule_gate(*value)
@@ -168,9 +168,9 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
                 value["apiUrl"],
                 value.get("apiKey", ""),
                 value["model"],
-                temperature=value.get("temperature", 0.0),
-                max_tokens=value.get("maxTokens", 16),
-                timeout_seconds=value.get("timeoutSeconds", 30))
+                temperature=_number(value, key, "temperature", 0.0),
+                max_tokens=_whole_property(value, key, "maxTokens", 16),
+                timeout_seconds=_whole_property(value, key, "timeoutSeconds", 30))
 
         case "ruleJudge":
             agent.rule_judge(*value)
@@ -202,10 +202,10 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
             pass
 
         case "maxTurns":
-            agent.max_turns(value)
+            agent.max_turns(_whole(value, key))
 
         case "identicalCallLimit":
-            agent.identical_call_limit(value)
+            agent.identical_call_limit(_whole(value, key))
 
         # true or false is the deployment's decision; text is that decision made with the words
         # each citation line starts with (SPEC.md 4.2).
@@ -253,7 +253,7 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
         case "sessions" if isinstance(value, dict):
             _shaped(value, key)
 
-            agent.sessions(value["path"], max_history_turns=value.get("maxHistoryTurns", 20))
+            agent.sessions(value["path"], max_history_turns=_whole_property(value, key, "maxHistoryTurns", 20))
 
         case "sessions":
             agent.sessions(value)
@@ -273,15 +273,15 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
         case "usage":
             _shaped(value, key)
 
-            agent.usage(characters_per_token=value.get("charactersPerToken", 4.0))
+            agent.usage(characters_per_token=_number(value, key, "charactersPerToken", 4.0))
 
         case "resilience" if isinstance(value, dict):
             _shaped(value, key)
 
-            agent.resilience(retries=value.get("retries", 3))
+            agent.resilience(retries=_whole_property(value, key, "retries", 3))
 
         case "resilience":
-            agent.resilience(retries=value)
+            agent.resilience(retries=_whole(value, key))
 
         case "compensateOnFailure" if value:
             agent.compensate_on_failure()
@@ -329,20 +329,14 @@ def _apply_budget(agent: StandardAgent, budget: Any) -> None:
     # the entries the author must fix, with the builder's refusal preserved beneath it.
     _shaped(budget, "budget")
 
-    max_wall_clock_seconds = budget.get("maxWallClockSeconds")
-    max_cost_usd = budget.get("maxCostUsd")
-    cost_per_thousand_tokens = budget.get("costPerThousandTokens")
+    key = "budget"
 
     try:
         agent.budget(
-            max_tokens=budget.get("maxTokens"),
-            max_cost_usd=None if max_cost_usd is None else Decimal(str(max_cost_usd)),
-            max_wall_clock=(
-                None if max_wall_clock_seconds is None
-                else timedelta(seconds=max_wall_clock_seconds)),
-            cost_per_thousand_tokens=(
-                Decimal(0) if cost_per_thousand_tokens is None
-                else Decimal(str(cost_per_thousand_tokens))))
+            max_tokens=_optional_whole(budget, key, "maxTokens"),
+            max_cost_usd=_optional_money(budget, key, "maxCostUsd"),
+            max_wall_clock=_optional_seconds(budget, key, "maxWallClockSeconds"),
+            cost_per_thousand_tokens=_money(budget, key, "costPerThousandTokens"))
     except InvalidAgentBudgetException as invalid_agent_budget_exception:
         raise InvalidAgentConfigurationException(
             message=(
@@ -365,7 +359,7 @@ def _apply_mcp_server(agent: StandardAgent, server: Any, key: str) -> None:
             arguments=_mcp_arguments(server),
             environment_variables=_mcp_environment_variables(server),
             working_directory=server.get("workingDirectory"),
-            timeout_seconds=server.get("timeoutSeconds", 30))
+            timeout_seconds=_whole_property(server, key, "timeoutSeconds", 30))
 
         return
 
@@ -375,7 +369,7 @@ def _apply_mcp_server(agent: StandardAgent, server: Any, key: str) -> None:
         agent.mcp(
             server["endpointUrl"],
             relative_url=server.get("relativeUrl", ""),
-            timeout_seconds=server.get("timeoutSeconds", 30),
+            timeout_seconds=_whole_property(server, key, "timeoutSeconds", 30),
             bearer_token=server.get("bearerToken"),
             api_key=server.get("apiKey"),
             api_key_header=server.get("apiKeyHeader", "X-Api-Key"))
@@ -425,6 +419,87 @@ def _shaped(node: Any, key: str) -> dict[str, Any]:
                     + ", ".join(properties) + "."))
 
     return node
+
+
+# Numbers are read as numbers or refused by name; a string where a number belongs used to surface
+# as a runtime exception with no entry named, or fall through to a default.
+def _number_node(node: Any, key: str, document_property: str) -> int | float | None:
+    value = node.get(document_property) if isinstance(node, dict) else None
+
+    if value is None:
+        return None
+
+    if not _is_number(value):
+        raise InvalidAgentConfigurationException(
+            message=f"'{key}.{document_property}' must be a number.")
+
+    return value
+
+
+def _number(node: Any, key: str, document_property: str, fallback: float) -> float:
+    value = _number_node(node, key, document_property)
+
+    return fallback if value is None else float(value)
+
+
+def _number_value(node: Any, key: str) -> float:
+    if not _is_number(node):
+        raise InvalidAgentConfigurationException(message=f"'{key}' must be a number.")
+
+    return float(node)
+
+
+def _whole(node: Any, key: str) -> int:
+    if not _is_number(node):
+        raise InvalidAgentConfigurationException(message=f"'{key}' must be a number.")
+
+    return _as_int32(node)
+
+
+def _whole_property(node: Any, key: str, document_property: str, fallback: int) -> int:
+    value = _number_node(node, key, document_property)
+
+    return fallback if value is None else _as_int32(value)
+
+
+def _optional_whole(node: Any, key: str, document_property: str) -> int | None:
+    value = _number_node(node, key, document_property)
+
+    return None if value is None else _as_int32(value)
+
+
+def _optional_money(node: Any, key: str, document_property: str) -> Decimal | None:
+    value = _number_node(node, key, document_property)
+
+    return None if value is None else Decimal(str(value))
+
+
+def _money(node: Any, key: str, document_property: str) -> Decimal:
+    value = _optional_money(node, key, document_property)
+
+    return Decimal(0) if value is None else value
+
+
+def _optional_seconds(node: Any, key: str, document_property: str) -> timedelta | None:
+    value = _number_node(node, key, document_property)
+
+    return None if value is None else timedelta(seconds=value)
+
+
+def _is_number(value: Any) -> bool:
+    # JSON true and false are not numbers, though Python counts bool as int.
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def _as_int32(value: int | float) -> int:
+    # A number that is not a whole Int32 (3.5, 1e2, 2^31) is refused as .NET's GetValue<int>
+    # refuses it: a FormatException, which is a ValueError here, not a document refusal.
+    if isinstance(value, float) or not -2**31 <= value < 2**31:
+        raise ValueError(
+            "Either the JSON value is not in a supported format, or is out of bounds for an "
+            + "Int32.")
+
+    return value
 
 
 def _named(enumeration: type[_Named], name: str, key: str) -> _Named:
