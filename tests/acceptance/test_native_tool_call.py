@@ -120,3 +120,24 @@ async def test_should_round_trip_a_native_tool_call():
     assert len(tool.received_inputs) == 1
     assert "47*89" in tool.received_inputs[0]
     assert actual_result == "4183"
+
+
+# Found in the 2026-08-23 sweep: the streamed decision had no speaks-natively branch, so a
+# native-brain agent asked to stream called the V0 text seam, which, for a native-only
+# composition, is the placeholder that throws "This agent has a native brain; the text protocol
+# is not in use." Adopting native calls changes how a choice is READ, not what the agent is, on
+# every path a prompt can be processed (SPEC.md 6, 7.6).
+async def test_should_round_trip_a_native_tool_call_when_streamed():
+    # given: the identical scenario as the batched round-trip above
+    tool = _CalculatorTool()
+    agent = _agent_with(tool, _asks_then_answers)
+
+    # when
+    responses = [
+        stream_event.content
+        async for stream_event in agent.process_prompt_stream("what is 47 times 89?")
+        if stream_event.type is AgentStreamEventType.RESPONSE]
+
+    # then: the same tools, the same perimeter, the same answer at the end
+    assert len(tool.received_inputs) == 1
+    assert "".join(responses) == "4183"
