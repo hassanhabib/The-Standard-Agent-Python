@@ -74,3 +74,25 @@ async def test_should_hold_knowledge_to_the_configured_relevance_floor(tmp_path)
     # then: nothing clears a floor of a thousand; injecting anyway means the floor is dead, and
     # the composition must carry the host's floor to the foundation that enforces it
     assert "$29" not in seen_by_brain
+
+
+async def test_should_retrieve_the_passage_that_answers_a_natural_question(tmp_path):
+    # given
+    knowledge_service = _knowledge_over(
+        tmp_path / "knowledge",
+        ("refunds.md",
+            "Refund policy. Enterprise customers may request a refund within 90 days of "
+            "purchase. Refunds are issued to the original payment method."),
+        ("shipping.md",
+            "Shipping policy. Orders ship within two business days. Expedited shipping is "
+            "available for an additional fee."),
+        ("holidays.md",
+            "The office is closed on public holidays and reopens the next business day."))
+
+    # when: a question, phrased as a person would phrase it
+    actual_passages = await knowledge_service.retrieve_knowledge(
+        query="what is our refund policy for enterprise customers?")
+
+    # then
+    assert len(actual_passages) == 1
+    assert "90 days" in actual_passages[0]
