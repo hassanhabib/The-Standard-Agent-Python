@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 from collections.abc import AsyncIterator, Iterable, Mapping
 
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
@@ -32,6 +33,8 @@ from standard_agents.services.coordinations.direction.direction_coordination_ser
     DirectionCoordinationService)
 
 _DEFAULT_MAX_TURNS = 7
+
+_RETRIES_EXHAUSTED_MESSAGE = "I can't help with that at the moment."
 
 _TURNS_EXHAUSTED_MESSAGE = (
     "I ran out of turns before an answer was ready; nothing was delivered.")
@@ -170,6 +173,10 @@ class RunManagementService:
         for _ in range(self.max_turns):
             context = await self.data_coordination_service.recall(context)
             context = await self.decision_coordination_service.think(context)
+
+            if context.status is AgentStatus.REVISING:
+                continue
+
             context = await self.direction_coordination_service.act(context)
 
             if context.status is not AgentStatus.WORKING:
@@ -179,5 +186,11 @@ class RunManagementService:
         # tool output is not one.
         if context.status is AgentStatus.WORKING:
             return AgentOutcome(_TURNS_EXHAUSTED_MESSAGE, context.status)
+
+        if context.status is AgentStatus.REVISING:
+            context = dataclasses.replace(
+                context,
+                result=_RETRIES_EXHAUSTED_MESSAGE,
+                status=AgentStatus.REFUSED)
 
         return AgentOutcome(context.result, context.status)
