@@ -95,3 +95,18 @@ def test_should_merge_sanitized_keys_onto_the_request_whole():
     assert request["chat_template_kwargs"]["enable_thinking"] is False
     assert request["temperature"] == 0.7
     assert request["model"] == "test"
+
+
+# Belt and braces: even if a raw, unsanitized bag reached the merge, a core-owned key still
+# cannot land. Two independent enforcement points, because this is the perimeter.
+def test_should_refuse_to_merge_a_core_owned_key_even_when_handed_one_raw():
+    # given
+    request = {"temperature": 0.7}
+    raw_json = '{"temperature": 2.0, "grammar": "root ::= object"}'
+
+    # when
+    ProviderOptions.merge_into(request, raw_json)
+
+    # then
+    assert request["temperature"] == 0.7
+    assert request["grammar"] == "root ::= object"
