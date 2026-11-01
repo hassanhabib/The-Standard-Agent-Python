@@ -17,6 +17,8 @@ from standard_agents.models.foundations.judges.exceptions import (
     JudgeValidationException)
 from standard_agents.models.foundations.judges.judgement import Judgement
 
+_MINIMUM_SCORE = 0.0
+_MAXIMUM_SCORE = 1.0
 _SCORE_LABEL = "SCORE:"
 _REASON_LABEL = "REASON:"
 
@@ -44,8 +46,10 @@ class JudgeService:
         async with _handling_exceptions(self.logging_broker):
             _validate_evaluate(candidate)
             verdict = await self.verifier_broker.verify(task, candidate)
+            judgement = _parse_judgement(verdict)
+            _validate_score(judgement.score)
 
-            return _parse_judgement(verdict)
+            return judgement
 
 
 def _validate_evaluate(candidate: str | None) -> None:
@@ -93,6 +97,14 @@ def _extract_labeled(text: str, label: str) -> str | None:
             return trimmed_line[len(label):].strip()
 
     return None
+
+
+def _validate_score(score: float) -> None:
+    # Written as a range check rather than its negation so that NaN, which compares false to
+    # everything, is out of range.
+    if not _MINIMUM_SCORE <= score <= _MAXIMUM_SCORE:
+        raise InvalidJudgeScoreException(
+            message="Invalid judge score. Score must be between 0.0 and 1.0.")
 
 
 @asynccontextmanager
