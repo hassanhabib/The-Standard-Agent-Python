@@ -9,8 +9,10 @@ from xeptions import Xeption
 from standard_agents.brokers.loggings.ilogging_broker import ILoggingBroker
 from standard_agents.models.foundations.judges.exceptions import (
     FailedJudgeDependencyException,
+    FailedJudgeServiceException,
     InvalidJudgeException,
     JudgeDependencyException,
+    JudgeServiceException,
     JudgeValidationException)
 from standard_agents.models.foundations.judges.judgement import Judgement
 
@@ -34,6 +36,27 @@ async def try_catch(
         raise await create_and_log_dependency_exception(
             logging_broker,
             failed_judge_dependency_exception)
+    except Exception as exception:
+        failed_judge_service_exception = FailedJudgeServiceException(
+            message="Failed judge service error occurred, contact support.",
+            inner_exception=exception)
+
+        raise await create_and_log_service_exception(
+            logging_broker,
+            failed_judge_service_exception)
+
+
+async def create_and_log_service_exception(
+    logging_broker: ILoggingBroker,
+    exception: Xeption) -> JudgeServiceException:
+
+    judge_service_exception = JudgeServiceException(
+        message="Judge service error occurred, contact support.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(judge_service_exception)
+
+    return judge_service_exception
 
 
 async def create_and_log_dependency_exception(
