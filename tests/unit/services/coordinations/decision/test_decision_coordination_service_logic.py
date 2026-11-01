@@ -493,3 +493,31 @@ async def test_should_swallow_unterminated_say_line_on_think_stream_flush(
     assert decision_stream.result.narration == "Working on it"
     assert decision_stream.result.direction_type == "ReturnResponse"
     assert decision_stream.result.payload == ""
+
+
+async def test_should_not_stream_response_on_think_stream_if_gate_refuses(
+        decision_coordination_service,
+        gate_service,
+        brain_service,
+        create_random_agent_context,
+        drain):
+
+    # given
+    input_context = create_random_agent_context()
+    gate_service.screen.return_value = "refuse: policy"
+
+    # when
+    decision_stream = decision_coordination_service.think_stream(input_context)
+    actual_events = await drain(decision_stream)
+
+    # then
+    assert any(
+        stream_event.type is AgentStreamEventType.STATUS
+        and stream_event.content == "gate refused the request"
+        for stream_event in actual_events)
+
+    assert not any(
+        stream_event.type is AgentStreamEventType.RESPONSE for stream_event in actual_events)
+
+    assert decision_stream.result.direction_type == "Refuse"
+    assert brain_service.generate_stream.mock_calls == []
