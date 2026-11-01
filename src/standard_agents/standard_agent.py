@@ -9,6 +9,7 @@ import asyncio
 import logging
 import os
 import urllib.parse
+import urllib.request
 import warnings
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterable, Mapping, Sequence
 from datetime import timedelta
@@ -152,6 +153,7 @@ class StandardAgent(Agent):
         self._budget: AgentBudget | None = None
         self._audit_broker: AuditBroker | None = None
         self._telemetry_broker: TelemetryBroker | None = None
+        self._http_handler_source: Callable[[], urllib.request.BaseHandler] | None = None
         self._identity_resolver: Callable[[], AgentPrincipal | None] | None = None
         self._generator_broker_v1: GeneratorBrokerV1 | None = None
         self._native_brain_source: Callable[[], GeneratorBrokerV1] | None = None
@@ -455,6 +457,19 @@ class StandardAgent(Agent):
         async for stream_event in self._compose().run_stream(request, cancellation=cancellation):
             yield stream_event
 
+    def http(self, handlers: Callable[[], urllib.request.BaseHandler]) -> StandardAgent:
+        self._http_handler_source = handlers
+
+        return self
+
+    def _create_http_handler(self) -> urllib.request.BaseHandler | None:
+        # One handler per HTTP broker: the host's when http(...) was called, otherwise none, and
+        # the broker builds its own opener.
+        if self._http_handler_source is None:
+            return None
+
+        return self._http_handler_source()
+
     def _current_principal_id(self) -> str | None:
         if self._identity_resolver is None:
             return None
@@ -499,7 +514,8 @@ class StandardAgent(Agent):
                     else ResolvedInference.DEFAULT_TEMPERATURE),
                 (brain.max_tokens if brain.max_tokens is not None
                     else ResolvedInference.DEFAULT_MAX_TOKENS),
-                brain.timeout_seconds))
+                brain.timeout_seconds,
+                handler=self._create_http_handler()))
 
         memory_service = MemoryService(memory_broker=self._memory_broker, logging_broker=logging)
         all_tools = [*self._tools, RememberTool(memory_service.remember)]
