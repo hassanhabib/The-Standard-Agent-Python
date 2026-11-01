@@ -43,3 +43,22 @@ async def test_should_run(
     assert actual_output == expected_output
     assert tool_broker.mock_calls == [call.run(input_name, input_input)]
     assert logging_broker.mock_calls == []
+
+
+async def test_should_return_tool_output_on_run_even_if_tool_reports_an_error(
+        internal_tool_service, tool_broker, logging_broker, create_random_string):
+
+    # given
+    input_name = create_random_string()
+    input_input = create_random_string()
+    tool_reported_error = "error: could not parse expression"
+    expected_output = tool_reported_error
+    tool_broker.run.return_value = tool_reported_error
+
+    # when
+    actual_output = await internal_tool_service.run(input_name, input_input)
+
+    # then
+    assert actual_output == expected_output
+    assert tool_broker.mock_calls == [call.run(input_name, input_input)]
+    assert logging_broker.mock_calls == []
