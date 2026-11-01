@@ -17,8 +17,10 @@ enumerated in advance.
 
 import pytest
 
+from standard_agents.brokers.approvals.approval_broker import ApprovalDecision
 from standard_agents.models.orchestrations.effects.authorization_decision import (
     AuthorizationDecision)
+from standard_agents.models.orchestrations.effects.permission_mode import PermissionMode
 from standard_agents.models.orchestrations.effects.risk_level import RiskLevel
 from standard_agents.standard_agent import StandardAgent
 from standard_agents.tools.tool import Tool
@@ -149,3 +151,30 @@ async def test_should_allow_an_act_inside_an_allowed_scope():
 
     # then
     assert tool.writes == 1
+
+
+# Gap 3. Everything was enumerated by name, so an unlisted tool was silently SAFE and silently
+# permitted. Ask-first is the only workable posture when targets cannot be listed in advance, and
+# it was inexpressible.
+async def test_should_ask_before_an_act_that_was_never_explicitly_permitted():
+    # given
+    tool = _WriteFileTool()
+    asked = 0
+
+    async def deny(effect):
+        nonlocal asked
+        asked += 1
+
+        return ApprovalDecision.DENIED
+
+    agent = (_agent_acting(tool, "ACTION: write_file: /project/a.txt hello", "FINAL: done")
+        .permissions(PermissionMode.ASK)
+        .on_approval(deny))
+
+    # when
+    await agent.process_prompt("write it")
+
+    # then: nothing permitted this act explicitly, and the mode says ask about anything that was
+    # not
+    assert asked == 1
+    assert tool.writes == 0
