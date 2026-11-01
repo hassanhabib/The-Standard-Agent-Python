@@ -10,7 +10,17 @@ from standard_agents.brokers.loggings.ilogging_broker import ILoggingBroker
 from standard_agents.models.clients.agents.agent_outcome import AgentOutcome
 from standard_agents.models.coordinations.runs.exceptions import (
     InvalidRunException,
+    RunCoordinationDependencyValidationException,
     RunCoordinationValidationException)
+from standard_agents.models.orchestrations.data.exceptions import (
+    DataOrchestrationDependencyValidationException,
+    DataOrchestrationValidationException)
+from standard_agents.models.orchestrations.decision.exceptions import (
+    DecisionOrchestrationDependencyValidationException,
+    DecisionOrchestrationValidationException)
+from standard_agents.models.orchestrations.direction.exceptions import (
+    DirectionOrchestrationDependencyValidationException,
+    DirectionOrchestrationValidationException)
 
 
 async def try_catch(
@@ -21,6 +31,17 @@ async def try_catch(
         return await returning_outcome_function()
     except InvalidRunException as invalid_run_exception:
         raise await create_and_log_validation_exception(logging_broker, invalid_run_exception)
+    except (
+        DataOrchestrationValidationException,
+        DataOrchestrationDependencyValidationException,
+        DecisionOrchestrationValidationException,
+        DecisionOrchestrationDependencyValidationException,
+        DirectionOrchestrationValidationException,
+        DirectionOrchestrationDependencyValidationException) as dependency_validation_exception:
+
+        raise await create_and_log_dependency_validation_exception(
+            logging_broker,
+            dependency_validation_exception.inner_exception)
 
 
 async def create_and_log_validation_exception(
@@ -34,3 +55,18 @@ async def create_and_log_validation_exception(
     await logging_broker.log_error(run_coordination_validation_exception)
 
     return run_coordination_validation_exception
+
+
+async def create_and_log_dependency_validation_exception(
+    logging_broker: ILoggingBroker,
+    exception: BaseException | None) -> RunCoordinationDependencyValidationException:
+
+    run_coordination_dependency_validation_exception = (
+        RunCoordinationDependencyValidationException(
+            message="Run coordination dependency validation error occurred, "
+                + "fix the errors and try again.",
+            inner_exception=exception))
+
+    await logging_broker.log_error(run_coordination_dependency_validation_exception)
+
+    return run_coordination_dependency_validation_exception
