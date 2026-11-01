@@ -255,3 +255,43 @@ async def test_should_offer_the_native_brain_only_what_the_selector_named():
     assert answer == "hello!"
     assert any(definition.name == "web_search" for definition in shown[0])
     assert not any(definition.name == "code_search" for definition in shown[0])
+
+
+# Found in the 2026-09-04 principal review (F-04): the selector judged over the LOCAL described
+# names and the remote catalog was appended after selection ran, so on_select_tools could neither
+# see nor withhold a remote tool, the very case the how-to names as the motivation for selection:
+# an agent with twenty MCP servers. Remote tools are discovered before selection and judged with
+# the rest.
+async def test_should_offer_the_selector_remote_tools_and_withhold_the_unselected_ones():
+    # given: a server offering two described tools; the selector keeps one
+    server = create_autospec(McpBroker, instance=True)
+
+    server.list_tools.return_value = [
+        McpTool("weather", "answers weather questions"),
+        McpTool("almanac", "consults the stars")]
+
+    described_seen_by_selector: list[Sequence[str]] = [[]]
+    captured_system_prompt = [""]
+
+    async def brain(system_prompt: str, user_prompt: str) -> str:
+        captured_system_prompt[0] = system_prompt
+
+        return "FINAL: done"
+
+    async def select_tools(task: str, described: Sequence[str]) -> Sequence[str]:
+        described_seen_by_selector[0] = described
+
+        return ["weather"]
+
+    agent = (_text_agent_with(brain)
+        .use_mcp(server)
+        .on_select_tools(select_tools))
+
+    # when
+    await agent.process_prompt("will it rain in Seattle?")
+
+    # then: the selector saw both remote names, and only the offered line reached the model
+    assert "weather" in described_seen_by_selector[0]
+    assert "almanac" in described_seen_by_selector[0]
+    assert "weather \u2014 answers weather questions" in captured_system_prompt[0]
+    assert "almanac" not in captured_system_prompt[0]
