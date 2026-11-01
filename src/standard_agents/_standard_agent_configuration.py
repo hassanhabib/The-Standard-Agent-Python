@@ -245,6 +245,12 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
         case "audit":
             agent.audit(value)
 
+        case "auditPayloads" if value:
+            agent.audit_payloads()
+
+        case "auditPayloads":
+            pass
+
         case "telemetry" if isinstance(value, str):
             agent.telemetry(agent_name=value)
 

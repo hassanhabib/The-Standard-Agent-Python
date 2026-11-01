@@ -230,6 +230,7 @@ class StandardAgent(Agent):
         self._trace_verbosity = TraceVerbosity.FULL
         self._sourced_knowledge_broker: SourcedKnowledgeBroker | None = None
         self._audit_path = ""
+        self._audit_payloads = False
         self._allowed_tools: Sequence[str] | None = None
         self._policy_broker: PolicyBroker | None = None
         self._approval_required_tools: Sequence[str] | None = None
@@ -597,6 +598,11 @@ class StandardAgent(Agent):
 
     def rule_judge(self, *required_patterns: str) -> StandardAgent:
         self._verifier_broker = RuleVerifierBroker(required_patterns)
+
+        return self
+
+    def audit_payloads(self) -> StandardAgent:
+        self._audit_payloads = True
 
         return self
 
