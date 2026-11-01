@@ -39,7 +39,7 @@ class KnowledgeService:
         self.logging_broker = logging_broker
 
     async def retrieve_knowledge(self, query: str) -> Sequence[str]:
-        raise NotImplementedError
+        return await self.knowledge_broker.select_knowledge(query)
 
     async def retrieve_sourced_knowledge(self, query: str) -> Sequence[KnowledgeResult]:
         raise NotImplementedError
