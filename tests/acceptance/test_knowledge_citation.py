@@ -264,3 +264,26 @@ async def test_should_not_cite_when_the_deployment_forbids_it_and_the_request_as
 
     # then
     assert actual_result == _ANSWER
+
+
+# One answer on every door (SPEC.md 4.2, 4.14): the streamed response and the streamed outcome
+# carry the same cited text the batched door returns.
+async def test_should_cite_the_same_answer_on_the_streamed_door():
+    # given
+    agent = _grounded_agent(_answering(_ANSWER)).cite_knowledge()
+    expected_result = await agent.process_prompt("what is the refund window?")
+    request = PromptRequest(prompt="what is the refund window?")
+
+    # when
+    run_stream = agent.run_stream(request)
+    streamed_events = [streamed_event async for streamed_event in run_stream]
+
+    # then
+    assert expected_result.endswith(f"Source: {_SHIPPING_SOURCE}")
+
+    assert any(
+        streamed_event.type == AgentStreamEventType.RESPONSE
+        and streamed_event.content == expected_result
+        for streamed_event in streamed_events)
+
+    assert run_stream.outcome.result == expected_result
