@@ -95,3 +95,21 @@ async def test_should_run_an_irreversible_tool_once_approved():
     # then
     assert tool.execution_count == 1
     assert actual_result == "paid"
+
+
+async def test_should_run_the_same_effect_only_once_within_a_run():
+    # given: the Brain proposes the identical transfer three times, as a looping model does
+    tool = _CountingTool()
+
+    agent = _agent_that_calls_the_tool(
+        tool,
+        "ACTION: wire_transfer: 10000",
+        "ACTION: wire_transfer: 10000",
+        "ACTION: wire_transfer:  10000",
+        "FINAL: paid")
+
+    # when
+    await agent.process_prompt("pay the invoice")
+
+    # then: one act, however many times it is proposed
+    assert tool.execution_count == 1
