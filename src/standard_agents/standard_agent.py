@@ -184,8 +184,28 @@ class StandardAgent(Agent):
 
         return self
 
-    def mcp(self, endpoint_url: str) -> StandardAgent:
-        self._mcp_sources.append(lambda: HttpMcpBroker(endpoint_url, "", 30))
+    def mcp(
+            self,
+            endpoint_url: str,
+            *,
+            relative_url: str = "",
+            timeout_seconds: int = 30,
+            bearer_token: str | None = None,
+            api_key: str | None = None,
+            api_key_header: str = "X-Api-Key",
+            bearer_token_provider: Callable[[], Awaitable[str]] | None = None) -> StandardAgent:
+
+        # A source, not a broker: the HTTP broker is created at composition so the host's handler
+        # (http) reaches it whatever the order of the chain (F-23).
+        self._mcp_sources.append(lambda: HttpMcpBroker(
+            endpoint_url,
+            relative_url,
+            timeout_seconds,
+            bearer_token,
+            api_key,
+            api_key_header,
+            bearer_token_provider,
+            handler=self._create_http_opener()))
 
         return self
 
@@ -470,6 +490,19 @@ class StandardAgent(Agent):
             return None
 
         return self._http_handler_source()
+
+    def _create_http_opener(self) -> urllib.request.OpenerDirector | None:
+        # The MCP broker takes the composed opener rather than the bare handler; it sends no
+        # User-Agent of its own, as its default opener does not.
+        handler = self._create_http_handler()
+
+        if handler is None:
+            return None
+
+        opener = urllib.request.build_opener(handler)
+        opener.addheaders = []
+
+        return opener
 
     def _current_principal_id(self) -> str | None:
         if self._identity_resolver is None:
