@@ -487,3 +487,16 @@ def test_should_throw_invalid_agent_configuration_exception_on_from_json_if_a_li
         expected_message):
 
     should_refuse(document, expected_message)
+
+
+@pytest.mark.parametrize(("document", "expected_message"), [
+    ('{ "usage": "fast" }', "'usage' must be an object."),
+    ('{ "budget": 5 }', "'budget' must be an object."),
+    ('{ "brain": "http://b.test/v1/" }', "'brain' must be an object."),
+    ('{ "risk": [ "wire" ] }', "'risk' must be an object."),
+])
+def test_should_throw_invalid_agent_configuration_exception_on_from_json_if_a_section_has_the_wrong_shape(
+        document,
+        expected_message):
+
+    should_refuse(document, expected_message)
