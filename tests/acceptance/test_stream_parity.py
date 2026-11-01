@@ -115,3 +115,28 @@ async def test_should_stop_a_streamed_run_when_the_budget_is_exhausted():
 
     # then: a budget a caller can step around by streaming is not a budget
     assert any("budget" in stream_event.content for stream_event in actual_events)
+
+
+async def test_should_carry_the_conversation_on_a_streamed_run(sessions_path):
+    # given: the first prompt is answered on the batched path
+    tool = _CountingTool()
+    second_prompts: list[str] = []
+
+    first = _agent_that_loops(tool, _answering("FINAL: Paris")).sessions(sessions_path)
+
+    await first.process_prompt("what is the capital of France?", session_id="trip-3")
+
+    # when: the follow-up is streamed
+    async def second_brain(system_prompt: str, user_prompt: str) -> str:
+        second_prompts.append(user_prompt)
+
+        return "FINAL: about two million"
+
+    second = _agent_that_loops(tool, second_brain).sessions(sessions_path)
+
+    await _drain(second.process_prompt_stream(
+        "and how many people live there?",
+        session_id="trip-3"))
+
+    # then: the streamed path loads the conversation like the batched one does
+    assert "Paris" in second_prompts[-1]
