@@ -186,7 +186,10 @@ class DecisionCoordinationService:
         if _is_guardian_overreach(verdict):
             await self._log_guardian_overreach()
 
+        await self.logging_broker.log_payload("Decision", "Gate ACCEPT", verdict, detail=False)
+
         return (
+
             dataclasses.replace(context, route=_extract_route_label(verdict))
             if _is_route(verdict)
             else context)
