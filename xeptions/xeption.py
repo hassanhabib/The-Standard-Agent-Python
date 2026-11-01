@@ -26,7 +26,9 @@ class Xeption(Exception):
         self.data.setdefault(key, []).append(value)
 
     def add_data(self, data: dict[str, list[str]]) -> None:
-        raise NotImplementedError
+        for key, values in data.items():
+            for value in values:
+                self.upsert_data_list(key, value)
 
     def throw_if_contains_errors(self) -> None:
         if self.data:
