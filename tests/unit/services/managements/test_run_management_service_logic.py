@@ -190,3 +190,29 @@ async def test_should_refuse_gracefully_when_review_never_passes_on_process_prom
     assert actual_result == expected_result
     assert decision_coordination_service.think.mock_calls == [call(ANY)] * 7
     assert direction_coordination_service.act.mock_calls == []
+
+
+async def test_should_remember_preference_on_process_prompt_when_decision_sets_remember(
+        run_management_service,
+        data_coordination_service,
+        decision_coordination_service,
+        direction_coordination_service,
+        create_random_string):
+
+    # given
+    random_prompt = create_random_string()
+    preference = create_random_string()
+
+    data_coordination_service.recall.side_effect = lambda context: context
+
+    decision_coordination_service.think.side_effect = lambda context: dataclasses.replace(
+        context, remember=preference)
+
+    direction_coordination_service.act.side_effect = lambda context: dataclasses.replace(
+        context, result="done", status=AgentStatus.RESPONDED)
+
+    # when
+    await run_management_service.process_prompt(random_prompt)
+
+    # then
+    assert data_coordination_service.remember.mock_calls == [call(preference)]
