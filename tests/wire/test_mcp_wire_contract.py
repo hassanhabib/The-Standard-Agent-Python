@@ -433,3 +433,20 @@ async def test_should_throw_json_exception_on_an_event_whose_data_is_a_file_sepa
     # when, then
     with pytest.raises(json.JSONDecodeError):
         await broker.list_tools()
+
+
+# No C# twin: ToolListEntry.Name is a string the deserializer leaves null when the server sends
+# none, and ListToolsAsync hands it on as it came.
+async def test_should_list_a_tool_the_server_named_nothing_with_no_name():
+    # given
+    server = ScriptedServerHandler.answering(
+        '{"jsonrpc":"2.0","id":1,"result":{"tools":[{"description":"nameless"}]}}')
+
+    broker = create_broker(server)
+    expected_tools = [McpTool(name=None, description="nameless", input_schema_json="{}")]
+
+    # when
+    actual_tools = await broker.list_tools()
+
+    # then
+    assert actual_tools == expected_tools
