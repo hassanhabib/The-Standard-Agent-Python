@@ -27,6 +27,7 @@ from standard_agents._standard_agent_composition import (
     compose_guardian_rubric,
     render_tool_catalog,
     render_tool_catalog_entries)
+from standard_agents._standard_agent_configuration import apply_document
 from standard_agents.agent import Agent
 from standard_agents.brokers.agents.agent_registry_broker import AgentRegistryBroker
 from standard_agents.brokers.agents.file_agent_registry_broker import FileAgentRegistryBroker
@@ -225,6 +226,7 @@ class StandardAgent(Agent):
         self._resilience_broker: ResilienceBroker | None = None
         self._session_broker: SessionBroker | None = None
         self._max_history_turns = 20
+        self._max_turns = 7
         self._effect_ledger_broker: EffectLedgerBroker | None = None
         self._contract_schema: str | None = None
         self._contract_broker: ContractBroker | None = None
@@ -237,6 +239,18 @@ class StandardAgent(Agent):
 
     def skills(self, path: str) -> StandardAgent:
         self._skill_sources.append(FileSkillBroker(os.path.join(os.getcwd(), path)))
+
+        return self
+
+    @classmethod
+    def from_json(cls, json: str) -> StandardAgent:
+        agent = cls()
+        apply_document(agent, json)
+
+        return agent
+
+    def max_turns(self, turns: int) -> StandardAgent:
+        self._max_turns = 1 if turns < 1 else turns
 
         return self
 
@@ -861,7 +875,15 @@ class StandardAgent(Agent):
             else self._native_brain_source() if self._native_brain_source is not None
             else None)
 
-        memory_service = MemoryService(memory_broker=self._memory_broker, logging_broker=logging)
+        if self._memory_broker is not None:
+            memory_service = MemoryService(
+                memory_broker=self._memory_broker,
+                logging_broker=logging)
+        else:
+            memory_service = MemoryService(
+                file_broker=file,
+                memory_path=os.path.abspath(self._memory_path),
+                logging_broker=logging)
         all_tools = [*self._tools, RememberTool(memory_service.remember)]
 
         constitution = _read_optional_file(file, self._constitution_path)
