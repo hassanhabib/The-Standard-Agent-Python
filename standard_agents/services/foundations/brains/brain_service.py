@@ -18,4 +18,4 @@ class BrainService(IBrainService):
         self.logging_broker = logging_broker
 
     async def generate(self, system_prompt: str, user_prompt: str) -> str:
-        raise NotImplementedError
+        return await self.generator_broker.generate(system_prompt, user_prompt)
