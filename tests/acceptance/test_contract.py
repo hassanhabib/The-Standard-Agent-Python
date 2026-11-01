@@ -18,6 +18,7 @@ from unittest.mock import create_autospec
 from standard_agents.brokers.knowledges.knowledge_broker import KnowledgeBroker
 from standard_agents.brokers.memories.memory_broker import MemoryBroker
 from standard_agents.brokers.skills.skill_broker import SkillBroker
+from standard_agents.models.clients.agents.agent_stream_event_type import AgentStreamEventType
 from standard_agents.standard_agent import StandardAgent
 
 INVOICE_SCHEMA = '{ "type": "object", "required": ["amount", "currency"] }'
@@ -99,3 +100,28 @@ async def test_should_refuse_when_the_contract_is_never_satisfied():
     # returning nothing
     assert actual_answer != "The amount is one hundred US dollars."
     assert actual_answer.strip() != ""
+
+
+# Found in the 2026-08-23 sweep: check_shape had exactly one call site, think, so the identical
+# prose the batched path re-thinks streamed out as the answer. A guardian a caller can step around
+# by changing method is not a guardian (SPEC.md 7.6).
+async def test_should_enforce_the_contract_on_the_streamed_path():
+    # given: the same drafts as the batched revision test above
+    agent = (_agent_answering(
+            "FINAL: The amount is one hundred US dollars.",
+            'FINAL: { "amount": 100, "currency": "USD" }')
+        .contract(INVOICE_SCHEMA)
+        .max_turns(5))
+
+    # when
+    responses = [
+        stream_event.content
+        async for stream_event in agent.process_prompt_stream("what is owed")
+        if stream_event.type is AgentStreamEventType.RESPONSE]
+
+    # then: the shape that satisfied the contract, and never the prose that did not; a draft the
+    # contract rejects on the batched path must not be delivered by switching to the streamed one
+    streamed_answer = "".join(responses)
+
+    assert '"amount"' in streamed_answer
+    assert "one hundred US dollars" not in streamed_answer
