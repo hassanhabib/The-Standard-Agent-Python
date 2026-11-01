@@ -12,6 +12,7 @@ from tests.unit.services.foundations.gates.gate_service_tests import GateService
 class TestGateServiceLogicScreen(GateServiceTests):
     def test_should_screen_and_return_trimmed_verdict(self) -> None:
         # given
+        input_gate_prompt = self.create_random_string()
         input_text = self.create_random_string()
         random_verdict = self.create_random_string()
         returned_verdict = "  " + random_verdict + "\n"
@@ -19,9 +20,9 @@ class TestGateServiceLogicScreen(GateServiceTests):
         self.classifier_broker_mock.classify.return_value = returned_verdict
 
         # when
-        actual_verdict = asyncio.run(self.gate_service.screen(input_text))
+        actual_verdict = asyncio.run(self.gate_service.screen(input_gate_prompt, input_text))
 
         # then
         assert actual_verdict == expected_verdict
-        assert self.classifier_broker_mock.mock_calls == [call.classify(input_text)]
+        assert self.classifier_broker_mock.mock_calls == [call.classify(input_gate_prompt, input_text)]
         assert self.logging_broker_mock.mock_calls == []

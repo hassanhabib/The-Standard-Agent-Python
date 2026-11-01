@@ -32,7 +32,7 @@ class TestJudgeServiceValidationsEvaluate(JudgeServiceTests):
 
         # when
         with pytest.raises(JudgeValidationException) as actual_judge_validation_exception:
-            asyncio.run(self.judge_service.evaluate(invalid_text, invalid_text))
+            asyncio.run(self.judge_service.evaluate(self.create_random_string(), invalid_text, invalid_text))
 
         # then
         assert expected_judge_validation_exception.same_exception_as(

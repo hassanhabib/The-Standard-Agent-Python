@@ -22,10 +22,10 @@ class JudgeService(IJudgeService):
         self.logging_broker = logging_broker
 
     # The task travels with the candidate: an answer is good or bad for a question.
-    async def evaluate(self, task: str, candidate: str) -> Judgement:
+    async def evaluate(self, judge_prompt: str, task: str, candidate: str) -> Judgement:
         async def returning_judgement_function() -> Judgement:
             validate_evaluate(task, candidate)
-            verdict = await self.verifier_broker.verify(task, candidate)
+            verdict = await self.verifier_broker.verify(judge_prompt, task, candidate)
 
             return parse_judgement(verdict)
 

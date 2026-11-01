@@ -32,11 +32,11 @@ async def local_brain(system_prompt: str, user_prompt: str) -> str:
     return "FINAL: I can only help with arithmetic."
 
 
-async def local_gate(text: str) -> str:
+async def local_gate(rubric: str, text: str) -> str:
     if any(secret in text.lower() for secret in SECRETS):
         return "refuse: asks for credentials"
 
-    return "allow"
+    return "accept"
 
 
 def create_agent() -> StandardAgent:

@@ -66,7 +66,7 @@ class AllowingGate(IClassifierBroker):
     def __init__(self) -> None:
         self.screened: list[str] = []
 
-    async def classify(self, text: str) -> str:
+    async def classify(self, system_prompt: str, text: str) -> str:
         self.screened.append(text)
 
         return "allow"
@@ -76,7 +76,7 @@ class AcceptingJudge(IVerifierBroker):
     def __init__(self) -> None:
         self.reviewed: list[str] = []
 
-    async def verify(self, task: str, candidate: str) -> str:
+    async def verify(self, system_prompt: str, task: str, candidate: str) -> str:
         self.reviewed.append(candidate)
 
         return "1.0"

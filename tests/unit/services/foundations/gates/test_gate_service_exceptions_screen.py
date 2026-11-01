@@ -26,6 +26,7 @@ class TestGateServiceExceptionsScreen(GateServiceTests):
         dependency_error: Exception) -> None:
 
         # given
+        input_gate_prompt = self.create_random_string()
         input_text = self.create_random_string()
 
         failed_gate_dependency_exception = FailedGateDependencyException(
@@ -40,19 +41,20 @@ class TestGateServiceExceptionsScreen(GateServiceTests):
 
         # when
         with pytest.raises(GateDependencyException) as actual_gate_dependency_exception:
-            asyncio.run(self.gate_service.screen(input_text))
+            asyncio.run(self.gate_service.screen(input_gate_prompt, input_text))
 
         # then
         assert expected_gate_dependency_exception.same_exception_as(
             actual_gate_dependency_exception.value)
 
-        assert self.classifier_broker_mock.mock_calls == [call.classify(input_text)]
+        assert self.classifier_broker_mock.mock_calls == [call.classify(input_gate_prompt, input_text)]
         self.assert_logged_once("log_error", expected_gate_dependency_exception)
 
     def test_should_raise_service_exception_on_screen_if_service_error_occurs_and_log_it(
         self) -> None:
 
         # given
+        input_gate_prompt = self.create_random_string()
         input_text = self.create_random_string()
         service_error = Exception(self.create_random_string())
 
@@ -68,11 +70,11 @@ class TestGateServiceExceptionsScreen(GateServiceTests):
 
         # when
         with pytest.raises(GateServiceException) as actual_gate_service_exception:
-            asyncio.run(self.gate_service.screen(input_text))
+            asyncio.run(self.gate_service.screen(input_gate_prompt, input_text))
 
         # then
         assert expected_gate_service_exception.same_exception_as(
             actual_gate_service_exception.value)
 
-        assert self.classifier_broker_mock.mock_calls == [call.classify(input_text)]
+        assert self.classifier_broker_mock.mock_calls == [call.classify(input_gate_prompt, input_text)]
         self.assert_logged_once("log_error", expected_gate_service_exception)

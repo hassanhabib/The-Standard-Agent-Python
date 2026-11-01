@@ -34,12 +34,16 @@ class DecisionOrchestrationService(IDecisionOrchestrationService):
         brain_service: IBrainService,
         gate_service: IGateService,
         judge_service: IJudgeService,
-        logging_broker: ILoggingBroker) -> None:
+        logging_broker: ILoggingBroker,
+        gate_rubric: str = "",
+        judge_rubric: str = "") -> None:
 
         self.brain_service = brain_service
         self.gate_service = gate_service
         self.judge_service = judge_service
         self.logging_broker = logging_broker
+        self.gate_rubric = gate_rubric
+        self.judge_rubric = judge_rubric
 
     async def think(self, context: AgentContext) -> AgentContext:
         async def returning_context_function() -> AgentContext:
@@ -52,7 +56,7 @@ class DecisionOrchestrationService(IDecisionOrchestrationService):
     # Screen, then think, then review: the Gate before the brain sees the request, the Judge
     # before the user sees the answer.
     async def think_through(self, context: AgentContext) -> AgentContext:
-        verdict = await self.gate_service.screen(context.prompt)
+        verdict = await self.gate_service.screen(self.gate_rubric, context.prompt)
 
         # The Gate's reason is for the trace, not the user: a refusal says what it will not do,
         # never what the screen looked for.
@@ -72,7 +76,10 @@ class DecisionOrchestrationService(IDecisionOrchestrationService):
         if is_final_answer(decided) is False:
             return decided
 
-        judgement = await self.judge_service.evaluate(context.prompt, decided.payload)
+        judgement = await self.judge_service.evaluate(
+            self.judge_rubric,
+            context.prompt,
+            decided.payload)
 
         if judgement.score >= MINIMUM_ACCEPTABLE_SCORE:
             return decided

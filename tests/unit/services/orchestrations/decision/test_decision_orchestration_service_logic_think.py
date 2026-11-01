@@ -40,7 +40,7 @@ class TestDecisionOrchestrationServiceLogicThink(DecisionOrchestrationServiceTes
 
         # then
         assert actual_context == expected_context
-        assert self.gate_service_mock.mock_calls == [call.screen(input_context.prompt)]
+        assert self.gate_service_mock.mock_calls == [call.screen(self.gate_rubric, input_context.prompt)]
 
         assert self.brain_service_mock.mock_calls == [
             call.generate(input_context.system_prompt, expected_user_message)
@@ -99,14 +99,14 @@ class TestDecisionOrchestrationServiceLogicThink(DecisionOrchestrationServiceTes
 
         # then
         assert actual_context == expected_context
-        assert self.gate_service_mock.mock_calls == [call.screen(input_context.prompt)]
+        assert self.gate_service_mock.mock_calls == [call.screen(self.gate_rubric, input_context.prompt)]
 
         assert self.brain_service_mock.mock_calls == [
             call.generate(input_context.system_prompt, expected_user_message)
         ]
 
         assert self.judge_service_mock.mock_calls == [
-            call.evaluate(input_context.prompt, random_answer)
+            call.evaluate(self.judge_rubric, input_context.prompt, random_answer)
         ]
 
     # A rejected draft is never delivered, and Decision does not write the status (SPEC.md 3.2:
@@ -147,7 +147,7 @@ class TestDecisionOrchestrationServiceLogicThink(DecisionOrchestrationServiceTes
         assert actual_context == expected_context
 
         assert self.judge_service_mock.mock_calls == [
-            call.evaluate(input_context.prompt, random_answer)
+            call.evaluate(self.judge_rubric, input_context.prompt, random_answer)
         ]
 
     @pytest.mark.parametrize("refusing_verdict", ["refuse", "Refuse: unsafe request"])
@@ -168,6 +168,6 @@ class TestDecisionOrchestrationServiceLogicThink(DecisionOrchestrationServiceTes
 
         # then
         assert actual_context == expected_context
-        assert self.gate_service_mock.mock_calls == [call.screen(input_context.prompt)]
+        assert self.gate_service_mock.mock_calls == [call.screen(self.gate_rubric, input_context.prompt)]
         assert self.brain_service_mock.mock_calls == []
         assert self.judge_service_mock.mock_calls == []

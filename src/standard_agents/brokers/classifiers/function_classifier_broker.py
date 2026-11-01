@@ -9,8 +9,8 @@ from standard_agents.brokers.classifiers.iclassifier_broker import IClassifierBr
 
 
 class FunctionClassifierBroker(IClassifierBroker):
-    def __init__(self, classify: Callable[[str], Awaitable[str]]) -> None:
+    def __init__(self, classify: Callable[[str, str], Awaitable[str]]) -> None:
         self.classify_function = classify
 
-    async def classify(self, text: str) -> str:
-        return await self.classify_function(text)
+    async def classify(self, system_prompt: str, input: str) -> str:
+        return await self.classify_function(system_prompt, input)

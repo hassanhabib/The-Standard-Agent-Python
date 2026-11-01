@@ -31,7 +31,7 @@ class TestGateServiceValidationsScreen(GateServiceTests):
 
         # when
         with pytest.raises(GateValidationException) as actual_gate_validation_exception:
-            asyncio.run(self.gate_service.screen(invalid_text))
+            asyncio.run(self.gate_service.screen(self.create_random_string(), invalid_text))
 
         # then
         assert expected_gate_validation_exception.same_exception_as(

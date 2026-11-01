@@ -6,8 +6,9 @@
 from abc import ABC, abstractmethod
 
 
-# What the Judge reviews with: the task travels with the candidate, because an answer is good
-# or bad for a question. The verdict is "<score between 0 and 1> <optional reason>".
+# What the Judge reviews with (SPEC.md 4.1): its rubric as the system prompt, the task, and the
+# candidate answer, because an answer is good or bad for a question. The verdict is a score
+# between 0.0 and 1.0 and a short reason.
 class IVerifierBroker(ABC):
     @abstractmethod
-    async def verify(self, task: str, candidate: str) -> str: ...
+    async def verify(self, system_prompt: str, task: str, candidate: str) -> str: ...

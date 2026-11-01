@@ -26,6 +26,7 @@ class TestJudgeServiceExceptionsEvaluate(JudgeServiceTests):
         dependency_error: Exception) -> None:
 
         # given
+        input_judge_prompt = self.create_random_string()
         input_task = self.create_random_string()
         input_candidate = self.create_random_string()
 
@@ -41,14 +42,14 @@ class TestJudgeServiceExceptionsEvaluate(JudgeServiceTests):
 
         # when
         with pytest.raises(JudgeDependencyException) as actual_judge_dependency_exception:
-            asyncio.run(self.judge_service.evaluate(input_task, input_candidate))
+            asyncio.run(self.judge_service.evaluate(input_judge_prompt, input_task, input_candidate))
 
         # then
         assert expected_judge_dependency_exception.same_exception_as(
             actual_judge_dependency_exception.value)
 
         assert self.verifier_broker_mock.mock_calls == [
-            call.verify(input_task, input_candidate)
+            call.verify(input_judge_prompt, input_task, input_candidate)
         ]
 
         self.assert_logged_once("log_error", expected_judge_dependency_exception)
@@ -64,6 +65,7 @@ class TestJudgeServiceExceptionsEvaluate(JudgeServiceTests):
         service_error: Exception) -> None:
 
         # given
+        input_judge_prompt = self.create_random_string()
         input_task = self.create_random_string()
         input_candidate = self.create_random_string()
 
@@ -79,14 +81,14 @@ class TestJudgeServiceExceptionsEvaluate(JudgeServiceTests):
 
         # when
         with pytest.raises(JudgeServiceException) as actual_judge_service_exception:
-            asyncio.run(self.judge_service.evaluate(input_task, input_candidate))
+            asyncio.run(self.judge_service.evaluate(input_judge_prompt, input_task, input_candidate))
 
         # then
         assert expected_judge_service_exception.same_exception_as(
             actual_judge_service_exception.value)
 
         assert self.verifier_broker_mock.mock_calls == [
-            call.verify(input_task, input_candidate)
+            call.verify(input_judge_prompt, input_task, input_candidate)
         ]
 
         self.assert_logged_once("log_error", expected_judge_service_exception)
