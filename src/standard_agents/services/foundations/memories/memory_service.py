@@ -29,7 +29,7 @@ class MemoryService:
         self.logging_broker = logging_broker
 
     async def recall_memories(self) -> Sequence[str]:
-        raise NotImplementedError
+        return await self.memory_broker.select_memories()
 
     async def remember(self, memory: str) -> None:
         raise NotImplementedError
