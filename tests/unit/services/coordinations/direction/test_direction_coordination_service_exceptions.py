@@ -8,10 +8,15 @@ from unittest.mock import call
 import pytest
 
 from standard_agents.models.foundations.external_tools.exceptions import (
+    ExternalToolDependencyException,
     ExternalToolValidationException)
 from standard_agents.models.foundations.internal_tools.exceptions import (
+    InternalToolDependencyException,
+    InternalToolServiceException,
     InternalToolValidationException)
+from standard_agents.models.foundations.returns.exceptions import ReturnServiceException
 from standard_agents.models.orchestrations.agents.exceptions import (
+    AgentOrchestrationDependencyException,
     AgentOrchestrationDependencyValidationException,
     AgentOrchestrationValidationException,
     NullAgentContextException)
@@ -26,6 +31,25 @@ def _dependency_validation_exceptions() -> list[Xeption]:
 
         ExternalToolValidationException(
             message="external tool validation",
+            inner_exception=Xeption(message="inner"))]
+
+
+def _dependency_exceptions() -> list[Xeption]:
+    return [
+        InternalToolDependencyException(
+            message="internal tool dependency",
+            inner_exception=Xeption(message="inner")),
+
+        InternalToolServiceException(
+            message="internal tool service",
+            inner_exception=Xeption(message="inner")),
+
+        ExternalToolDependencyException(
+            message="external tool dependency",
+            inner_exception=Xeption(message="inner")),
+
+        ReturnServiceException(
+            message="return service",
             inner_exception=Xeption(message="inner"))]
 
 
@@ -85,6 +109,37 @@ async def test_should_throw_dependency_validation_exception_on_act_if_dependency
 
     # when
     with pytest.raises(AgentOrchestrationDependencyValidationException) as raised:
+        await direction_coordination_service.act(input_context)
+
+    # then
+    assert raised.value.same_exception_as(expected_exception)
+    assert logging_broker.mock_calls == [call.log_error(same_exception_as(expected_exception))]
+
+
+@pytest.mark.parametrize(
+    "foundation_exception",
+    _dependency_exceptions(),
+    ids=["internal-tool-dependency", "internal-tool-service", "external-tool-dependency",
+         "return-service"])
+async def test_should_throw_dependency_exception_on_act_if_dependency_error_occurs_and_log_it(
+        foundation_exception,
+        direction_coordination_service,
+        internal_tool_service,
+        logging_broker,
+        create_context_with_direction,
+        same_exception_as):
+
+    # given
+    input_context = create_context_with_direction("calculator", "1+1")
+
+    expected_exception = AgentOrchestrationDependencyException(
+        message="Agent orchestration dependency error occurred, contact support.",
+        inner_exception=foundation_exception.inner_exception)
+
+    internal_tool_service.handles.side_effect = foundation_exception
+
+    # when
+    with pytest.raises(AgentOrchestrationDependencyException) as raised:
         await direction_coordination_service.act(input_context)
 
     # then
