@@ -51,9 +51,12 @@ live in `src/xeptions` and `src/restfulsense`, and the wheel must not ship them 
 
 ## Known mismatches, each fixed test-first in its phase
 
-- `StdioMcpBroker` raises `TypeError` when given a command without arguments (`list(None)`),
-  has no `async with` lifecycle (cleanup rides `atexit`), and finds child processes through
-  `/proc` only (Phase 4).
+- `StandardAgent` does not close the stdio brokers `mcp_process` starts. C# never disposes
+  them either: their process trees are killed when the host exits, and a recomposition leaves
+  the old ones running. Python adds `StdioMcpBroker.aclose()` and `async with`, but a host
+  composing through the door cannot reach them, so a process started in one event loop
+  outlives it and its transport prints "Event loop is closed" when collected. Closing them
+  needs a public `StandardAgent` lifecycle (`aclose()`, `async with`), an owner decision.
 - Resolved with the trace tests (Phase 3): `AgentRun.started_on` keeps its default of
   `datetime(1, 1, 1, tzinfo=timezone.utc)`, .NET's `default(DateTimeOffset)`. On a composed
   agent every outcome line follows the run's reset, which stamps the start, so the default is
