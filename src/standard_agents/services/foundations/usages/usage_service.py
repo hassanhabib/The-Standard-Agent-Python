@@ -33,4 +33,10 @@ class UsageService:
         Returned with is_estimated set, because a counted number is an estimate of what the
         provider will bill.
         """
-        raise NotImplementedError
+        prompt_tokens = await self.usage_broker.count_tokens(prompt)
+        completion_tokens = await self.usage_broker.count_tokens(completion)
+
+        return AgentUsage(
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            is_estimated=False)
