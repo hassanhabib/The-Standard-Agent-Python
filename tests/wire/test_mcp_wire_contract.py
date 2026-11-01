@@ -450,3 +450,19 @@ async def test_should_list_a_tool_the_server_named_nothing_with_no_name():
 
     # then
     assert actual_tools == expected_tools
+
+
+# No C# twin: ToolListResult.Tools is a list the deserializer leaves null when the server sends
+# null, and ListToolsAsync reads it as no tools (page?.Tools ?? []).
+async def test_should_list_no_tools_when_the_server_sends_a_null_tool_list():
+    # given
+    server = ScriptedServerHandler.answering(
+        '{"jsonrpc":"2.0","id":1,"result":{"tools":null}}')
+
+    broker = create_broker(server)
+
+    # when
+    actual_tools = await broker.list_tools()
+
+    # then
+    assert actual_tools == []
