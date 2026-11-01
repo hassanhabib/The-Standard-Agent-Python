@@ -86,3 +86,19 @@ async def test_should_exhaust_the_token_budget_on_the_text_protocol():
     # to be the thing that stops it, rather than the turn cap
     assert "token budget" in actual_result
     assert tool.calls < 20
+
+
+async def test_should_exhaust_the_cost_budget_on_the_text_protocol():
+    # given
+    tool = _CountingTool()
+
+    agent = (_agent_with(_always_calls_the_tool, tool)
+        .max_turns(20)
+        .budget(max_cost_usd=Decimal("0.0001"), cost_per_thousand_tokens=Decimal(1)))
+
+    # when
+    actual_result = await agent.process_prompt("what is one plus one")
+
+    # then: cost is priced off the token count, so a protocol that reports no tokens reports
+    # no cost, and the bound silently never applies
+    assert "cost budget" in actual_result
