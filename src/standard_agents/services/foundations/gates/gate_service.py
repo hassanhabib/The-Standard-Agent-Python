@@ -32,7 +32,7 @@ from xeptions import Xeption
 # Sent to the model byte for byte as the C# framework sends it, so the dash in it is the same
 # U+2014 the C# rubric carries, written as an escape.
 _CONFLICT_RUBRIC = (
-    "You review an AI agent's active skill instructions for a DIRECT CONTRADICTION — two "
+    "You review an AI agent's active skill instructions for a DIRECT CONTRADICTION \u2014 two "
     "instructions that cannot both be obeyed at once, for example 'answer in Arabic' versus "
     "'answer in English'. If such a contradiction exists, reply with a single line in the "
     "form: CONFLICT: <short label> | <instruction> || <short label> | <instruction>. If there "
