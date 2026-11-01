@@ -16,8 +16,10 @@ import pytest
 from standard_agents.brokers.sessions.db_concurrency_exception import DBConcurrencyException
 from standard_agents.models.foundations.sessions.exceptions import (
     FailedSessionDependencyException,
+    FailedSessionServiceException,
     SessionDependencyException,
     SessionDependencyValidationException,
+    SessionServiceException,
     StaleSessionException)
 
 
@@ -113,3 +115,33 @@ async def test_should_throw_critical_dependency_exception_on_record_session_if_a
         call.log_critical(same_exception_as(expected_session_dependency_exception))]
 
     assert session_broker.mock_calls == [call.upsert_session(random_session)]
+
+
+async def test_should_throw_service_exception_on_retrieve_session_if_service_error_occurs(
+        session_service, session_broker, logging_broker, same_exception_as, create_random_string):
+
+    # given
+    random_session_id = create_random_string()
+    service_error = Exception()
+
+    failed_session_service_exception = FailedSessionServiceException(
+        message="Failed session service error occurred, contact support.",
+        inner_exception=service_error)
+
+    expected_session_service_exception = SessionServiceException(
+        message="Session service error occurred, contact support.",
+        inner_exception=failed_session_service_exception)
+
+    session_broker.select_session.side_effect = service_error
+
+    # when
+    with pytest.raises(SessionServiceException) as raised:
+        await session_service.retrieve_session(random_session_id)
+
+    # then
+    assert raised.value.same_exception_as(expected_session_service_exception)
+
+    assert logging_broker.mock_calls == [
+        call.log_error(same_exception_as(expected_session_service_exception))]
+
+    assert session_broker.mock_calls == [call.select_session(random_session_id)]
