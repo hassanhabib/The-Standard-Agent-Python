@@ -112,3 +112,16 @@ async def test_should_prefer_the_rarer_term_when_ranking(tmp_path):
     # then
     assert len(actual_passages) == 1
     assert "refund" in actual_passages[0]
+
+
+async def test_should_retrieve_nothing_when_nothing_is_relevant(tmp_path):
+    # given
+    knowledge_service = _knowledge_over(
+        tmp_path / "knowledge",
+        ("a.md", "Shipping policy. Orders ship within two business days."))
+
+    # when
+    actual_passages = await knowledge_service.retrieve_knowledge(query="quantum chromodynamics")
+
+    # then: silence is the right answer when nothing matches
+    assert len(actual_passages) == 0
