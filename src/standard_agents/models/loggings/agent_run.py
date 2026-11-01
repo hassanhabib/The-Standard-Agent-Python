@@ -5,8 +5,9 @@
 
 import threading
 import uuid
-from contextvars import ContextVar
+from contextvars import ContextVar, Token
 from datetime import datetime, timezone
+from types import TracebackType
 
 from standard_agents.models.brokers.mcps.mcp_tool import McpTool
 from standard_agents.models.clients.agents.agent_outcome import AgentOutcome
@@ -110,13 +111,11 @@ class AgentRun:
         cancellation_token: the token that stops this run, carried on the run so a nested agent
         can observe the same stop the outer loop observes.
         """
-        enclosing_run = _current.get()
-
         run = cls(resumed_id or uuid.uuid4().hex)
         run._cancellation_token = cancellation_token
-        _current.set(run)
+        token = _current.set(run)
 
-        return AgentRunScope(enclosing_run)
+        return AgentRunScope(token)
 
     @classmethod
     def detached(cls) -> "AgentRun":
@@ -228,19 +227,30 @@ class AgentRunScope:
     """Restores whatever run was active before.
 
     A nested agent (the fractal: an agent used as a tool of another agent) returns its caller's
-    run rather than leaving it cleared. close() ends the scope; it is also a context manager.
+    run rather than leaving it cleared. close() ends the scope, once: a second close does
+    nothing. It is also a context manager.
     """
 
-    def __init__(self, enclosing_run: AgentRun | None) -> None:
-        self._enclosing_run = enclosing_run
+    def __init__(self, token: Token["AgentRun | None"]) -> None:
+        self._token = token
+        self._is_closed = False
 
     def close(self) -> None:
-        _current.set(self._enclosing_run)
+        if self._is_closed:
+            return
+
+        self._is_closed = True
+        _current.reset(self._token)
 
     def __enter__(self) -> "AgentRunScope":
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback) -> None:
+    def __exit__(
+            self,
+            exc_type: type[BaseException] | None,
+            exc_value: BaseException | None,
+            traceback: TracebackType | None) -> None:
+
         self.close()
 
 

@@ -17,8 +17,10 @@ from __future__ import annotations
 
 import contextvars
 import threading
+import time
 from datetime import datetime, timedelta, timezone
 from collections.abc import Callable
+from types import TracebackType
 from typing import Any
 
 # The current span flows with the async context, as Activity.Current does in .NET.
@@ -50,7 +52,12 @@ class ActivityListener:
     def __enter__(self) -> ActivityListener:
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback) -> None:
+    def __exit__(
+            self,
+            exc_type: type[BaseException] | None,
+            exc_value: BaseException | None,
+            traceback: TracebackType | None) -> None:
+
         self.close()
 
 
@@ -77,7 +84,7 @@ class ActivitySource:
             return None
 
         activity = Activity(name, self, _current_activity.get())
-        _current_activity.set(activity)
+        activity._current_token = _current_activity.set(activity)
 
         for listener in listeners:
             if listener.activity_started is not None:
@@ -108,6 +115,14 @@ class Activity:
         self.duration = timedelta(0)
         self.is_stopped = False
 
+        # The duration is measured on the monotonic clock, so a wall-clock change mid-span
+        # cannot stretch it or make it negative.
+        self._started_counter = time.perf_counter()
+
+        # Set by ActivitySource.start_activity when the span becomes the current one; stop()
+        # resets it to hand current back to the parent.
+        self._current_token: contextvars.Token[Activity | None] | None = None
+
     @staticmethod
     def current() -> Activity | None:
         return _current_activity.get()
@@ -134,13 +149,17 @@ class Activity:
             return
 
         self.is_stopped = True
-        self.duration = datetime.now(timezone.utc) - self.start_time
+        self.duration = timedelta(seconds=time.perf_counter() - self._started_counter)
 
         for listener in self.source._listeners():
             if listener.activity_stopped is not None:
                 listener.activity_stopped(self)
 
-        _current_activity.set(self.parent)
+        if self._current_token is None:
+            # Never made current (constructed directly rather than started by a source).
+            _current_activity.set(self.parent)
+        else:
+            _current_activity.reset(self._current_token)
 
     def close(self) -> None:
         self.stop()
@@ -148,7 +167,12 @@ class Activity:
     def __enter__(self) -> Activity:
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback) -> None:
+    def __exit__(
+            self,
+            exc_type: type[BaseException] | None,
+            exc_value: BaseException | None,
+            traceback: TracebackType | None) -> None:
+
         self.close()
 
 
@@ -173,7 +197,12 @@ class MeterListener:
     def __enter__(self) -> MeterListener:
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback) -> None:
+    def __exit__(
+            self,
+            exc_type: type[BaseException] | None,
+            exc_value: BaseException | None,
+            traceback: TracebackType | None) -> None:
+
         self.close()
 
 

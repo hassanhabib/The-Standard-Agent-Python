@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 import unicodedata
 from collections.abc import Sequence
@@ -34,18 +35,14 @@ class FileAgentRegistryBroker(AgentRegistryBroker):
         # circular.
         from standard_agents.standard_agent import StandardAgent
 
-        if not os.path.isdir(self._agents_path):
-            return []
-
-        # Ordinal order: UTF-16 code units, as StringComparer.Ordinal compares them.
-        document_paths = sorted(
-            enumerate_files(self._agents_path, "*.json", all_directories=False),
-            key=lambda path: path.encode("utf-16-be", errors="surrogatepass"))
-
+        document_paths = await asyncio.to_thread(self._select_document_paths)
         agents: list[RegisteredAgent] = []
 
         for document_path in document_paths:
-            composed: StandardAgent = StandardAgent.from_json(_read_all_text(document_path))
+            # Only the read leaves the loop: composing stays where it always ran, one document
+            # at a time, so a failure surfaces in the same order it did.
+            document = await asyncio.to_thread(_read_all_text, document_path)
+            composed: StandardAgent = StandardAgent.from_json(document)
 
             agents.append(RegisteredAgent(
                 name=(
@@ -56,6 +53,15 @@ class FileAgentRegistryBroker(AgentRegistryBroker):
                 agent=composed))
 
         return agents
+
+    def _select_document_paths(self) -> list[str]:
+        if not os.path.isdir(self._agents_path):
+            return []
+
+        # Ordinal order: UTF-16 code units, as StringComparer.Ordinal compares them.
+        return sorted(
+            enumerate_files(self._agents_path, "*.json", all_directories=False),
+            key=lambda path: path.encode("utf-16-be", errors="surrogatepass"))
 
 
 def _name_without_extension(path: str) -> str:

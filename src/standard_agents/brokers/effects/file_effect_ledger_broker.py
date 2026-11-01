@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 from typing import Any
@@ -49,6 +50,23 @@ class FileEffectLedgerBroker(EffectLedgerBroker):
         Create-new refuses a key that already has a file, which is exactly what run-once needs to
         know, and the record is written into the file so created.
         """
+        return await asyncio.to_thread(self._insert_claim, claim)
+
+    async def select_record(self, idempotency_key: str) -> EffectRecord | None:
+        return await asyncio.to_thread(self._select_record, idempotency_key)
+
+    async def update_record(self, record: EffectRecord) -> None:
+        """Writes the record aside and moves it into place.
+
+        A crash mid-write leaves the previous record standing rather than a half-written one
+        that would read as a different act.
+        """
+        await asyncio.to_thread(self._update_record, record)
+
+    async def delete_record(self, idempotency_key: str) -> None:
+        await asyncio.to_thread(self._delete_record, idempotency_key)
+
+    def _insert_claim(self, claim: EffectRecord) -> bool:
         os.makedirs(self._ledger_path, exist_ok=True)
 
         try:
@@ -62,7 +80,7 @@ class FileEffectLedgerBroker(EffectLedgerBroker):
         except OSError:
             return False
 
-    async def select_record(self, idempotency_key: str) -> EffectRecord | None:
+    def _select_record(self, idempotency_key: str) -> EffectRecord | None:
         file = self._file_for(idempotency_key)
 
         if not os.path.isfile(file):
@@ -72,12 +90,7 @@ class FileEffectLedgerBroker(EffectLedgerBroker):
 
         return None if data is None else EffectRecord.from_json_dict(data)
 
-    async def update_record(self, record: EffectRecord) -> None:
-        """Writes the record aside and moves it into place.
-
-        A crash mid-write leaves the previous record standing rather than a half-written one
-        that would read as a different act.
-        """
+    def _update_record(self, record: EffectRecord) -> None:
         os.makedirs(self._ledger_path, exist_ok=True)
         file = self._file_for(record.idempotency_key)
         temporary_file = f"{file}.writing"
@@ -87,7 +100,7 @@ class FileEffectLedgerBroker(EffectLedgerBroker):
 
         os.replace(temporary_file, file)
 
-    async def delete_record(self, idempotency_key: str) -> None:
+    def _delete_record(self, idempotency_key: str) -> None:
         file = self._file_for(idempotency_key)
 
         # File.Delete: a missing file is not an error, a missing folder is.

@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import dataclasses
 import hashlib
 import json
@@ -61,8 +62,12 @@ class FileAuditBroker(AuditBroker):
         self._previous_hash: str | None = None
 
     async def write(self, record: AuditRecord) -> None:
+        await asyncio.to_thread(self._write, record)
+
+    def _write(self, record: AuditRecord) -> None:
         # One writer at a time. Records from concurrent runs may interleave, but a record is
-        # never interleaved into (SPEC.md 4.7).
+        # never interleaved into (SPEC.md 4.7). The lock is taken on the worker thread, so it
+        # holds across threads and event loops.
         with self._write_lock:
             self._seed_chain()
 

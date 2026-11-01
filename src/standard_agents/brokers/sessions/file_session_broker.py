@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import os
@@ -56,8 +57,7 @@ class FileSessionBroker(SessionBroker):
         self._file_lock = threading.Lock()
 
     async def select_session(self, session_id: str) -> AgentSession | None:
-        with self._file_lock:
-            return _read_session(self._file_for(session_id))
+        return await asyncio.to_thread(self._select_session, session_id)
 
     async def upsert_session(self, session: AgentSession) -> None:
         """Store the session, compare-and-swap on its version.
@@ -66,6 +66,14 @@ class FileSessionBroker(SessionBroker):
         longer current is refused with the concurrency failure the foundation localizes, rather
         than erasing the turn a faster writer stored.
         """
+        await asyncio.to_thread(self._upsert_session, session)
+
+    def _select_session(self, session_id: str) -> AgentSession | None:
+        # The lock is taken on the worker thread, so it holds across threads and event loops.
+        with self._file_lock:
+            return _read_session(self._file_for(session_id))
+
+    def _upsert_session(self, session: AgentSession) -> None:
         with self._file_lock:
             os.makedirs(self._sessions_path, exist_ok=True)
 

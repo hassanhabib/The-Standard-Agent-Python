@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from types import TracebackType
 from typing import Protocol
 
 
@@ -16,6 +17,16 @@ class TelemetryScope(Protocol):
     """
 
     def close(self) -> None:
+        ...
+
+    def __enter__(self) -> TelemetryScope:
+        ...
+
+    def __exit__(
+            self,
+            exc_type: type[BaseException] | None,
+            exc_value: BaseException | None,
+            traceback: TracebackType | None) -> None:
         ...
 
 

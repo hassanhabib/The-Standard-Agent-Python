@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 import re
 from collections.abc import Iterable, Sequence
@@ -32,7 +33,7 @@ class LocalFileBroker(FileBroker):
             all_directories=search_option is SearchOption.ALL_DIRECTORIES))
 
     async def read_file(self, path: str) -> str:
-        return _read_all_text(path)
+        return await asyncio.to_thread(_read_all_text, path)
 
     def read_file_sync(self, path: str) -> str:
         return _read_all_text(path)
@@ -45,17 +46,7 @@ class LocalFileBroker(FileBroker):
 
         Split at CR, LF or CRLF, with no empty line after a final line break.
         """
-        text = _read_all_text(path)
-
-        if not text:
-            return []
-
-        lines = _LINE_BREAK.split(text)
-
-        if lines[-1] == "":
-            lines.pop()
-
-        return lines
+        return await asyncio.to_thread(_read_all_lines, path)
 
     def create_directory(self, path: str) -> None:
         os.makedirs(path, exist_ok=True)
@@ -66,9 +57,29 @@ class LocalFileBroker(FileBroker):
         Each line is followed by the platform's line ending, written as UTF-8 without a byte
         order mark, and the file is created when it does not exist.
         """
-        with open(path, "a", encoding="utf-8", newline="") as file:
-            for line in lines:
-                file.write(line + os.linesep)
+        await asyncio.to_thread(_append_all_lines, path, lines)
+
+
+def _read_all_lines(path: str) -> list[str]:
+    text = _read_all_text(path)
+
+    if not text:
+        return []
+
+    lines = _LINE_BREAK.split(text)
+
+    if lines[-1] == "":
+        lines.pop()
+
+    return lines
+
+
+def _append_all_lines(path: str, lines: Iterable[str]) -> None:
+    # The lines are enumerated as they are written, so a failing sequence leaves the lines
+    # before it on disk, as File.AppendAllLines does.
+    with open(path, "a", encoding="utf-8", newline="") as file:
+        for line in lines:
+            file.write(line + os.linesep)
 
 
 def _read_all_text(path: str) -> str:

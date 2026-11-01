@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 import unicodedata
 from collections.abc import Sequence
@@ -22,6 +23,9 @@ class FileSkillBroker(SkillBroker):
         self._search_pattern = search_pattern
 
     async def select_skills(self) -> Sequence[Skill]:
+        return await asyncio.to_thread(self._select_skills)
+
+    def _select_skills(self) -> list[Skill]:
         if not os.path.isdir(self._skills_path):
             return []
 

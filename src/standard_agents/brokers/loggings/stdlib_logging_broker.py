@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import re
@@ -87,9 +88,7 @@ class StdlibLoggingBroker(LoggingBroker):
         self._run.started_on = datetime.now(timezone.utc)
 
         if self._log_path is not None:
-            with self._trace_lock:
-                with open(self._log_path, "w", encoding="utf-8", newline="") as file:
-                    file.write("")
+            await asyncio.to_thread(self._truncate_trace)
 
     async def log_turn(self, turn: int) -> None:
         await self._emit(f"{os.linesep}Turn {turn}")
@@ -101,13 +100,13 @@ class StdlibLoggingBroker(LoggingBroker):
     async def log_step(self, step: AgentStep) -> None:
         self._run.reset_process_index()
 
-        if TraceVerbosity.NATURES.value <= self._verbosity.value:
+        if TraceVerbosity.NATURES <= self._verbosity:
             await self._emit(f"  Step {step.value}: {_step_name(step)}")
 
     async def log_process(self, actor: str, message: str, detail: bool = False) -> None:
         level = TraceVerbosity.FULL if detail else TraceVerbosity.NATURES
 
-        if level.value <= self._verbosity.value:
+        if level <= self._verbosity:
             indented = _replace_line_endings(message, f"{os.linesep}      ")
             await self._emit(f"    Process {self._run.next_process_index()}: {actor}: {indented}")
 
@@ -137,6 +136,15 @@ class StdlibLoggingBroker(LoggingBroker):
 
             return
 
+        await asyncio.to_thread(self._append_trace, line)
+
+    def _truncate_trace(self) -> None:
+        # The lock is taken on the worker thread, so it holds across threads and event loops.
+        with self._trace_lock:
+            with open(self._log_path, "w", encoding="utf-8", newline="") as file:
+                file.write("")
+
+    def _append_trace(self, line: str) -> None:
         with self._trace_lock:
             with open(self._log_path, "a", encoding="utf-8", newline="") as file:
                 file.write(line + os.linesep)

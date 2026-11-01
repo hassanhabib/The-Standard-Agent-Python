@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from types import MappingProxyType
+from types import MappingProxyType, TracebackType
 from collections.abc import Callable, Mapping
 from typing import Any
 
@@ -74,5 +74,10 @@ class _Scope:
     def __enter__(self) -> _Scope:
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback) -> None:
+    def __exit__(
+            self,
+            exc_type: type[BaseException] | None,
+            exc_value: BaseException | None,
+            traceback: TracebackType | None) -> None:
+
         self.close()
