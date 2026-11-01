@@ -13,7 +13,10 @@ import re
 import pytest
 
 from standard_agents.models.clients.agents.agent_failure_codes import AgentFailureCodes
-from standard_agents.models.clients.agents.exceptions import InvalidAgentConfigurationException
+from standard_agents.models.clients.agents.exceptions import (
+    InvalidAgentApiUrlException,
+    InvalidAgentBudgetException,
+    InvalidAgentConfigurationException)
 from standard_agents.models.foundations.knowledges.knowledge_result import KnowledgeResult
 from standard_agents.standard_agent import StandardAgent
 from standard_agents.tools.tool import Tool
@@ -170,3 +173,32 @@ def test_should_reject_a_nameless_inline_fleet_member():
 
     # then
     assert re.search("agents.*name", raised.value.message)
+
+
+# A dollar bound priced at zero per token is zero dollars forever: the document looks bounded and
+# is not, so it refuses to compose rather than composing an agent whose cost budget can never trip
+# (principal review 2026-09-04, F-01). The builder's own refusal rides along as the inner
+# exception; the document-level message names the entries the author must fix.
+def test_should_throw_invalid_agent_configuration_exception_on_from_json_if_cost_budget_has_no_rate():
+    # given
+    invalid_agent_budget_exception = InvalidAgentBudgetException(
+        message=(
+            "Invalid agent budget: a cost bound (maxCostUsd) needs a positive "
+            + "costPerThousandTokens. Cost is the token count times that rate, so at "
+            + "zero the bound can never trip. Pass your model's rate, or bound by "
+            + "maxTokens instead."))
+
+    expected_invalid_agent_configuration_exception = InvalidAgentConfigurationException(
+        message=(
+            "The 'budget' entry sets 'maxCostUsd' without a positive "
+            + "'costPerThousandTokens'. Cost is priced off the token count times that "
+            + "rate, so without it the spend is zero forever and the bound can never "
+            + "trip. Add your model's rate, or bound by 'maxTokens' instead."),
+        inner_exception=invalid_agent_budget_exception)
+
+    # when
+    with pytest.raises(InvalidAgentConfigurationException) as raised:
+        StandardAgent.from_json('{ "budget": { "maxCostUsd": 0.25 } }')
+
+    # then
+    assert raised.value.same_exception_as(expected_invalid_agent_configuration_exception)
