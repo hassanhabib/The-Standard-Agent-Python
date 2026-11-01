@@ -295,3 +295,26 @@ async def test_should_peel_only_the_first_say_line_on_think(
     assert actual_context.narration == "one"
     assert actual_context.direction_type == "ReturnResponse"
     assert "SAY: two" in actual_context.payload
+
+
+async def test_should_carry_native_narration_on_think(
+        decision_coordination_service,
+        brain_service,
+        create_random_agent_context,
+        setup_gate_allows):
+
+    # given
+    input_context = create_random_agent_context()
+    setup_gate_allows()
+    brain_service.speaks_natively = True
+
+    brain_service.generate_natively.return_value = GenerationResult(
+        narration="Let me check...",
+        tool_calls=(ModelToolCall("call_1", "calculator", "{}"),))
+
+    # when
+    actual_context = await decision_coordination_service.think(input_context)
+
+    # then
+    assert actual_context.direction_type == "calculator"
+    assert actual_context.narration == "Let me check..."
