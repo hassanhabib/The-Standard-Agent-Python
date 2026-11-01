@@ -14,8 +14,10 @@ from standard_agents.brokers.usages.usage_broker import UsageBroker
 from standard_agents.models.foundations.usages.agent_usage import AgentUsage
 from standard_agents.models.foundations.usages.exceptions import (
     FailedUsageDependencyException,
+    FailedUsageServiceException,
     InvalidUsageException,
     UsageDependencyException,
+    UsageServiceException,
     UsageValidationException)
 from xeptions import Xeption
 
@@ -100,6 +102,13 @@ async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[N
 
         raise await _create_and_log_dependency_exception(
             logging_broker, failed_usage_dependency_exception)
+    except Exception as exception:
+        failed_usage_service_exception = FailedUsageServiceException(
+            message="Failed usage service error occurred, contact support.",
+            inner_exception=exception)
+
+        raise await _create_and_log_service_exception(
+            logging_broker, failed_usage_service_exception)
 
 
 async def _create_and_log_validation_exception(
@@ -126,3 +135,16 @@ async def _create_and_log_dependency_exception(
     await logging_broker.log_error(usage_dependency_exception)
 
     return usage_dependency_exception
+
+
+async def _create_and_log_service_exception(
+        logging_broker: LoggingBroker,
+        exception: Xeption) -> UsageServiceException:
+
+    usage_service_exception = UsageServiceException(
+        message="Usage service error occurred, contact support.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(usage_service_exception)
+
+    return usage_service_exception
