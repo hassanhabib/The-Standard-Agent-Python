@@ -242,3 +242,23 @@ def _agent_bare(brain) -> StandardAgent:
         .on_memory(_recall_nothing, _remember_nothing)
         .on_knowledge(_retrieve_nothing)
         .on_brain(brain))
+
+
+async def test_should_redact_by_the_hosts_own_rules():
+    # given: the Local mode with custom rules: an internal ticket format
+    seen_by_brain = ""
+
+    async def brain(system_prompt, user_prompt):
+        nonlocal seen_by_brain
+        seen_by_brain = user_prompt
+
+        return "FINAL: filed"
+
+    agent = _agent_bare(brain).redact(RedactionRule(label="TICKET", pattern=r"INC-\d{6}"))
+
+    # when
+    await agent.process_prompt("escalate INC-004512 to the vendor")
+
+    # then
+    assert "INC-004512" not in seen_by_brain
+    assert "{{TICKET_0}}" in seen_by_brain
