@@ -284,3 +284,29 @@ async def test_should_carry_the_caller_owned_transcript_to_the_native_brain():
         and message.tool_call_id == "call_9"
         and message.content == "sent"
         for message in broker.captured_messages)
+
+
+# The same transcript on the text protocol: history renders into the conversation the model is
+# shown, exactly as a session's history would.
+async def test_should_carry_the_caller_owned_transcript_on_the_text_protocol():
+    # given
+    captured_user_prompt = ""
+
+    async def brain(system_prompt, user_prompt):
+        nonlocal captured_user_prompt
+        captured_user_prompt = user_prompt
+
+        return "FINAL: ok"
+
+    agent = _bare_agent().on_brain(brain)
+
+    request = PromptRequest(
+        prompt="and then?",
+        history=(AgentTurn("What is 2+2?", "4"),))
+
+    # when
+    await agent.process_prompt(request)
+
+    # then
+    assert "What is 2+2?" in captured_user_prompt
+    assert "4" in captured_user_prompt
