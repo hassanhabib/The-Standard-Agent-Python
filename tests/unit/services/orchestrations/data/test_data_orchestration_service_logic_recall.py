@@ -36,7 +36,7 @@ class TestDataOrchestrationServiceLogicRecall(DataOrchestrationServiceTests):
             system_prompt=random_instructions + "\n" + self.tool_catalog,
             observations=input_context.observations + (new_memory, new_knowledge))
 
-        self.skill_service_mock.retrieve_all_skills.return_value = returned_skills
+        self.skill_service_mock.retrieve_skills.return_value = returned_skills
         self.memory_service_mock.retrieve_all_memories.return_value = returned_memories
         self.knowledge_service_mock.retrieve_knowledge.return_value = returned_knowledge
 
@@ -45,7 +45,7 @@ class TestDataOrchestrationServiceLogicRecall(DataOrchestrationServiceTests):
 
         # then
         assert actual_context == expected_context
-        assert self.skill_service_mock.mock_calls == [call.retrieve_all_skills()]
+        assert self.skill_service_mock.mock_calls == [call.retrieve_skills("")]
         assert self.memory_service_mock.mock_calls == [call.retrieve_all_memories()]
 
         assert self.knowledge_service_mock.mock_calls == [

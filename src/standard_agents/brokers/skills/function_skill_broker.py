@@ -6,14 +6,12 @@
 from collections.abc import Awaitable, Callable
 
 from standard_agents.brokers.skills.iskill_broker import ISkillBroker
+from standard_agents.models.foundations.skills.skill import Skill
 
 
 class FunctionSkillBroker(ISkillBroker):
-    def __init__(self, select_skills: Callable[[], Awaitable[dict[str, str]]]) -> None:
+    def __init__(self, select_skills: Callable[[], Awaitable[list[Skill]]]) -> None:
         self.select_skills_function = select_skills
 
-    async def select_skill_names(self) -> list[str]:
-        return list(await self.select_skills_function())
-
-    async def select_skill_content(self, skill_name: str) -> str:
-        return (await self.select_skills_function())[skill_name]
+    async def select_skills(self) -> list[Skill]:
+        return await self.select_skills_function()

@@ -15,6 +15,7 @@ from standard_agents.brokers.memories.imemory_broker import IMemoryBroker
 from standard_agents.brokers.skills.iskill_broker import ISkillBroker
 from standard_agents.brokers.verifiers.iverifier_broker import IVerifierBroker
 from standard_agents.models.brokers.mcps.remote_tool import RemoteTool
+from standard_agents.models.foundations.skills.skill import Skill
 from standard_agents.standard_agent import StandardAgent
 from standard_agents.tools.itool import ITool
 
@@ -38,14 +39,11 @@ class RecordingBrain(IGeneratorBroker):
 
 
 class StaticSkills(ISkillBroker):
-    def __init__(self, skills: dict[str, str]) -> None:
+    def __init__(self, skills: list[Skill]) -> None:
         self.skills = skills
 
-    async def select_skill_names(self) -> list[str]:
-        return list(self.skills)
-
-    async def select_skill_content(self, skill_name: str) -> str:
-        return self.skills[skill_name]
+    async def select_skills(self) -> list[Skill]:
+        return self.skills
 
 
 class StaticMemories(IMemoryBroker):
@@ -116,7 +114,7 @@ class TestStandardAgentCompositions:
 
         agent = (StandardAgent()
             .use_generator(brain)
-            .use_skills(StaticSkills({"skill.md": random_skill}))
+            .use_skills(StaticSkills([Skill(name="skill.md", content=random_skill)]))
             .use_memory(StaticMemories([random_memory]))
             .use_knowledge(StaticKnowledge([random_knowledge]))
             .use_gate(gate)
@@ -158,8 +156,8 @@ class TestStandardAgentCompositions:
         second_tool = NamedTool("second")
         brain_calls = []
 
-        async def skills() -> dict[str, str]:
-            return {"skill.md": random_skill + "\n{{tools}}"}
+        async def skills() -> list[Skill]:
+            return [Skill(name="skill.md", content=random_skill + "\n{{tools}}")]
 
         async def memories() -> list[str]:
             return [random_memory]
