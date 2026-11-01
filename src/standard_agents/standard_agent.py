@@ -20,6 +20,7 @@ from standard_agents.brokers.classifiers.not_configured_classifier_broker import
 from standard_agents.brokers.contracts.rule_contract_broker import RuleContractBroker
 from standard_agents.brokers.effects.in_memory_effect_ledger_broker import (
     InMemoryEffectLedgerBroker)
+from standard_agents.brokers.files.local_file_broker import LocalFileBroker
 from standard_agents.brokers.generators.generator_broker import GeneratorBroker
 from standard_agents.brokers.generators.openai_generator_broker import OpenAiGeneratorBroker
 from standard_agents.brokers.knowledges.knowledge_broker import KnowledgeBroker
@@ -229,6 +230,7 @@ class StandardAgent(Agent):
             has_brain=self._generator_broker is not None or self._brain_settings is not None)
 
         brain = self._brain_settings
+        file = LocalFileBroker()
 
         logging = (
             self._logging_broker if self._logging_broker is not None
@@ -264,9 +266,18 @@ class StandardAgent(Agent):
             else NotConfiguredMcpBroker())
         skill_service = SkillService(skill_broker=self._skill_sources[0], logging_broker=logging)
 
-        knowledge_service = KnowledgeService(
-            knowledge_broker=self._knowledge_broker,
-            logging_broker=logging)
+        if self._knowledge_broker is not None:
+            knowledge_service = KnowledgeService(
+                knowledge_broker=self._knowledge_broker,
+                logging_broker=logging)
+        else:
+            knowledge_service = KnowledgeService(
+                file_broker=file,
+                knowledge_path=os.path.abspath(self._knowledge_path),
+                search_pattern="*.md",
+                max_results=3,
+                logging_broker=logging,
+                minimum_score=0.0)
 
         external_tool_service = ExternalToolService(mcp_broker=mcp, logging_broker=logging)
 
