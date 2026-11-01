@@ -51,3 +51,29 @@ async def test_should_advertise_described_mcp_tools_in_the_catalog(
     # then: described remote tools advertise; the description opt-in holds for them too.
     assert "weather \u2014 answers weather questions" in captured_system_prompts[-1]
     assert "undocumented" not in captured_system_prompts[-1]
+
+
+async def test_should_still_answer_when_advertisement_discovery_fails(
+        empty_memory_broker,
+        empty_knowledge_broker,
+        create_mcp_broker):
+
+    # given: a server that cannot even list its tools.
+    server = create_mcp_broker()
+    server.list_tools.side_effect = HttpRequestException("server is down")
+
+    async def brain(system_prompt, user_prompt):
+        return "FINAL: 42"
+
+    agent = (StandardAgent()
+        .use_memory(empty_memory_broker)
+        .use_knowledge(empty_knowledge_broker)
+        .on_skills(select_persona)
+        .use_mcp(server)
+        .on_brain(brain))
+
+    # when
+    answer = await agent.process_prompt("hello")
+
+    # then: advertisement is best-effort; a down server never fails the turn.
+    assert answer == "42"
