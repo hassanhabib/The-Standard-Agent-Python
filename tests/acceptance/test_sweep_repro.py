@@ -96,3 +96,22 @@ async def test_finding7_turn_capped_run_must_not_record_an_answer_it_never_gave(
     # the capped run never delivered an answer, and the next prompt must not be told the agent
     # said something it never said
     assert "4183" not in follow_up_prompts[-1]
+
+
+# FINDING 7b: the outcome shape at the cap, as decided: the caller gets prose about why (what
+# AgentOutcome's contract always promised), never the last tool output dressed as an answer, and
+# the status stays WORKING because the run stopped mid-work rather than failing.
+async def test_finding7_b_turn_cap_delivers_prose_about_why_with_status_working():
+    tool = _CountingTool()
+
+    capped = (_bare_agent(_looping_brain)
+        .tool(tool)
+        .max_turns(2))
+
+    outcome = await capped.run("loop")
+
+    # a run that never delivered an answer owes the caller prose about why, not the last
+    # tool's raw output
+    assert "out of turns" in outcome.result
+    assert "4183" not in outcome.result
+    assert outcome.status is AgentStatus.WORKING
