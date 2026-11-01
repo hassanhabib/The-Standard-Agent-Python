@@ -19,7 +19,9 @@ from restfulsense.exceptions import (
 from standard_agents.models.foundations.brains.exceptions import (
     BrainDependencyException,
     BrainDependencyValidationException,
+    BrainServiceException,
     FailedBrainDependencyException,
+    FailedBrainServiceException,
     InvalidBrainException,
     UnreachableBrainException)
 
@@ -45,6 +47,16 @@ def _unreachable_brain_exception(
     return BrainDependencyException(
         message="Brain dependency error occurred, contact support.",
         inner_exception=unreachable_brain_exception)
+
+
+def _brain_service_exception(inner_exception: Exception) -> BrainServiceException:
+    failed_brain_service_exception = FailedBrainServiceException(
+        message="Failed brain service error occurred, contact support.",
+        inner_exception=inner_exception)
+
+    return BrainServiceException(
+        message="Brain service error occurred, contact support.",
+        inner_exception=failed_brain_service_exception)
 
 
 async def test_should_throw_dependency_validation_exception_on_generate_if_bad_request_error_occurs_and_log_it(
@@ -183,3 +195,31 @@ async def test_should_throw_dependency_exception_on_generate_if_dependency_error
 
     assert logging_broker.mock_calls == [
         call.log_error(same_exception_as(expected_brain_dependency_exception))]
+
+
+async def test_should_throw_service_exception_on_generate_if_service_error_occurs_and_log_it(
+        brain_service,
+        generator_broker,
+        logging_broker,
+        same_exception_as,
+        create_random_string):
+
+    # given
+    random_system_prompt = create_random_string()
+    random_user_prompt = create_random_string()
+    service_exception = Exception()
+    expected_brain_service_exception = _brain_service_exception(service_exception)
+    generator_broker.generate.side_effect = service_exception
+
+    # when
+    with pytest.raises(BrainServiceException) as raised:
+        await brain_service.generate(random_system_prompt, random_user_prompt)
+
+    # then
+    assert raised.value.same_exception_as(expected_brain_service_exception)
+
+    assert generator_broker.mock_calls == [
+        call.generate(random_system_prompt, random_user_prompt)]
+
+    assert logging_broker.mock_calls == [
+        call.log_error(same_exception_as(expected_brain_service_exception))]
