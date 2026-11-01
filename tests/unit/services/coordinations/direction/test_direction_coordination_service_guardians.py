@@ -4,6 +4,7 @@
 # ---------------------------------------------------------------
 
 from datetime import timedelta
+from unittest.mock import call
 
 from standard_agents.brokers.approvals.not_configured_approval_broker import (
     NotConfiguredApprovalBroker)
@@ -65,3 +66,41 @@ async def test_should_deny_tool_not_in_allow_list_on_act(
     assert internal_tool_service.handles.mock_calls == []
     assert internal_tool_service.run.mock_calls == []
     assert external_tool_service.call.mock_calls == []
+
+
+async def test_should_allow_tool_in_allow_list_on_act(
+        new_execution,
+        internal_tool_service,
+        logging_broker,
+        create_context_with_direction):
+
+    # given
+    restricted_service = DirectionCoordinationService(
+        perimeter_service=PerimeterOrchestrationService(
+            policy_service=PolicyService(
+                policy_broker=AllowListPolicyBroker(["calculator"]),
+                logging_broker=logging_broker),
+            approval_service=ApprovalService(
+                approval_broker=NotConfiguredApprovalBroker(),
+                logging_broker=logging_broker),
+            effect_ledger_service=EffectLedgerService(
+                effect_ledger_broker=InMemoryEffectLedgerBroker(),
+                time_broker=SystemTimeBroker(),
+                logging_broker=logging_broker,
+                lease=timedelta(minutes=5)),
+            time_broker=SystemTimeBroker(),
+            logging_broker=logging_broker),
+        execution_service=new_execution(),
+        logging_broker=logging_broker)
+
+    input_context = create_context_with_direction("calculator", "2 + 2")
+    internal_tool_service.handles.return_value = True
+    internal_tool_service.run.return_value = "4"
+
+    # when
+    actual_context = await restricted_service.act(input_context)
+
+    # then
+    # An allow-listed tool runs normally.
+    assert actual_context.result == "4"
+    assert internal_tool_service.run.mock_calls == [call("calculator", "2 + 2")]
