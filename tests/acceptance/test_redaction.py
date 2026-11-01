@@ -101,3 +101,29 @@ async def test_should_hide_the_value_from_the_gate():
     # then
     assert seen_by_gate != ""
     assert _SECRET_EMAIL not in seen_by_gate
+
+
+async def test_should_hide_the_value_from_the_judge():
+    """The Judge reads the task AND the drafted answer, so it sees more sensitive text than any
+    other guardian, and it is the one most likely to be pointed at a cheap third-party endpoint,
+    because scoring is the cheapest of the three calls."""
+    # given
+    seen_by_judge = ""
+
+    async def brain(system_prompt, user_prompt):
+        return f"FINAL: sent to {_SECRET_EMAIL}"
+
+    async def judge(rubric, input):
+        nonlocal seen_by_judge
+        seen_by_judge = input
+
+        return "1.0"
+
+    agent = _agent_that_redacts(brain=brain, judge=judge)
+
+    # when
+    await agent.process_prompt(f"please email {_SECRET_EMAIL} the report")
+
+    # then
+    assert seen_by_judge != ""
+    assert _SECRET_EMAIL not in seen_by_judge
