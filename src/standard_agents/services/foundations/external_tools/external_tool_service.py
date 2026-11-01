@@ -9,14 +9,22 @@ import json
 from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
 
-from restfulsense import HttpResponseBadRequestException
+from restfulsense import (
+    HttpRequestException,
+    HttpResponseBadRequestException,
+    HttpResponseForbiddenException,
+    HttpResponseNotFoundException,
+    HttpResponseUnauthorizedException,
+    HttpResponseUrlNotFoundException)
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.brokers.mcps import mcp_json
 from standard_agents.brokers.mcps.mcp_broker import McpBroker
 from standard_agents.models.brokers.mcps.mcp_tool import McpTool
 from standard_agents.models.foundations.external_tools.exceptions import (
+    ExternalToolDependencyException,
     ExternalToolDependencyValidationException,
     ExternalToolValidationException,
+    FailedExternalToolDependencyException,
     InvalidExternalToolException)
 
 # The one argument plain text travels as, for a tool that declared no schema of its own.
@@ -89,6 +97,15 @@ async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[N
 
         raise await _create_and_log_dependency_validation_exception(
             logging_broker, invalid_external_tool_exception)
+    except (
+            HttpResponseUnauthorizedException,
+            HttpResponseForbiddenException,
+            HttpResponseNotFoundException,
+            HttpResponseUrlNotFoundException,
+            HttpRequestException) as critical_dependency_exception:
+
+        raise await _create_and_log_critical_dependency_exception(
+            logging_broker, critical_dependency_exception)
 
 
 async def _create_and_log_validation_exception(
@@ -116,3 +133,23 @@ async def _create_and_log_dependency_validation_exception(
     await logging_broker.log_error(external_tool_dependency_validation_exception)
 
     return external_tool_dependency_validation_exception
+
+
+async def _create_and_log_critical_dependency_exception(
+        logging_broker: LoggingBroker,
+        exception: Exception) -> ExternalToolDependencyException:
+
+    external_tool_dependency_exception = _create_dependency_exception(exception)
+    await logging_broker.log_critical(external_tool_dependency_exception)
+
+    return external_tool_dependency_exception
+
+
+def _create_dependency_exception(exception: Exception) -> ExternalToolDependencyException:
+    failed_external_tool_dependency_exception = FailedExternalToolDependencyException(
+        message="Failed external tool dependency error occurred, contact support.",
+        inner_exception=exception)
+
+    return ExternalToolDependencyException(
+        message="External tool dependency error occurred, contact support.",
+        inner_exception=failed_external_tool_dependency_exception)
