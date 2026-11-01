@@ -73,3 +73,24 @@ async def test_should_announce_a_discarded_request_schema(agent_with, log_path):
     # then: the caller got a differently-shaped answer, and the trace says why
     trace = _read_trace(log_path)
     assert "request schema discarded" in trace
+
+
+async def _answering_ok(system_prompt, user_prompt):
+    return "FINAL: ok"
+
+
+async def test_should_announce_a_stripped_core_owned_key(agent_with, log_path):
+    # given: a passthrough trying to raise max_tokens past what precedence resolved
+    agent = agent_with(_answering_ok)
+
+    request = PromptRequest(
+        prompt="hello",
+        provider_options_json='{"max_tokens": 999999, "grammar": "root ::= object"}')
+
+    # when
+    await agent.process_prompt(request)
+
+    # then
+    trace = _read_trace(log_path)
+    assert "max_tokens" in trace
+    assert "stripped" in trace
