@@ -27,7 +27,7 @@ class GateService:
         self.logging_broker = logging_broker
 
     async def screen(self, input: str) -> str:
-        raise NotImplementedError
+        return await self.classifier_broker.classify(input)
 
     async def detect_conflict(self, instructions: str) -> str:
         raise NotImplementedError
