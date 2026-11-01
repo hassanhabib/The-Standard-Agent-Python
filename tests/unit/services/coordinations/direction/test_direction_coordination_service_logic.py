@@ -3,8 +3,10 @@
 # Licensed under the The Standard Software License (TSSL)
 # ---------------------------------------------------------------
 
+import dataclasses
 from unittest.mock import call
 
+from standard_agents.models.loggings.agent_run import AgentRun
 from standard_agents.models.orchestrations.agents.agent_context import AgentContext
 from standard_agents.models.orchestrations.agents.agent_status import AgentStatus
 
@@ -198,6 +200,33 @@ async def test_should_name_tool_in_observation_on_act(
 
     # then
     assert _count_containing(actual_context.observations, "calculator", "2") == 1
+
+
+async def test_should_tell_the_brain_a_replay_already_ran_on_act(
+        direction_coordination_service,
+        internal_tool_service,
+        create_context_with_direction):
+    """Handed back bare, a replay reads as a fresh answer to a fresh ask.
+
+    A model that asked because it did not have what it wanted asks again (SPEC.md 4.9, v1.14).
+    """
+    with AgentRun.begin():
+        # given
+        internal_tool_service.handles.return_value = True
+        internal_tool_service.run.return_value = "4"
+
+        first = await direction_coordination_service.act(
+            create_context_with_direction("calculator", "2 + 2"))
+
+        # when
+        second = await direction_coordination_service.act(
+            dataclasses.replace(first, direction_type="calculator", payload="2 + 2"))
+
+        # then
+        # The first outcome whole, then the note. The tool ran once.
+        assert second.result.startswith("4")
+        assert "already ran in this run with the same arguments" in second.result
+        assert internal_tool_service.run.mock_calls == [call("calculator", "2 + 2")]
 
 
 def _count_containing(observations: tuple[str, ...], *texts: str) -> int:
