@@ -144,3 +144,30 @@ async def test_should_not_record_a_cancelled_run_as_an_answer(tmp_path):
     # then: the next prompt is never told the agent said something it never said
     assert "cancelled" not in captured_prompts[-1]
     assert "Paris" not in captured_prompts[-1]
+
+
+async def test_should_stay_stateless_without_a_session(tmp_path):
+    # given
+    captured_prompt = ""
+    calls = 0
+
+    def answer_for(user_prompt):
+        nonlocal calls
+        calls += 1
+
+        return "FINAL: Paris" if calls == 1 else "FINAL: anything"
+
+    def capture(user_prompt):
+        nonlocal captured_prompt
+
+        if calls == 1:
+            captured_prompt = user_prompt
+
+    agent = _new_agent(str(tmp_path / "sessions"), answer_for, capture)
+
+    # when: no session id at all
+    await agent.process_prompt("what is the capital of France?")
+    await agent.process_prompt("and its population?")
+
+    # then: absent a session the agent is exactly as stateless as it always was
+    assert "Paris" not in captured_prompt
