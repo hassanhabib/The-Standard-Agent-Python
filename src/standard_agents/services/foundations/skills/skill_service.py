@@ -12,7 +12,9 @@ from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.brokers.skills.skill_broker import SkillBroker
 from standard_agents.models.foundations.skills.exceptions import (
     FailedSkillDependencyException,
-    SkillDependencyException)
+    FailedSkillServiceException,
+    SkillDependencyException,
+    SkillServiceException)
 from standard_agents.models.foundations.skills.skill import Skill
 
 _SKILL_SEPARATOR = "\n\n"
@@ -84,6 +86,13 @@ async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[N
 
         raise await _create_and_log_dependency_exception(
             logging_broker, failed_skill_dependency_exception)
+    except Exception as exception:
+        failed_skill_service_exception = FailedSkillServiceException(
+            message="Failed skill service error occurred, contact support.",
+            inner_exception=exception)
+
+        raise await _create_and_log_service_exception(
+            logging_broker, failed_skill_service_exception)
 
 
 async def _create_and_log_critical_dependency_exception(
@@ -110,3 +119,16 @@ async def _create_and_log_dependency_exception(
     await logging_broker.log_error(skill_dependency_exception)
 
     return skill_dependency_exception
+
+
+async def _create_and_log_service_exception(
+        logging_broker: LoggingBroker,
+        exception: Exception) -> SkillServiceException:
+
+    skill_service_exception = SkillServiceException(
+        message="Skill service error occurred, contact support.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(skill_service_exception)
+
+    return skill_service_exception
