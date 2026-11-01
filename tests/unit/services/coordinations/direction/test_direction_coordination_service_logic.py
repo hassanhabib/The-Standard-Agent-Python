@@ -165,6 +165,24 @@ async def test_should_keep_working_on_act_if_tool_reports_an_error(
         actual_context.observations, "could not parse expression") == 1
 
 
+async def test_should_set_result_to_tool_output_on_act_even_if_non_terminal(
+        direction_coordination_service,
+        internal_tool_service,
+        create_context_with_direction):
+
+    # given
+    input_context = create_context_with_direction("loop", "x")
+    internal_tool_service.handles.return_value = True
+    internal_tool_service.run.return_value = "again"
+
+    # when
+    actual_context = await direction_coordination_service.act(input_context)
+
+    # then
+    assert actual_context.result == "again"
+    assert actual_context.status is AgentStatus.WORKING
+
+
 def _count_containing(observations: tuple[str, ...], *texts: str) -> int:
     """How many observations contain every text (ContainSingle with a Contains predicate)."""
     return sum(1 for observation in observations if all(text in observation for text in texts))
