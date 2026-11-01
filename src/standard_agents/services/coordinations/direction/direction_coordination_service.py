@@ -11,8 +11,11 @@ from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.models.coordinations.directions.perimeter_policy import PerimeterPolicy
 from standard_agents.models.orchestrations.agents.agent_context import AgentContext
 from standard_agents.models.orchestrations.agents.agent_status import AgentStatus
+from standard_agents.models.orchestrations.effects.agent_effect import AgentEffect
 from standard_agents.models.orchestrations.effects.compensation_outcome import (
     CompensationOutcome)
+from standard_agents.models.orchestrations.effects.effect_claim_verdict import (
+    EffectClaimVerdict)
 from standard_agents.services.orchestrations.direction.executions.execution_orchestration_service \
     import ExecutionOrchestrationService
 from standard_agents.services.orchestrations.direction.perimeters.perimeter_orchestration_service \
@@ -73,7 +76,23 @@ class DirectionCoordinationService:
                 result=result,
                 status=_to_terminal_status(context.direction_type))
 
+        return await self._act_on_effect(context)
+
+    async def _act_on_effect(self, context: AgentContext) -> AgentContext:
+        effect = AgentEffect.create(
+            run_id="",
+            tool_name=context.direction_type,
+            arguments=context.payload)
+
+        claim = await self.perimeter_service.claim(effect)
+
+        if claim.verdict is EffectClaimVerdict.REPLAY:
+            outcome = claim.outcome if claim.outcome is not None else ""
+
+            return _observed(context, _replayed(effect.tool_name, outcome))
+
         output = await self.execution_service.run(context.direction_type, context.payload)
+        await self.perimeter_service.record_outcome(effect, output)
 
         return _observed(context, output)
 
@@ -83,6 +102,21 @@ class DirectionCoordinationService:
         Reports every effect it could not undo rather than reporting the run cleanly unwound.
         """
         raise NotImplementedError
+
+
+def _replayed(tool_name: str, outcome: str) -> str:
+    """The same outcome, and the one thing the Brain did not already have (SPEC.md 4.9, v1.14).
+
+    Run-once is right that the act runs once. What it hands back is the first outcome, and a
+    model reading its own earlier answer back reads exactly what it was looking at when it
+    decided to ask, so it decides the same thing again. The outcome comes first and whole,
+    because that is the point of a replay and something downstream may be looking for a value
+    inside it; the note is added after, saying only what is true.
+    """
+    return (
+        f"{outcome}\n\n[{tool_name} already ran in this run with the same arguments, and this "
+        "is what it said then. Asking again returns this same answer. Use it and do something "
+        "else.]")
 
 
 def _observed(context: AgentContext, output: str) -> AgentContext:
