@@ -23,6 +23,7 @@ from standard_agents.brokers.approvals.not_configured_approval_broker import (
     NotConfiguredApprovalBroker)
 from standard_agents.brokers.audits.audit_broker import AuditBroker
 from standard_agents.brokers.audits.auditing_logging_broker import AuditingLoggingBroker
+from standard_agents.brokers.audits.function_audit_broker import FunctionAuditBroker
 from standard_agents.brokers.classifiers.classifier_broker import ClassifierBroker
 from standard_agents.brokers.classifiers.function_classifier_broker import FunctionClassifierBroker
 from standard_agents.brokers.classifiers.not_configured_classifier_broker import (
@@ -61,6 +62,7 @@ from standard_agents.brokers.verifiers.not_configured_verifier_broker import (
 from standard_agents.brokers.verifiers.function_verifier_broker import FunctionVerifierBroker
 from standard_agents.brokers.verifiers.verifier_broker import VerifierBroker
 from standard_agents.models.brokers.audits.audit_policy import AuditPolicy
+from standard_agents.models.brokers.audits.audit_record import AuditRecord
 from standard_agents.models.brokers.generators.resolved_inference import ResolvedInference
 from standard_agents.models.clients.agents.agent_outcome import AgentOutcome
 from standard_agents.models.clients.agents.agent_stream_event import AgentStreamEvent
@@ -279,6 +281,11 @@ class StandardAgent(Agent):
 
     def use_audit(self, broker: AuditBroker) -> StandardAgent:
         self._audit_broker = broker
+
+        return self
+
+    def on_audit(self, write: Callable[[AuditRecord], Awaitable[None]]) -> StandardAgent:
+        self._audit_broker = FunctionAuditBroker(write)
 
         return self
 
