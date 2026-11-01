@@ -18,6 +18,7 @@ import pytest
 
 from standard_agents.brokers.knowledges.knowledge_broker import KnowledgeBroker
 from standard_agents.brokers.memories.memory_broker import MemoryBroker
+from standard_agents.brokers.sessions.file_session_broker import FileSessionBroker
 from standard_agents.brokers.skills.skill_broker import SkillBroker
 from standard_agents.models.coordinations.agents.exceptions import (
     AgentCoordinationValidationException)
@@ -199,3 +200,25 @@ async def test_should_refuse_a_session_owned_by_another_principal(tmp_path):
     # then
     with pytest.raises(AgentCoordinationValidationException):
         await bobs_prompt
+
+
+# Found in the 2026-09-04 principal review (F-06): a save was read, append, whole-record upsert,
+# so two prompts in one session could both read the old history and the last writer erased the
+# other's completed turn. Every write carries the version it was based on, the store refuses a
+# stale one, and the loop re-reads and tries again.
+async def test_should_keep_every_turn_when_prompts_run_concurrently_in_one_session(tmp_path):
+    # given
+    sessions_path = str(tmp_path / "sessions")
+    agent = _new_agent(sessions_path, lambda user_prompt: "FINAL: noted")
+    prompts = [f"fact number {index}" for index in range(8)]
+
+    # when
+    await asyncio.gather(*(
+        agent.process_prompt(prompt, session_id="busy-session")
+        for prompt in prompts))
+
+    # then: every prompt's turn is in the history, whichever order they landed in
+    session = await FileSessionBroker(sessions_path).select_session("busy-session")
+
+    assert session is not None
+    assert sorted(turn.prompt for turn in session.history) == sorted(prompts)
