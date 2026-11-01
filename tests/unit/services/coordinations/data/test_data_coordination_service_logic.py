@@ -3,6 +3,7 @@
 # Licensed under the The Standard Software License (TSSL)
 # ---------------------------------------------------------------
 
+import dataclasses
 from unittest.mock import call
 
 from standard_agents.models.orchestrations.agents.agent_context import AgentContext
@@ -142,6 +143,48 @@ async def test_should_seed_knowledge_into_observations_on_recall(
 
     # then: the passages alone, exactly as an unsourced broker's would read
     assert actual_context.observations == expected_observations
+
+    assert knowledge_service.mock_calls == [
+        call.retrieve_sourced_knowledge(input_context.prompt)]
+
+
+async def test_should_carry_the_sources_of_recalled_knowledge_on_recall(
+        data_coordination_service,
+        skill_service,
+        memory_service,
+        knowledge_service,
+        create_random_agent_context,
+        create_random_knowledge_result,
+        create_random_string):
+    """The run's sources, once each and in the order first recalled (SPEC.md 3.2).
+
+    Recall runs every turn, so a source an earlier turn recalled is already on the context and
+    keeps its place; a passage with no source adds nothing, because it can never be cited.
+    """
+    # given
+    earlier_source = create_random_string()
+    new_source = create_random_string()
+
+    input_context = dataclasses.replace(
+        create_random_agent_context(),
+        grounding_sources=(earlier_source,))
+
+    random_knowledge_results = [
+        create_random_knowledge_result(new_source),
+        create_random_knowledge_result(""),
+        create_random_knowledge_result(earlier_source),
+        create_random_knowledge_result(new_source)]
+
+    expected_grounding_sources = (earlier_source, new_source)
+    skill_service.retrieve_skills.return_value = create_random_string()
+    memory_service.recall_memories.return_value = []
+    knowledge_service.retrieve_sourced_knowledge.return_value = random_knowledge_results
+
+    # when
+    actual_context = await data_coordination_service.recall(input_context)
+
+    # then
+    assert actual_context.grounding_sources == expected_grounding_sources
 
     assert knowledge_service.mock_calls == [
         call.retrieve_sourced_knowledge(input_context.prompt)]
