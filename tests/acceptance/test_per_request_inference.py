@@ -172,3 +172,19 @@ async def test_should_hand_the_broker_the_configured_temperature_over_the_reques
     assert broker.captured is not None
     assert broker.captured.temperature == 0.3
     assert broker.captured.max_tokens == 256
+
+
+# The third rung: nobody spoke, so the framework default applies, chosen by resolution at the
+# boundary, not by the broker (design 4.2).
+async def test_should_hand_the_broker_the_framework_default_when_nobody_said_anything():
+    # given: no configured opinion, no request opinion
+    broker = _CapturingGeneratorBroker()
+    agent = _agent_with_broker(broker)
+
+    # when
+    await agent.process_prompt(PromptRequest(prompt="hello"))
+
+    # then
+    assert broker.captured is not None
+    assert broker.captured.temperature == ResolvedInference.DEFAULT_TEMPERATURE
+    assert broker.captured.max_tokens == ResolvedInference.DEFAULT_MAX_TOKENS
