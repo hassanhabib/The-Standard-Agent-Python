@@ -13,6 +13,7 @@ import json
 
 import pytest
 
+from standard_agents.models.clients.agents.exceptions import InvalidAgentConfigurationException
 from standard_agents.standard_agent import StandardAgent
 
 
@@ -45,3 +46,16 @@ def test_should_compose_every_example_the_schema_carries(tmp_path, monkeypatch):
             StandardAgent.from_json(document)
         except Exception as exception:
             pytest.fail(f"the schema's example for '{key}' must compose: {exception!r}")
+
+
+def test_should_refuse_a_key_the_schema_does_not_name():
+    # given
+    properties = schema()["properties"]
+    assert "buget" not in properties
+
+    # when
+    with pytest.raises(InvalidAgentConfigurationException) as raised:
+        StandardAgent.from_json('{ "buget": { "maxTokens": 50000 } }')
+
+    # then
+    assert "buget" in raised.value.message
