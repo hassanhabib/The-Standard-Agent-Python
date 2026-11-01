@@ -9,6 +9,7 @@ import uuid
 from standard_agents.brokers.classifiers.iclassifier_broker import IClassifierBroker
 from standard_agents.brokers.generators.igenerator_broker import IGeneratorBroker
 from standard_agents.brokers.knowledges.iknowledge_broker import IKnowledgeBroker
+from standard_agents.brokers.loggings.ilogging_broker import ILoggingBroker
 from standard_agents.brokers.memories.imemory_broker import IMemoryBroker
 from standard_agents.brokers.skills.iskill_broker import ISkillBroker
 from standard_agents.brokers.verifiers.iverifier_broker import IVerifierBroker
@@ -111,6 +112,40 @@ class TestStandardAgentCompositions:
         assert random_knowledge in brain.calls[0][1]
         assert gate.screened == [input_prompt]
         assert judge.reviewed == [random_answer]
+
+    def test_should_trace_through_a_logging_broker_the_host_supplies(self) -> None:
+        # given
+        input_prompt = create_random_string()
+        logging_broker = RecordingLoggingBroker()
+
+        async def brain(system_prompt: str, user_prompt: str) -> str:
+            return "FINAL: done"
+
+        agent = StandardAgent().use_logging(logging_broker).on_brain(brain)
+
+        # when
+        asyncio.run(agent.run(input_prompt))
+
+        # then
+        assert logging_broker.turns == [0]
+
+
+class RecordingLoggingBroker(ILoggingBroker):
+    def __init__(self) -> None:
+        self.turns: list[int] = []
+
+    async def log_information(self, message: str) -> None: ...
+
+    async def log_warning(self, message: str) -> None: ...
+
+    async def log_error(self, exception: BaseException) -> None: ...
+
+    async def log_critical(self, exception: BaseException) -> None: ...
+
+    async def log_turn(self, turn: int) -> None:
+        self.turns.append(turn)
+
+    async def log_process(self, actor: str, message: str) -> None: ...
 
     def test_should_compose_from_functions_the_host_writes(self) -> None:
         # given
