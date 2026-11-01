@@ -120,3 +120,17 @@ async def test_should_not_report_cancellation_as_an_answer():
     # then: a cancelled run's result is not an answer
     assert actual_result != "42"
     assert "cancelled" in actual_result
+
+
+async def test_should_stop_the_loop_when_the_time_budget_is_exhausted():
+    # given: every turn asks for a tool that does not exist, so the loop keeps going
+    agent = (_agent_that_loops(lambda turn: "ACTION: nonexistent_tool: keep going")
+        .max_turns(50)
+        .budget(max_wall_clock=timedelta(0)))
+
+    # when
+    actual_result = await agent.process_prompt("loop forever")
+
+    # then: exhaustion is distinguishable from a refusal
+    assert "time budget" in actual_result
+    assert "not able to help" not in actual_result
