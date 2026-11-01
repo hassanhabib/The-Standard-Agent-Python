@@ -20,5 +20,13 @@ class SkillService(ISkillService):
         self.skill_broker = skill_broker
         self.logging_broker = logging_broker
 
+    # Skills compose into the system prompt in name order, so a deployment decides precedence by
+    # naming its files (00-assistant.md before 10-calculator.md).
     async def retrieve_skills(self, route: str = "") -> str:
-        raise NotImplementedError
+        async def returning_string_function() -> str:
+            skills = await self.skill_broker.select_skills()
+            ordered_skills = sorted(skills, key=lambda skill: skill.name)
+
+            return SKILL_SEPARATOR.join(skill.content for skill in ordered_skills)
+
+        return await try_catch(self.logging_broker, returning_string_function)

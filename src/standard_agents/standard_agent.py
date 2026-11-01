@@ -39,6 +39,7 @@ from standard_agents.brokers.verifiers.iverifier_broker import IVerifierBroker
 from standard_agents.brokers.verifiers.not_configured_verifier_broker import (
     NotConfiguredVerifierBroker)
 from standard_agents.models.clients.agents.agent_outcome import AgentOutcome
+from standard_agents.models.foundations.skills.skill import Skill
 from standard_agents.services.coordinations.runs.irun_coordination_service import (
     IRunCoordinationService)
 from standard_agents.services.coordinations.runs.run_coordination_service import (
@@ -65,8 +66,8 @@ from standard_agents.standard_agent_validations import validate_brain, validate_
 from standard_agents.tools.itool import ITool
 
 
-async def select_no_skills() -> dict[str, str]:
-    return {}
+async def select_no_skills() -> list[Skill]:
+    return []
 
 
 # The door. Every capability is opt-in and has a sane default, so the shortest agent is a brain
@@ -96,7 +97,7 @@ class StandardAgent:
 
         return self
 
-    def on_skills(self, select_skills: Callable[[], Awaitable[dict[str, str]]]) -> "StandardAgent":
+    def on_skills(self, select_skills: Callable[[], Awaitable[list[Skill]]]) -> "StandardAgent":
         self.skill_broker = FunctionSkillBroker(select_skills)
 
         return self
