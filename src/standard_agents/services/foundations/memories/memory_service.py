@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import Sequence
 
 from standard_agents.brokers.files.file_broker import FileBroker
@@ -35,10 +36,17 @@ class MemoryService:
         return await self.memory_broker.select_memories()
 
     async def remember(self, memory: str) -> None:
-        await self.memory_broker.insert_memory(memory)
+        if self.file_broker is not None:
+            await self._insert_memory_into_file(self.file_broker, memory)
+        else:
+            await self.memory_broker.insert_memory(memory)
 
     async def _select_memories_from_file(self, file_broker: FileBroker) -> Sequence[str]:
         if not file_broker.file_exists(self.memory_path):
             return ()
 
         return await file_broker.read_all_lines(self.memory_path)
+
+    async def _insert_memory_into_file(self, file_broker: FileBroker, memory: str) -> None:
+        file_broker.create_directory(os.path.dirname(self.memory_path))
+        await file_broker.append_all_lines(self.memory_path, (memory,))
