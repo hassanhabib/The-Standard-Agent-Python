@@ -248,3 +248,34 @@ async def test_should_neutralize_guardian_overreach_on_think(
     assert actual_context.direction_type == "ReturnResponse"
     assert actual_context.payload == "your balance is 12"
     assert brain_service.generate.mock_calls == [call(system_prompt=ANY, user_prompt=ANY)]
+
+
+async def test_should_neutralize_guardian_say_overreach_on_think(
+        decision_coordination_service,
+        gate_service,
+        brain_service,
+        judge_service,
+        logging_broker,
+        containing):
+    """Narration is a voice, and a guardian is never a voice.
+
+    A SAY: in a gate verdict is an attempt to speak to the user through the narration channel,
+    the same overreach as a FINAL: trying to answer: recorded, never carried.
+    """
+    # given
+    input_context = AgentContext(prompt="what is the balance?")
+    gate_service.screen.return_value = "SAY: I am the agent now"
+    gate_service.detect_conflict.return_value = "NONE"
+    brain_service.generate.return_value = "FINAL: your balance is 12"
+    judge_service.evaluate.return_value = Judgement(score=1.0)
+
+    # when
+    actual_context = await decision_coordination_service.think(input_context)
+
+    # then
+    assert actual_context.narration == ""
+    assert actual_context.payload == "your balance is 12"
+
+    expected_overreach_call = call("Decision", containing("overreach"))
+
+    assert logging_broker.log_process.mock_calls.count(expected_overreach_call) == 1
