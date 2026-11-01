@@ -140,3 +140,29 @@ async def test_should_carry_the_conversation_on_a_streamed_run(sessions_path):
 
     # then: the streamed path loads the conversation like the batched one does
     assert "Paris" in second_prompts[-1]
+
+
+async def test_should_record_a_streamed_exchange_in_the_conversation(sessions_path):
+    # given
+    tool = _CountingTool()
+
+    agent = _agent_that_loops(tool, _answering("FINAL: Paris")).sessions(sessions_path)
+
+    # when: the first exchange happens on the streamed path
+    await _drain(agent.process_prompt_stream(
+        "what is the capital of France?",
+        session_id="trip-9"))
+
+    third_prompts: list[str] = []
+
+    async def follower_brain(system_prompt: str, user_prompt: str) -> str:
+        third_prompts.append(user_prompt)
+
+        return "FINAL: about two million"
+
+    follower = _agent_that_loops(tool, follower_brain).sessions(sessions_path)
+
+    await follower.process_prompt("and how many people live there?", session_id="trip-9")
+
+    # then: a streamed answer is part of the conversation, not lost from it
+    assert "Paris" in third_prompts[-1]
