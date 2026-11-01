@@ -176,3 +176,34 @@ async def test_should_treat_empty_action_as_answer_on_think(
     # then
     assert actual_context.direction_type == "ReturnResponse"
     assert actual_context.intent == "Respond"
+
+
+async def test_should_pass_observations_to_brain_on_think(
+        decision_coordination_service,
+        brain_service,
+        create_random_string,
+        setup_gate_allows,
+        setup_judge_approves,
+        containing):
+
+    # given
+    observation = create_random_string()
+
+    input_context = AgentContext(
+        prompt=create_random_string(),
+        system_prompt=create_random_string(),
+        observations=(observation,))
+
+    setup_gate_allows()
+    setup_judge_approves()
+    brain_service.generate.return_value = "FINAL: done"
+
+    # when
+    await decision_coordination_service.think(input_context)
+
+    # then
+    expected_generate_call = call(
+        system_prompt=input_context.system_prompt,
+        user_prompt=containing(observation))
+
+    assert brain_service.generate.mock_calls.count(expected_generate_call) == 1
