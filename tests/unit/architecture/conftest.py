@@ -185,6 +185,15 @@ class TierMap:
         return frozenset().union(*self.broker_sets_taken_by(cls))
 
     @staticmethod
+    def broker_contracts_taken_by(constructor: tuple[Parameter, ...]) -> tuple[type, ...]:
+        """Every broker interface a constructor names, including inside a generic."""
+        return tuple(dict.fromkeys(
+            referenced
+            for parameter in constructor
+            for referenced in TierMap.types_referenced_by(_unwrap(parameter.annotation))
+            if _is_broker_contract(referenced)))
+
+    @staticmethod
     def dependencies_in(constructor: tuple[Parameter, ...]) -> tuple[type, ...]:
         """A dependency for counting purposes is another SERVICE: what the tier below supplies.
 
