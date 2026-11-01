@@ -9,7 +9,7 @@ Each resource failure must arrive named after its own resource; otherwise a full
 on the orchestration that happened to ask.
 """
 
-from unittest.mock import call
+from unittest.mock import ANY, call
 
 import pytest
 
@@ -17,6 +17,9 @@ from restfulsense import HttpRequestException
 from standard_agents.models.foundations.approvals.exceptions import (
     ApprovalDependencyException,
     FailedApprovalDependencyException)
+from standard_agents.models.foundations.effect_ledgers.exceptions import (
+    EffectLedgerDependencyException,
+    FailedEffectLedgerDependencyException)
 from standard_agents.models.foundations.policies.exceptions import (
     FailedPolicyDependencyException,
     PolicyDependencyException)
@@ -87,3 +90,46 @@ async def test_should_throw_dependency_exception_on_request_approval_if_authorit
 
     assert logging_broker.mock_calls == [
         call.log_error(same_exception_as(expected_approval_dependency_exception))]
+
+
+async def test_should_throw_dependency_exception_on_record_outcome_if_disk_is_full(
+        effect_ledger_service,
+        effect_ledger_broker,
+        logging_broker,
+        create_random_string,
+        create_random_effect,
+        same_exception_as):
+    """The failure that started the whole alignment: a full disk in the file-backed ledger,
+    surfacing unmapped and attributed to Direction.
+    """
+
+    # given
+    random_effect = create_random_effect()
+    random_outcome = create_random_string()
+    io_error = OSError()
+
+    failed_effect_ledger_dependency_exception = FailedEffectLedgerDependencyException(
+        message="Failed effect ledger dependency error occurred, contact support.",
+        inner_exception=io_error)
+
+    expected_effect_ledger_dependency_exception = EffectLedgerDependencyException(
+        message="Effect ledger dependency error occurred, contact support.",
+        inner_exception=failed_effect_ledger_dependency_exception)
+
+    # What a loose mock answers for a select nobody set up: no record.
+    effect_ledger_broker.select_record.return_value = None
+    effect_ledger_broker.update_record.side_effect = io_error
+
+    # when
+    with pytest.raises(EffectLedgerDependencyException) as raised:
+        await effect_ledger_service.record_outcome(random_effect, random_outcome)
+
+    # then
+    assert raised.value.same_exception_as(expected_effect_ledger_dependency_exception)
+
+    assert effect_ledger_broker.mock_calls == [
+        call.select_record(random_effect.idempotency_key),
+        call.update_record(ANY)]
+
+    assert logging_broker.mock_calls == [
+        call.log_error(same_exception_as(expected_effect_ledger_dependency_exception))]
