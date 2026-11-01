@@ -129,6 +129,7 @@ class StandardAgent(Agent):
         self._knowledge_path = "Knowledge"
         self._log_path = ""
         self._constitution_path = ""
+        self._consumption_path = ""
         self._trace_verbosity = TraceVerbosity.FULL
 
         if api_url is not None or api_key is not None or model is not None:
@@ -205,6 +206,11 @@ class StandardAgent(Agent):
 
     def constitution(self, path: str) -> StandardAgent:
         self._constitution_path = path
+
+        return self
+
+    def consumption(self, path: str) -> StandardAgent:
+        self._consumption_path = path
 
         return self
 
@@ -313,7 +319,11 @@ class StandardAgent(Agent):
         all_tools = [*self._tools, RememberTool(memory_service.remember)]
 
         constitution = _read_optional_file(file, self._constitution_path)
-        gate_rubric = compose_guardian_rubric(constitution, gate_policy(), gate_contract())
+        consumption = _read_optional_file(file, self._consumption_path)
+        is_consumption_blank = not consumption or consumption.isspace()
+        policy_of_gate = gate_policy() if is_consumption_blank else consumption
+        policy_of_judge = judge_policy() if is_consumption_blank else consumption
+        gate_rubric = compose_guardian_rubric(constitution, policy_of_gate, gate_contract())
 
         if self._classifier_broker is not None:
             classifier = self._classifier_broker
@@ -322,7 +332,7 @@ class StandardAgent(Agent):
         else:
             classifier = NotConfiguredClassifierBroker()
 
-        judge_rubric = compose_guardian_rubric(constitution, judge_policy(), judge_contract())
+        judge_rubric = compose_guardian_rubric(constitution, policy_of_judge, judge_contract())
 
         if self._verifier_broker is not None:
             verifier = self._verifier_broker
