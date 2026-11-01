@@ -53,6 +53,7 @@ from standard_agents.brokers.sessions.not_configured_session_broker import (
     NotConfiguredSessionBroker)
 from standard_agents.brokers.skills.file_skill_broker import FileSkillBroker
 from standard_agents.brokers.skills.skill_broker import SkillBroker
+from standard_agents.brokers.telemetries.telemetry_broker import TelemetryBroker
 from standard_agents.brokers.times.system_time_broker import SystemTimeBroker
 from standard_agents.brokers.tools.in_memory_tool_broker import InMemoryToolBroker
 from standard_agents.brokers.usages.ratio_usage_broker import RatioUsageBroker
@@ -143,6 +144,7 @@ class StandardAgent(Agent):
         self._judge_settings: InferenceSettings | None = None
         self._budget: AgentBudget | None = None
         self._audit_broker: AuditBroker | None = None
+        self._telemetry_broker: TelemetryBroker | None = None
         self._identity_resolver: Callable[[], AgentPrincipal | None] | None = None
         self._generator_broker_v1: GeneratorBrokerV1 | None = None
         self._native_brain_source: Callable[[], GeneratorBrokerV1] | None = None
@@ -296,6 +298,11 @@ class StandardAgent(Agent):
             principal: Callable[[], AgentPrincipal | str | None]) -> StandardAgent:
 
         self._identity_resolver = lambda: _as_principal(principal())
+
+        return self
+
+    def use_telemetry(self, broker: TelemetryBroker) -> StandardAgent:
+        self._telemetry_broker = broker
 
         return self
 
@@ -568,7 +575,8 @@ class StandardAgent(Agent):
             data_coordination_service=data,
             decision_coordination_service=decision,
             direction_coordination_service=direction,
-            logging_broker=logging)
+            logging_broker=logging,
+            telemetry_broker=self._telemetry_broker)
 
 
 def _null_logger() -> logging.Logger:
