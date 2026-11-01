@@ -39,3 +39,29 @@ async def test_should_throw_validation_exception_on_retrieve_knowledge_if_query_
         call.log_error(same_exception_as(expected_knowledge_validation_exception))]
 
     assert knowledge_broker.mock_calls == []
+
+
+@pytest.mark.parametrize("invalid_query", [None, "", " "])
+async def test_should_throw_validation_exception_on_retrieve_sourced_knowledge_if_query_is_invalid_and_log_it(
+        invalid_query,
+        sourced_knowledge_service,
+        sourced_knowledge_broker,
+        knowledge_broker,
+        logging_broker,
+        same_exception_as):
+
+    # given
+    expected_knowledge_validation_exception = _knowledge_validation_exception()
+
+    # when
+    with pytest.raises(KnowledgeValidationException) as raised:
+        await sourced_knowledge_service.retrieve_sourced_knowledge(invalid_query)
+
+    # then
+    assert raised.value.same_exception_as(expected_knowledge_validation_exception)
+
+    assert logging_broker.mock_calls == [
+        call.log_error(same_exception_as(expected_knowledge_validation_exception))]
+
+    assert sourced_knowledge_broker.mock_calls == []
+    assert knowledge_broker.mock_calls == []
