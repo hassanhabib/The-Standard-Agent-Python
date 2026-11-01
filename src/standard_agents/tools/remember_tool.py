@@ -23,7 +23,7 @@ _PARAMETERS = (
 
 _DESCRIPTION = (
     "Store a fact to remember across sessions. Use it when the user tells you "
-    + "something worth keeping — their name, where they are, their preferences.")
+    + "something worth keeping \u2014 their name, where they are, their preferences.")
 
 
 class _RemembersMemories(Protocol):

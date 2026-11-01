@@ -43,8 +43,18 @@ def advertised(tools: Iterable[Tool]) -> list[Tool]:
 
 
 def _catalog_line(tool: Tool) -> str:
-    return f"- {tool.name} — {tool.description} parameters: {tool.parameters}"
+    return f"- {tool.name} \u2014 {tool.description} parameters: {tool.parameters}"
 
 
 def _is_blank(text: str | None) -> bool:
     return not text or text.isspace()
+
+
+def compose_guardian_rubric(*parts: str) -> str:
+    """A guardian rubric from its parts in order, skipping any that are empty.
+
+    Constitution first (the law), then the policy (what to screen or score), then the contract
+    (the output protocol the broker parses). The contract stays last so it is never displaced,
+    whatever the policy above it.
+    """
+    return "\n\n".join(part for part in parts if not _is_blank(part))

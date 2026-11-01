@@ -12,12 +12,14 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from datetime import timedelta
 
 from standard_agents._standard_agent_composition import (
+    compose_guardian_rubric,
     render_tool_catalog,
     render_tool_catalog_entries)
 from standard_agents.agent import Agent
 from standard_agents.brokers.approvals.not_configured_approval_broker import (
     NotConfiguredApprovalBroker)
 from standard_agents.brokers.classifiers.classifier_broker import ClassifierBroker
+from standard_agents.brokers.classifiers.function_classifier_broker import FunctionClassifierBroker
 from standard_agents.brokers.classifiers.not_configured_classifier_broker import (
     NotConfiguredClassifierBroker)
 from standard_agents.brokers.contracts.rule_contract_broker import RuleContractBroker
@@ -54,6 +56,7 @@ from standard_agents.models.clients.agents.exceptions import InvalidAgentComposi
 from standard_agents.models.clients.agents.inference_settings import InferenceSettings
 from standard_agents.models.clients.agents.prompt_request import PromptRequest
 from standard_agents.models.loggings.trace_verbosity import TraceVerbosity
+from standard_agents.prompts.guardian_prompts import gate_contract, gate_policy
 from standard_agents.services.coordinations.data.data_coordination_service import (
     DataCoordinationService)
 from standard_agents.services.coordinations.decision.decision_coordination_service import (
@@ -113,6 +116,7 @@ class StandardAgent(Agent):
         self._logging_broker: LoggingBroker | None = None
         self._usage_broker: UsageBroker = RatioUsageBroker()
         self._brain_settings: InferenceSettings | None = None
+        self._local_gate_screen: Callable[[str, str], Awaitable[str]] | None = None
         self._memory_path = "memory.txt"
         self._knowledge_path = "Knowledge"
         self._log_path = ""
@@ -169,6 +173,11 @@ class StandardAgent(Agent):
 
     def use_skills(self, broker: SkillBroker) -> StandardAgent:
         self._skill_sources.append(broker)
+
+        return self
+
+    def on_gate(self, screen: Callable[[str, str], Awaitable[str]]) -> StandardAgent:
+        self._local_gate_screen = screen
 
         return self
 
@@ -266,9 +275,14 @@ class StandardAgent(Agent):
         memory_service = MemoryService(memory_broker=self._memory_broker, logging_broker=logging)
         all_tools = [*self._tools, RememberTool(memory_service.remember)]
 
-        classifier = (
-            self._classifier_broker if self._classifier_broker is not None
-            else NotConfiguredClassifierBroker())
+        gate_rubric = compose_guardian_rubric("", gate_policy(), gate_contract())
+
+        if self._classifier_broker is not None:
+            classifier = self._classifier_broker
+        elif self._local_gate_screen is not None:
+            classifier = FunctionClassifierBroker(self._local_gate_screen, gate_rubric)
+        else:
+            classifier = NotConfiguredClassifierBroker()
 
         verifier = (
             self._verifier_broker if self._verifier_broker is not None
