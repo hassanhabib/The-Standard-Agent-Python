@@ -18,5 +18,14 @@ class JudgeService(IJudgeService):
         self.verifier_broker = verifier_broker
         self.logging_broker = logging_broker
 
+    # The task travels with the candidate: an answer is good or bad for a question.
     async def evaluate(self, task: str, candidate: str) -> Judgement:
-        raise NotImplementedError
+        verdict = await self.verifier_broker.verify(task, candidate)
+
+        return parse_judgement(verdict)
+
+
+def parse_judgement(verdict: str) -> Judgement:
+    score, _, reason = verdict.strip().partition(" ")
+
+    return Judgement(score=float(score), reason=reason.strip())
