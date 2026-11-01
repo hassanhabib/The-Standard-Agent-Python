@@ -63,7 +63,10 @@ class GateService:
             return await self.classifier_broker.classify(input)
 
     async def detect_conflict(self, instructions: str) -> str:
-        return await self.classifier_broker.assess(_CONFLICT_RUBRIC, instructions)
+        async with _handling_exceptions(self.logging_broker):
+            _validate_screen(instructions)
+
+            return await self.classifier_broker.assess(_CONFLICT_RUBRIC, instructions)
 
 
 def _validate_screen(input: str | None) -> None:
