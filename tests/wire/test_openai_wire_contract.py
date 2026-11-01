@@ -104,3 +104,19 @@ async def test_should_post_a_chat_completion_in_the_open_ai_shape():
 
     # and the response, read back whole
     assert actual_result == expected_result
+
+
+async def test_should_not_advertise_an_empty_tool_list():
+    # given: no tools; some providers treat "tools": [] as a different request
+    server = ScriptedServerHandler.answering(
+        '{"choices":[{"message":{"role":"assistant","content":"12"}}]}')
+
+    broker = create_broker(server)
+
+    # when
+    actual_result = await broker.generate(CONVERSATION, tools=())
+
+    # then
+    body = json.loads(server.bodies[0])
+    assert "tools" not in body
+    assert actual_result.content == "12"
