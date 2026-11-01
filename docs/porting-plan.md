@@ -77,6 +77,25 @@ live in `src/xeptions` and `src/restfulsense`, and the wheel must not ship them 
 - `AgentRun.started_on` defaults to `datetime(1, 1, 1)`, .NET's `default(DateTimeOffset)`;
   whether None can stand in without changing a trace line is decided with the trace tests
   (Phase 3, traces).
+- The direction coordination records a tool failure on the ledger as `str(exception)`, which is
+  empty for a bare `Exception()`; .NET's message there is "Exception of type 'System.Exception'
+  was thrown." (Phase 3, the effect ledger).
+
+## Deliberate differences, for the README at parity
+
+Places where Python cannot or should not reproduce .NET, kept on purpose:
+
+- Validations read blank text with `str.isspace`, which also counts U+001C to U+001F; .NET's
+  `IsNullOrWhiteSpace` does not. Brokers that reproduce a wire or file format keep the .NET set.
+- Lowercasing is per character, so U+0130 stays as it is; .NET's `ToLowerInvariant` gives `i` or
+  `İ` depending on its globalization mode.
+- Case-insensitive mappings (tool risk, tool scope) fold their keys when the service is built, so
+  a caller cannot hand in a deliberately case-sensitive mapping as C# allows with a comparer.
+- The decision coordination sorts conflict keys by code point where C# uses the culture's
+  comparer, and formats the judge score with `.` where C#'s `F2` uses the current culture.
+- A streamed run reads from a background task; a reader cancelled with `task.cancel()` stops the
+  run at once, where C# lets it reach its next write. A set `cancellation` event is seen at the
+  next turn boundary, never inside a brain stream.
 
 ## Version
 
