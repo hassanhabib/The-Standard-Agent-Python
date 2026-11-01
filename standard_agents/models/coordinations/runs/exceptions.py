@@ -19,3 +19,8 @@ class RunCoordinationValidationException(Xeption):
 class RunCoordinationDependencyValidationException(Xeption):
     def __init__(self, message: str, inner_exception: BaseException | None) -> None:
         super().__init__(message, inner_exception)
+
+
+class RunCoordinationDependencyException(Xeption):
+    def __init__(self, message: str, inner_exception: BaseException | None) -> None:
+        super().__init__(message, inner_exception)
