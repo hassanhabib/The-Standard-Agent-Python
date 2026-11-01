@@ -154,3 +154,33 @@ async def test_should_throw_dependency_exception_on_think_if_dependency_error_oc
     # then
     assert raised.value.same_exception_as(expected_exception)
     assert logging_broker.mock_calls == [call.log_error(same_exception_as(expected_exception))]
+
+
+async def test_should_throw_service_exception_on_think_if_service_error_occurs_and_log_it(
+        decision_coordination_service,
+        gate_service,
+        logging_broker,
+        create_random_agent_context,
+        same_exception_as):
+
+    # given
+    input_context = create_random_agent_context()
+    service_exception = Exception()
+
+    failed_agent_orchestration_service_exception = FailedAgentOrchestrationServiceException(
+        message="Failed agent orchestration service error occurred, contact support.",
+        inner_exception=service_exception)
+
+    expected_exception = AgentOrchestrationServiceException(
+        message="Agent orchestration service error occurred, contact support.",
+        inner_exception=failed_agent_orchestration_service_exception)
+
+    gate_service.screen.side_effect = service_exception
+
+    # when
+    with pytest.raises(AgentOrchestrationServiceException) as raised:
+        await decision_coordination_service.think(input_context)
+
+    # then
+    assert raised.value.same_exception_as(expected_exception)
+    assert logging_broker.mock_calls == [call.log_error(same_exception_as(expected_exception))]
