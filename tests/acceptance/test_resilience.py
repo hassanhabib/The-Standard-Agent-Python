@@ -134,3 +134,14 @@ async def test_should_stop_the_loop_when_the_time_budget_is_exhausted():
     # then: exhaustion is distinguishable from a refusal
     assert "time budget" in actual_result
     assert "not able to help" not in actual_result
+
+
+async def test_should_run_unbounded_when_no_budget_is_configured():
+    # given
+    agent = _agent_that_loops(lambda turn: "FINAL: 42")
+
+    # when
+    actual_result = await agent.process_prompt("what is the answer?")
+
+    # then: absent a budget the agent behaves exactly as it did
+    assert actual_result == "42"
