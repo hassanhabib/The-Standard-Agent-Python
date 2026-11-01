@@ -16,15 +16,19 @@ from unittest.mock import create_autospec
 
 import pytest
 
+from standard_agents.brokers.generators.generator_broker_v1 import GeneratorBrokerV1
 from standard_agents.brokers.knowledges.knowledge_broker import KnowledgeBroker
 from standard_agents.brokers.memories.memory_broker import MemoryBroker
 from standard_agents.brokers.sessions.file_session_broker import FileSessionBroker
 from standard_agents.brokers.skills.skill_broker import SkillBroker
-from standard_agents.models.brokers.generators.v1.conversation import ToolDefinition
+from standard_agents.models.brokers.generators.v1.conversation import (
+    GenerationResult,
+    ToolDefinition)
 from standard_agents.models.clients.agents.prompt_request import PromptRequest
 from standard_agents.models.foundations.skills.skill import Skill
 from standard_agents.models.orchestrations.agents.agent_status import AgentStatus
 from standard_agents.standard_agent import StandardAgent
+from standard_agents.tools.tool import Tool
 
 
 @pytest.fixture
@@ -91,3 +95,50 @@ async def test_should_treat_a_call_naming_a_caller_tool_as_a_terminal_answer(ses
     assert session.pending_effect is not None
     assert session.pending_effect.tool_name == "send_email"
     assert "jane@acme.com" in session.pending_effect.arguments
+
+
+class _RecordingNativeBroker(GeneratorBrokerV1):
+    def __init__(self) -> None:
+        self.captured_tools: tuple[ToolDefinition, ...] = ()
+
+    async def generate(self, messages, tools, *, inference=None):
+        self.captured_tools = tuple(tools)
+
+        return GenerationResult(content="ok")
+
+
+class _CalculatorTool(Tool):
+    @property
+    def name(self) -> str:
+        return "calculator"
+
+    @property
+    def description(self) -> str:
+        return "Evaluates arithmetic."
+
+    @property
+    def parameters(self) -> str:
+        return "{}"
+
+    async def execute(self, input: str) -> str:
+        return "4183"
+
+
+# One vocabulary, two owners: the model sees the configured tools and the caller's tools side
+# by side, and only Direction knows which words are whose (design 6.1).
+async def test_should_advertise_caller_tools_beside_configured_ones_natively():
+    # given
+    broker = _RecordingNativeBroker()
+
+    agent = (_bare_agent()
+        .tool(_CalculatorTool())
+        .use_native_brain(broker))
+
+    request = PromptRequest(prompt="hello", caller_tools=(_send_email_tool(),))
+
+    # when
+    await agent.process_prompt(request)
+
+    # then
+    assert any(tool.name == "calculator" for tool in broker.captured_tools)
+    assert any(tool.name == "send_email" for tool in broker.captured_tools)
