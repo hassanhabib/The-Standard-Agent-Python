@@ -30,7 +30,9 @@ class SessionService:
 
     async def retrieve_session(self, session_id: str) -> AgentSession | None:
         """The conversation so far, or None when this is the first prompt in it."""
-        raise NotImplementedError
+        # A conversation that has not started is not an error: None is the ordinary first
+        # prompt, and it has to stay distinguishable from a failure to read.
+        return await self.session_broker.select_session(session_id)
 
     async def record_session(self, session: AgentSession) -> None:
         """Writes the conversation back, replacing what was there."""
