@@ -14,6 +14,8 @@ the act as its pending effect, so a person can reconcile it against the world, a
 record is replayed the way any completed act is.
 """
 
+import dataclasses
+
 import pytest
 
 from standard_agents.brokers.effects.effect_ledger_broker import EffectLedgerBroker
@@ -153,3 +155,36 @@ async def test_should_hold_a_repeated_act_whose_earlier_attempt_has_no_recorded_
     assert actual_record is not None
     assert actual_record.state is EffectState.IN_FLIGHT
     assert actual_record.tool_name == "wire_transfer"
+
+
+async def test_should_replay_the_act_once_the_ledger_is_reconciled(new_process):
+    # given: the same interrupted attempt, then a person reconciles the record
+    ledger = _FailingOutcomeLedger()
+    tool = _CountingTool()
+    first_process = new_process(ledger, tool, _PROPOSAL).max_turns(1)
+
+    with pytest.raises(Exception):
+        await first_process.run(_request("pay the invoice"))
+
+    held_outcome = await new_process(ledger, _CountingTool(), _PROPOSAL, "FINAL: paid").run(
+        _request("did that go through?"))
+
+    idempotency_key = held_outcome.pending_effect.idempotency_key
+    unreconciled = await ledger.select_record(idempotency_key)
+
+    await ledger.update_record(dataclasses.replace(
+        unreconciled,
+        state=EffectState.COMPLETED,
+        outcome="transfer complete"))
+
+    # when: a third process, same session, same proposal
+    third_tool = _CountingTool()
+
+    actual_outcome = await new_process(
+        ledger, third_tool, _PROPOSAL, "FINAL: already paid").run(_request("and now?"))
+
+    # then: replayed from the reconciled record, never performed again
+    assert third_tool.execution_count == 0
+    assert tool.execution_count == 1
+    assert actual_outcome.status is AgentStatus.RESPONDED
+    assert actual_outcome.result == "already paid"
