@@ -11,12 +11,28 @@ from contextlib import asynccontextmanager
 
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.models.coordinations.directions.perimeter_policy import PerimeterPolicy
+from standard_agents.models.foundations.external_tools.exceptions import (
+    ExternalToolDependencyException,
+    ExternalToolDependencyValidationException,
+    ExternalToolServiceException,
+    ExternalToolValidationException)
+from standard_agents.models.foundations.internal_tools.exceptions import (
+    InternalToolDependencyException,
+    InternalToolServiceException,
+    InternalToolValidationException)
+from standard_agents.models.foundations.returns.exceptions import (
+    ReturnServiceException,
+    ReturnValidationException)
 from standard_agents.models.loggings.agent_run import AgentRun
 from standard_agents.models.loggings.performed_effect import PerformedEffect
 from standard_agents.models.orchestrations.agents.agent_context import AgentContext
 from standard_agents.models.orchestrations.agents.agent_status import AgentStatus
 from standard_agents.models.orchestrations.agents.exceptions import (
+    AgentOrchestrationDependencyException,
+    AgentOrchestrationDependencyValidationException,
+    AgentOrchestrationServiceException,
     AgentOrchestrationValidationException,
+    FailedAgentOrchestrationServiceException,
     NullAgentContextException)
 from standard_agents.models.orchestrations.agents.tool_exchange import ToolExchange
 from standard_agents.models.orchestrations.effects.agent_effect import AgentEffect
@@ -311,6 +327,46 @@ async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[N
     except NullAgentContextException as null_agent_context_exception:
         raise await _create_and_log_validation_exception(
             logging_broker, null_agent_context_exception)
+    except (
+            AgentOrchestrationDependencyValidationException,
+            AgentOrchestrationDependencyException,
+            AgentOrchestrationServiceException):
+
+        # The regions localize their own foundations' failures, so what arrives here is
+        # already in this family and already logged. Wrapping it again would nest and log the
+        # same failure twice.
+        raise
+    except (
+            InternalToolValidationException,
+            ExternalToolValidationException,
+            ExternalToolDependencyValidationException,
+            ReturnValidationException) as validation_exception:
+
+        raise await _create_and_log_dependency_validation_exception(
+            logging_broker, _local_exception(validation_exception))
+    except (
+            InternalToolDependencyException,
+            InternalToolServiceException,
+            ExternalToolDependencyException,
+            ExternalToolServiceException,
+            ReturnServiceException) as dependency_exception:
+
+        raise await _create_and_log_dependency_exception(
+            logging_broker, _local_exception(dependency_exception))
+    except Exception as exception:
+        failed_agent_orchestration_service_exception = FailedAgentOrchestrationServiceException(
+            message="Failed agent orchestration service error occurred, contact support.",
+            inner_exception=exception)
+
+        raise await _create_and_log_service_exception(
+            logging_broker, failed_agent_orchestration_service_exception)
+
+
+def _local_exception(categorized_exception: Xeption) -> Xeption | None:
+    """The foundation's local exception, the one a categorized exception wraps."""
+    inner_exception = categorized_exception.inner_exception
+
+    return inner_exception if isinstance(inner_exception, Xeption) else None
 
 
 async def _create_and_log_validation_exception(
@@ -324,3 +380,44 @@ async def _create_and_log_validation_exception(
     await logging_broker.log_error(agent_orchestration_validation_exception)
 
     return agent_orchestration_validation_exception
+
+
+async def _create_and_log_dependency_validation_exception(
+        logging_broker: LoggingBroker,
+        exception: Xeption | None) -> AgentOrchestrationDependencyValidationException:
+
+    agent_orchestration_dependency_validation_exception = (
+        AgentOrchestrationDependencyValidationException(
+            message="Agent orchestration dependency validation error occurred, "
+                    "fix the error and try again.",
+            inner_exception=exception))
+
+    await logging_broker.log_error(agent_orchestration_dependency_validation_exception)
+
+    return agent_orchestration_dependency_validation_exception
+
+
+async def _create_and_log_dependency_exception(
+        logging_broker: LoggingBroker,
+        exception: Xeption | None) -> AgentOrchestrationDependencyException:
+
+    agent_orchestration_dependency_exception = AgentOrchestrationDependencyException(
+        message="Agent orchestration dependency error occurred, contact support.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(agent_orchestration_dependency_exception)
+
+    return agent_orchestration_dependency_exception
+
+
+async def _create_and_log_service_exception(
+        logging_broker: LoggingBroker,
+        exception: Xeption) -> AgentOrchestrationServiceException:
+
+    agent_orchestration_service_exception = AgentOrchestrationServiceException(
+        message="Agent orchestration service error occurred, contact support.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(agent_orchestration_service_exception)
+
+    return agent_orchestration_service_exception
