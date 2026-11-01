@@ -12,6 +12,7 @@ import urllib.parse
 import warnings
 from collections.abc import AsyncIterator, Awaitable, Callable
 from datetime import timedelta
+from decimal import Decimal
 
 from standard_agents._standard_agent_composition import (
     compose_guardian_rubric,
@@ -60,9 +61,11 @@ from standard_agents.models.clients.agents.agent_outcome import AgentOutcome
 from standard_agents.models.clients.agents.agent_stream_event import AgentStreamEvent
 from standard_agents.models.clients.agents.exceptions import (
     InvalidAgentApiUrlException,
+    InvalidAgentBudgetException,
     InvalidAgentCompositionException)
 from standard_agents.models.clients.agents.inference_settings import InferenceSettings
 from standard_agents.models.clients.agents.prompt_request import PromptRequest
+from standard_agents.models.coordinations.agents.agent_budget import AgentBudget
 from standard_agents.models.loggings.trace_verbosity import TraceVerbosity
 from standard_agents.prompts.guardian_prompts import (
     gate_contract,
@@ -130,6 +133,7 @@ class StandardAgent(Agent):
         self._brain_settings: InferenceSettings | None = None
         self._gate_settings: InferenceSettings | None = None
         self._judge_settings: InferenceSettings | None = None
+        self._budget: AgentBudget | None = None
         self._generator_broker_v1: GeneratorBrokerV1 | None = None
         self._native_brain_source: Callable[[], GeneratorBrokerV1] | None = None
         self._local_gate_screen: Callable[[str, str], Awaitable[str]] | None = None
@@ -246,6 +250,24 @@ class StandardAgent(Agent):
 
         self._judge_settings = InferenceSettings(
             api_url, api_key, model, temperature, max_tokens, timeout_seconds)
+
+        return self
+
+    def budget(
+            self,
+            *,
+            max_tokens: int | None = None,
+            max_cost_usd: Decimal | None = None,
+            max_wall_clock: timedelta | None = None,
+            cost_per_thousand_tokens: Decimal = Decimal(0)) -> StandardAgent:
+
+        _validate_budget(max_cost_usd, cost_per_thousand_tokens)
+
+        self._budget = AgentBudget(
+            max_tokens=max_tokens,
+            max_cost_usd=max_cost_usd,
+            max_wall_clock=max_wall_clock,
+            cost_per_thousand_tokens=cost_per_thousand_tokens)
 
         return self
 
@@ -556,3 +578,17 @@ def _validate_api_url(api_url: str) -> None:
                 + "absolute http(s) URL ending with '/', such as "
                 + "https://api.peerllm.com/v1/, that does not name chat/completions "
                 + "itself."))
+
+
+def _validate_budget(max_cost_usd: Decimal | None, cost_per_thousand_tokens: Decimal) -> None:
+    # Spend is the token count times the rate, so a cost bound with no positive rate computes
+    # zero forever and never trips. The framework cannot know what a model costs and so cannot
+    # fill the rate in; it can refuse the contradiction of a dollar bound on a model declared
+    # free. Token and wall-clock bounds need no price and are not checked here.
+    if max_cost_usd is not None and cost_per_thousand_tokens <= 0:
+        raise InvalidAgentBudgetException(
+            message=(
+                "Invalid agent budget: a cost bound (maxCostUsd) needs a positive "
+                + "costPerThousandTokens. Cost is the token count times that rate, so at "
+                + "zero the bound can never trip. Pass your model's rate, or bound by "
+                + "maxTokens instead."))
