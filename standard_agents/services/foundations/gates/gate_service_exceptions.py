@@ -9,7 +9,9 @@ from xeptions import Xeption
 from standard_agents.brokers.loggings.ilogging_broker import ILoggingBroker
 from standard_agents.models.foundations.gates.exceptions import (
     FailedGateDependencyException,
+    FailedGateServiceException,
     GateDependencyException,
+    GateServiceException,
     GateValidationException,
     InvalidGateException)
 
@@ -33,6 +35,27 @@ async def try_catch(
         raise await create_and_log_dependency_exception(
             logging_broker,
             failed_gate_dependency_exception)
+    except Exception as exception:
+        failed_gate_service_exception = FailedGateServiceException(
+            message="Failed gate service error occurred, contact support.",
+            inner_exception=exception)
+
+        raise await create_and_log_service_exception(
+            logging_broker,
+            failed_gate_service_exception)
+
+
+async def create_and_log_service_exception(
+    logging_broker: ILoggingBroker,
+    exception: Xeption) -> GateServiceException:
+
+    gate_service_exception = GateServiceException(
+        message="Gate service error occurred, contact support.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(gate_service_exception)
+
+    return gate_service_exception
 
 
 async def create_and_log_dependency_exception(
