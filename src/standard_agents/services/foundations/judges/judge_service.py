@@ -57,6 +57,15 @@ class JudgeService:
         self.logging_broker = logging_broker
 
     async def evaluate(self, task: str, candidate: str) -> Judgement:
+        """Score the candidate as an answer to the task.
+
+        The task travels with the candidate: an answer is good or bad FOR a question, and a
+        verdict on a fit the verifier cannot see is noise dressed as a number (SPEC.md 4.2).
+
+        Redaction across the pair (one vault, so the same value tokenizes identically in the task
+        and in the answer) is a decoration on the verifier, applied at composition. This service
+        holds one broker and does not know redaction exists.
+        """
         async with _handling_exceptions(self.logging_broker):
             _validate_evaluate(candidate)
             verdict = await self.verifier_broker.verify(task, candidate)
