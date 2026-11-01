@@ -20,6 +20,7 @@ from standard_agents.brokers.knowledges.knowledge_broker import KnowledgeBroker
 from standard_agents.brokers.memories.memory_broker import MemoryBroker
 from standard_agents.brokers.sessions.file_session_broker import FileSessionBroker
 from standard_agents.brokers.skills.skill_broker import SkillBroker
+from standard_agents.models.orchestrations.agents.agent_status import AgentStatus
 from standard_agents.standard_agent import StandardAgent
 from standard_agents.tools.tool import Tool
 
@@ -179,3 +180,31 @@ async def test_should_finish_a_held_run_through_resume(tmp_path):
     # then: resuming asks nothing of the caller but the answer; the session holds the rest
     assert resumed_tool.execution_count == 1
     assert actual_result == "paid"
+
+
+# SPEC.md 4.11 says a session carries `pending : AgentEffect?`: the act it was left waiting on.
+# Storing only the question text means a resuming process cannot show a human WHAT they are
+# approving, and an approval broker cannot check that the act it is now approving is the act that
+# was held.
+async def test_should_remember_the_act_the_session_is_waiting_on(tmp_path):
+    # given
+    tool = _CountingTool()
+
+    await (_new_process(tmp_path, tool, "ACTION: wire_transfer: 10000")
+        .require_approval("wire_transfer")
+        .on_approval(_pending)
+        .process_prompt("pay the invoice", session_id="invoice-99"))
+
+    # when
+    session_broker = FileSessionBroker(str(tmp_path / "sessions"))
+    actual_session = await session_broker.select_session("invoice-99")
+
+    # then: the held act travels with the session, so the authority is shown the act and not
+    # merely told that something is waiting
+    assert actual_session is not None
+    assert actual_session.status == AgentStatus.AWAITING_APPROVAL
+    assert actual_session.pending_effect is not None
+    assert actual_session.pending_effect.tool_name == "wire_transfer"
+    assert "10000" in actual_session.pending_effect.arguments
+    assert actual_session.pending_effect.idempotency_key != ""
+    assert actual_session.pending_effect.approval_required is True
