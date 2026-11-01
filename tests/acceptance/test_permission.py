@@ -283,3 +283,23 @@ async def test_should_hold_an_unpermitted_act_when_ask_has_no_authority():
     # is nothing but waiting.
     assert tool.writes == 0
     assert "waiting for approval" in actual_answer
+
+
+# The same silent consent through the second door: RequireApprovalBroker answered APPROVED for any
+# tool NOT on its list, a branch only reachable under ASK, where it meant an act the authority was
+# never told about ran as if someone had said yes.
+async def test_should_hold_an_unlisted_act_under_ask_when_the_authority_only_knows_other_tools():
+    # given: the approval list names a different tool entirely
+    tool = _WriteFileTool()
+
+    agent = (_agent_acting(tool, "ACTION: write_file: /project/a.txt hello", "FINAL: done")
+        .permissions(PermissionMode.ASK)
+        .require_approval("wire_transfer"))
+
+    # when
+    actual_answer = await agent.process_prompt("write it")
+
+    # then: the list names wire_transfer, nobody can answer for write_file, and an unanswerable
+    # question is a held act, not a granted one
+    assert tool.writes == 0
+    assert "waiting for approval" in actual_answer
