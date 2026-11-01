@@ -65,6 +65,18 @@ class TierMap:
             + self.services_under("coordinations")
             + self.services_under("managements"))
 
+    def brokers(self) -> tuple[type, ...]:
+        return tuple(
+            cls for cls in self.classes
+            if not inspect.isabstract(cls)
+            and ".brokers." in cls.__module__
+            and cls.__name__.endswith("Broker"))
+
+    @staticmethod
+    def broker_contracts_implemented_by(cls: type) -> tuple[type, ...]:
+        """The interfaces a broker implements: the abstract broker classes it derives from."""
+        return tuple(base for base in cls.__mro__[1:] if _is_broker_contract(base))
+
     def constructors(self, cls: type) -> tuple[tuple[Parameter, ...], ...]:
         """The C# constructor overloads, as Python's one keyword-only __init__ carries them.
 

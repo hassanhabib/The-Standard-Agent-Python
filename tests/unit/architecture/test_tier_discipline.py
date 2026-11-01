@@ -150,3 +150,49 @@ def test_should_take_no_broker_above_the_foundation_tier_beyond_the_utilities(
         f"[{', '.join(resource_brokers)}]. A resource reached from here has no validation, no "
         "exception mapping, and its failures are attributed to the caller rather than to the "
         "resource.")
+
+
+def test_should_not_let_any_broker_depend_on_a_nature_broker(tier_map):
+    """The one at the bottom, and the last to be noticed. Invariant 3: brokers are thin.
+
+    Stated precisely, because two shapes look like violations and are not: a broker MUST NOT
+    hold a NATURE broker other than the one it implements.
+
+    A nature broker is defined here as one a foundation wraps, derived from the foundations
+    themselves rather than listed, so the rule cannot drift as foundations are added. That
+    leaves exactly two legitimate shapes: a decorator holding its own contract plus the
+    cross-cutting broker it applies (redaction, retry), and observability composing a clock and
+    a sink. Neither can change what the agent decides or does, which is precisely why neither
+    can become the hole that Policy, Approval and the effect ledger slipped through.
+    """
+    # given
+    # Derived sets can empty out silently: a renamed module and this rule passes vacuously
+    # forever. A derivation that finds nothing is a broken derivation, not a clean architecture.
+    nature_brokers = frozenset(
+        broker
+        for service in tier_map.services_under("foundations")
+        for broker in tier_map.brokers_taken_by(service)
+        if broker not in tier_map.utility_brokers)
+
+    brokers = tier_map.brokers()
+
+    # when
+    offenders = []
+
+    for broker in brokers:
+        implemented = {
+            tier_map.role(contract.__name__)
+            for contract in tier_map.broker_contracts_implemented_by(broker)}
+
+        foreign = sorted(
+            taken for taken in tier_map.brokers_taken_by(broker)
+            if taken in nature_brokers and taken not in implemented)
+
+        if foreign:
+            offenders.append(f"{broker.__name__} takes [{', '.join(foreign)}]")
+
+    # then
+    assert offenders == [], (
+        "a broker is a thin liaison to ONE resource (Invariant 3). A broker that reaches another "
+        "nature's resource has business flow in it, and it is the hardest kind to see because "
+        "it sits underneath everything else.")
