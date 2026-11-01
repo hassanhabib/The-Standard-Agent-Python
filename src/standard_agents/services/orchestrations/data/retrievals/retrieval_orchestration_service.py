@@ -49,7 +49,7 @@ class RetrievalOrchestrationService:
     async def retrieve_instructions(self, route: str) -> str:
         skills = await self.skill_service.retrieve_skills(route)
 
-        return skills.replace(_TOOLS_MARKER, await self._render_tool_catalog())
+        return skills.replace(_TOOLS_MARKER, await self._render_tool_catalog(skills))
 
     async def retrieve_grounding(self, query: str) -> Sequence[KnowledgeResult]:
         raise NotImplementedError
@@ -57,7 +57,14 @@ class RetrievalOrchestrationService:
     async def retrieve_remote_tools(self) -> Sequence[McpTool]:
         raise NotImplementedError
 
-    async def _render_tool_catalog(self) -> str:
+    async def _render_tool_catalog(self, skills: str) -> str:
+        """Remote tools join the catalog only when the marker is present.
+
+        An agent that never advertises never pays a discovery call.
+        """
+        if _TOOLS_MARKER not in skills:
+            return self.tool_catalog
+
         remote_catalog = _render_remote_tool_catalog(await self._discover_remote_tools())
 
         if not remote_catalog:
