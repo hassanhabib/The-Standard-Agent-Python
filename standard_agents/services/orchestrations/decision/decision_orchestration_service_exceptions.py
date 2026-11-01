@@ -8,10 +8,20 @@ from collections.abc import Awaitable, Callable
 from xeptions import Xeption
 from standard_agents.brokers.loggings.ilogging_broker import ILoggingBroker
 from standard_agents.models.orchestrations.agents.agent_context import AgentContext
-from standard_agents.models.foundations.brains.exceptions import BrainValidationException
-from standard_agents.models.foundations.gates.exceptions import GateValidationException
-from standard_agents.models.foundations.judges.exceptions import JudgeValidationException
+from standard_agents.models.foundations.brains.exceptions import (
+    BrainDependencyException,
+    BrainServiceException,
+    BrainValidationException)
+from standard_agents.models.foundations.gates.exceptions import (
+    GateDependencyException,
+    GateServiceException,
+    GateValidationException)
+from standard_agents.models.foundations.judges.exceptions import (
+    JudgeDependencyException,
+    JudgeServiceException,
+    JudgeValidationException)
 from standard_agents.models.orchestrations.decision.exceptions import (
+    DecisionOrchestrationDependencyException,
     DecisionOrchestrationDependencyValidationException,
     DecisionOrchestrationValidationException,
     NullAgentContextException)
@@ -35,6 +45,30 @@ async def try_catch(
         raise await create_and_log_dependency_validation_exception(
             logging_broker,
             dependency_validation_exception.inner_exception)
+    except (
+        BrainDependencyException,
+        BrainServiceException,
+        GateDependencyException,
+        GateServiceException,
+        JudgeDependencyException,
+        JudgeServiceException) as dependency_exception:
+
+        raise await create_and_log_dependency_exception(
+            logging_broker,
+            dependency_exception.inner_exception)
+
+
+async def create_and_log_dependency_exception(
+    logging_broker: ILoggingBroker,
+    exception: BaseException | None) -> DecisionOrchestrationDependencyException:
+
+    decision_orchestration_dependency_exception = DecisionOrchestrationDependencyException(
+        message="Decision orchestration dependency error occurred, contact support.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(decision_orchestration_dependency_exception)
+
+    return decision_orchestration_dependency_exception
 
 
 async def create_and_log_dependency_validation_exception(
