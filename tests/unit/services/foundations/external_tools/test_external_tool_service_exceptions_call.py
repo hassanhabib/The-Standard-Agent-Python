@@ -10,7 +10,9 @@ import pytest
 
 from standard_agents.models.foundations.external_tools.exceptions import (
     ExternalToolDependencyException,
-    FailedExternalToolDependencyException)
+    ExternalToolServiceException,
+    FailedExternalToolDependencyException,
+    FailedExternalToolServiceException)
 from tests.unit.services.foundations.external_tools.external_tool_service_tests import (
     ExternalToolServiceTests)
 
@@ -43,6 +45,33 @@ class TestExternalToolServiceExceptionsCall(ExternalToolServiceTests):
 
         # when
         with pytest.raises(ExternalToolDependencyException) as actual_exception:
+            asyncio.run(self.external_tool_service.call(input_name, input_payload))
+
+        # then
+        assert expected_exception.same_exception_as(actual_exception.value)
+        assert self.mcp_broker_mock.mock_calls == [call.call(input_name, input_payload)]
+        self.assert_logged_once("log_error", expected_exception)
+
+    def test_should_raise_service_exception_on_call_if_service_error_occurs_and_log_it(
+        self) -> None:
+
+        # given
+        input_name = self.create_random_string()
+        input_payload = self.create_random_string()
+        service_error = Exception(self.create_random_string())
+
+        failed_service_exception = FailedExternalToolServiceException(
+            message="Failed external tool service error occurred, contact support.",
+            inner_exception=service_error)
+
+        expected_exception = ExternalToolServiceException(
+            message="External tool service error occurred, contact support.",
+            inner_exception=failed_service_exception)
+
+        self.mcp_broker_mock.call.side_effect = service_error
+
+        # when
+        with pytest.raises(ExternalToolServiceException) as actual_exception:
             asyncio.run(self.external_tool_service.call(input_name, input_payload))
 
         # then
