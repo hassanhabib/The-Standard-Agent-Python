@@ -397,3 +397,58 @@ async def test_should_run_identically_through_both_doors(scenario):
     # control enforced on one door and not the other diverges here without this test ever
     # having to name it
     assert _trace_of(streamed) == _trace_of(batched), scenario
+
+
+# The third door (SPEC.md 4.14): the streamed outcome must be the batched door's outcome,
+# structure included, while the stream itself keeps every guarantee the second door has. Derived,
+# not enumerated, exactly like the two-door theory above: outcome, answer, effects and the full
+# trace, across every scenario this file will ever hold.
+@pytest.mark.parametrize("scenario", list(_SCENARIOS))
+async def test_should_carry_the_batched_outcome_through_the_streamed_door(scenario):
+    # given: one composition, built fresh for each door
+    batched = _audited(_SCENARIOS[scenario]())
+    streamed = _audited(_SCENARIOS[scenario]())
+
+    # when
+    batched_outcome = await batched.agent.run(
+        batched.prompt,
+        cancellation=batched.cancellation)
+
+    run_stream = streamed.agent.run_stream(streamed.prompt, cancellation=streamed.cancellation)
+    streamed_events = [stream_event async for stream_event in run_stream]
+
+    # then: 1. the outcome, structure included. The effects of two separate runs carry
+    # run-scoped keys, so the comparison is the act's identity, not the record's.
+    streamed_outcome = run_stream.outcome
+    streamed_pending = streamed_outcome.pending_effect
+    batched_pending = batched_outcome.pending_effect
+
+    # how the run ended, and what it delivered, must not depend on the door
+    assert streamed_outcome.status == batched_outcome.status, scenario
+    assert streamed_outcome.result == batched_outcome.result, scenario
+
+    # a pending act must ride the streamed outcome exactly as it rides the batched one, and
+    # the model-minted call id is the whole mechanism
+    assert (
+        (streamed_pending.tool_name if streamed_pending else None)
+        == (batched_pending.tool_name if batched_pending else None)), scenario
+
+    assert (
+        (streamed_pending.call_id if streamed_pending else None)
+        == (batched_pending.call_id if batched_pending else None)), scenario
+
+    # then: 2. the stream and the outcome are two readings of one run
+    responses = "".join(
+        stream_event.content for stream_event in streamed_events
+        if stream_event.type is AgentStreamEventType.RESPONSE)
+
+    if batched.delivers_answer:
+        # concatenating the stream's answer events must equal the outcome's result (4.14)
+        assert responses == streamed_outcome.result, scenario
+
+    # then: 3. the effects
+    assert streamed.tool_executions() == batched.tool_executions(), scenario
+
+    # then: 4. the trace, in full: the streamed outcome adds a reading, not a path, so a forked
+    # loop diverges here without this test ever having to name it
+    assert _trace_of(streamed) == _trace_of(batched), scenario
