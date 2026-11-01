@@ -11,6 +11,7 @@
 import pytest
 
 from standard_agents.models.clients.agents.agent_failure_codes import AgentFailureCodes
+from standard_agents.models.clients.agents.exceptions import InvalidAgentConfigurationException
 from standard_agents.models.foundations.knowledges.knowledge_result import KnowledgeResult
 from standard_agents.standard_agent import StandardAgent
 from standard_agents.tools.tool import Tool
@@ -148,3 +149,12 @@ def test_should_compose_agent_identity_from_json():
     # then
     assert agent.name == "billing"
     assert agent.description == "Handles refunds and invoices."
+
+
+def test_should_reject_an_unknown_configuration_key():
+    # given . when
+    with pytest.raises(InvalidAgentConfigurationException) as raised:
+        StandardAgent.from_json('{ "buget": { "maxTokens": 50000 } }')
+
+    # then: a typo'd key must not produce an unbounded agent that looks configured.
+    assert "buget" in raised.value.message
