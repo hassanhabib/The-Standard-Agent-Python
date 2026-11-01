@@ -52,9 +52,14 @@ class EffectLedgerService:
             claimed_on=now,
             lease_until=now + self.lease)
 
-        await self.effect_ledger_broker.insert_claim(claim)
+        claimed = await self.effect_ledger_broker.insert_claim(claim)
 
-        return None
+        # None means this act has not run and the caller should proceed. It has to stay distinct
+        # from a read that failed: one means go, the other means stop.
+        if claimed:
+            return None
+
+        return await self.effect_ledger_broker.select_record(effect.idempotency_key)
 
     async def record_outcome(self, effect: AgentEffect, outcome: str) -> None:
         """Records what the act produced, before the loop advances: the record is completed."""
