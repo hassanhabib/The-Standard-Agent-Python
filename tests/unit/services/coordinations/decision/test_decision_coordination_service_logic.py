@@ -462,3 +462,34 @@ async def test_should_swallow_say_line_from_thinking_stream_on_think_stream(
     assert decision_stream.result.direction_type == "calculator"
     assert decision_stream.result.payload == "2+2"
     assert decision_stream.result.narration == "Checking..."
+
+
+async def test_should_swallow_unterminated_say_line_on_think_stream_flush(
+        decision_coordination_service,
+        brain_service,
+        create_random_agent_context,
+        setup_gate_allows,
+        to_async_stream,
+        drain):
+    """The stream can end mid-narration: a SAY line with no newline ever.
+
+    The prose is still swallowed, never leaked as thinking, and still reaches the loop on the
+    context, while the empty remainder closes the turn through the empty-answer path.
+    """
+    # given
+    input_context = create_random_agent_context()
+    setup_gate_allows()
+    brain_service.generate_stream.return_value = to_async_stream("SAY: Work", "ing on it")
+
+    # when
+    decision_stream = decision_coordination_service.think_stream(input_context)
+    actual_events = await drain(decision_stream)
+
+    # then
+    assert not any(
+        "Working on it" in stream_event.content or "SAY:" in stream_event.content
+        for stream_event in actual_events)
+
+    assert decision_stream.result.narration == "Working on it"
+    assert decision_stream.result.direction_type == "ReturnResponse"
+    assert decision_stream.result.payload == ""
