@@ -9,13 +9,13 @@ from abc import ABC, abstractmethod
 from typing import Protocol
 
 
-class Disposable(Protocol):
-    """A scope closed by dispose().
+class TelemetryScope(Protocol):
+    """A scope the caller closes: call close(), or use it in a with block.
 
-    Every scope this seam hands out is also a context manager.
+    Every scope this seam hands out supports both.
     """
 
-    def dispose(self) -> None:
+    def close(self) -> None:
         ...
 
 
@@ -28,15 +28,15 @@ class TelemetryBroker(ABC):
     """
 
     @abstractmethod
-    def start_run(self, session_id: str) -> Disposable | None:
+    def start_run(self, session_id: str) -> TelemetryScope | None:
         """Open the run scope.
 
-        Dispose it to close the scope; a None return means nothing is listening and there is no
+        Close it to end the scope; a None return means nothing is listening and there is no
         scope to close.
         """
 
     @abstractmethod
-    def start_turn(self, turn: int) -> Disposable | None:
+    def start_turn(self, turn: int) -> TelemetryScope | None:
         """Open one turn's scope inside the run scope."""
 
     @abstractmethod

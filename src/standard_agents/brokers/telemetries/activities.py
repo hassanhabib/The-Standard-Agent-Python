@@ -41,7 +41,7 @@ class ActivityListener:
         self.activity_started = activity_started
         self.activity_stopped = activity_stopped
 
-    def dispose(self) -> None:
+    def close(self) -> None:
         with _registry_lock:
             if self in _activity_listeners:
                 _activity_listeners.remove(self)
@@ -50,7 +50,7 @@ class ActivityListener:
         return self
 
     def __exit__(self, exc_type, exc_value, traceback) -> None:
-        self.dispose()
+        self.close()
 
 
 class ActivitySource:
@@ -103,7 +103,7 @@ class Activity:
         self.source = source
         self.parent = parent
         self.tags: dict[str, Any] = {}
-        self.start_time_utc = datetime.now(timezone.utc)
+        self.start_time = datetime.now(timezone.utc)
         self.duration = timedelta(0)
         self.is_stopped = False
 
@@ -120,7 +120,7 @@ class Activity:
 
         return self
 
-    def get_tag_item(self, key: str) -> Any:
+    def get_tag(self, key: str) -> Any:
         return self.tags.get(key)
 
     def stop(self) -> None:
@@ -133,7 +133,7 @@ class Activity:
             return
 
         self.is_stopped = True
-        self.duration = datetime.now(timezone.utc) - self.start_time_utc
+        self.duration = datetime.now(timezone.utc) - self.start_time
 
         for listener in self.source._listeners():
             if listener.activity_stopped is not None:
@@ -141,14 +141,14 @@ class Activity:
 
         _current_activity.set(self.parent)
 
-    def dispose(self) -> None:
+    def close(self) -> None:
         self.stop()
 
     def __enter__(self) -> Activity:
         return self
 
     def __exit__(self, exc_type, exc_value, traceback) -> None:
-        self.dispose()
+        self.close()
 
 
 class MeterListener:
@@ -164,7 +164,7 @@ class MeterListener:
         with _registry_lock:
             _meter_listeners.append(self)
 
-    def dispose(self) -> None:
+    def close(self) -> None:
         with _registry_lock:
             if self in _meter_listeners:
                 _meter_listeners.remove(self)
@@ -173,7 +173,7 @@ class MeterListener:
         return self
 
     def __exit__(self, exc_type, exc_value, traceback) -> None:
-        self.dispose()
+        self.close()
 
 
 class Meter:

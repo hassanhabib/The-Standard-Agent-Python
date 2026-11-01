@@ -24,7 +24,7 @@ class ContractVerdict:
     reason: str
 
     # The verdict when no contract was configured: everything satisfies nothing.
-    unconstrained: ClassVar["ContractVerdict"]
+    UNCONSTRAINED: ClassVar["ContractVerdict"]
 
 
-ContractVerdict.unconstrained = ContractVerdict(satisfied=True, reason="")
+ContractVerdict.UNCONSTRAINED = ContractVerdict(satisfied=True, reason="")

@@ -8,7 +8,7 @@ from __future__ import annotations
 from types import MappingProxyType
 from typing import Any, Callable, Mapping
 
-from standard_agents.brokers.telemetries.telemetry_broker import Disposable, TelemetryBroker
+from standard_agents.brokers.telemetries.telemetry_broker import TelemetryScope, TelemetryBroker
 
 _EMPTY_ATTRIBUTES: Mapping[str, Any] = MappingProxyType({})
 
@@ -24,12 +24,12 @@ class FunctionTelemetryBroker(TelemetryBroker):
     def __init__(self, record: Callable[[str, Mapping[str, Any]], None]) -> None:
         self._record = record
 
-    def start_run(self, session_id: str) -> Disposable | None:
+    def start_run(self, session_id: str) -> TelemetryScope | None:
         self._record("run.start", {"session.id": session_id})
 
         return _Scope(lambda: self._record("run.end", _EMPTY_ATTRIBUTES))
 
-    def start_turn(self, turn: int) -> Disposable | None:
+    def start_turn(self, turn: int) -> TelemetryScope | None:
         self._record("turn.start", {"turn.index": turn})
 
         return _Scope(lambda: self._record("turn.end", _EMPTY_ATTRIBUTES))
@@ -59,19 +59,19 @@ class FunctionTelemetryBroker(TelemetryBroker):
 
 
 class _Scope:
-    """A scope that ends on dispose().
+    """A scope that ends on close().
 
-    Every dispose() ends the scope again, as every Dispose() does in the C# framework.
+    Every close() ends the scope again, as it does in the C# framework.
     """
 
     def __init__(self, end: Callable[[], None]) -> None:
         self._end = end
 
-    def dispose(self) -> None:
+    def close(self) -> None:
         self._end()
 
     def __enter__(self) -> _Scope:
         return self
 
     def __exit__(self, exc_type, exc_value, traceback) -> None:
-        self.dispose()
+        self.close()

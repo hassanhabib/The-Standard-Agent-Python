@@ -42,6 +42,14 @@ when its tests are at parity and the whole suite is green.
 After Phase 1 the capability work is independent enough to run in parallel, one session per
 capability group, each in its own worktree.
 
+## Known mismatches, each fixed test-first in its phase
+
+- `HttpMcpBroker` reads an event-stream data line as blank with `str.isspace`, which also counts
+  U+001C to U+001F; .NET's `IsNullOrWhiteSpace` does not (Phase 4, MCP over HTTP).
+- `AgentRun` still carries a `cancellation_token`. C# stops a run only at a turn boundary, so no
+  effect is left half-recorded; cancelling a Python task interrupts at any await. The Python way
+  to keep that guarantee is decided with `RunManagementService` (Phase 1).
+
 ## Version
 
 The library is unpublished at 1.0.0.0. When it reaches parity it takes the C# version it matches

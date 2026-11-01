@@ -143,7 +143,7 @@ class AuditingLoggingBroker(LoggingBroker):
         record = AuditRecord(
             run_id=run.id,
             sequence=run.next_sequence(),
-            timestamp=self._time_broker.get_current_date_time_offset(),
+            timestamp=self._time_broker.get_current_date_time(),
             kind=kind,
             actor=actor,
             message=message,

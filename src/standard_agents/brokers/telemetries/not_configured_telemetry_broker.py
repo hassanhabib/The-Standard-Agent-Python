@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from standard_agents.brokers.telemetries.telemetry_broker import Disposable, TelemetryBroker
+from standard_agents.brokers.telemetries.telemetry_broker import TelemetryScope, TelemetryBroker
 
 
 class NotConfiguredTelemetryBroker(TelemetryBroker):
@@ -15,10 +15,10 @@ class NotConfiguredTelemetryBroker(TelemetryBroker):
     .telemetry() spends nothing on it.
     """
 
-    def start_run(self, session_id: str) -> Disposable | None:
+    def start_run(self, session_id: str) -> TelemetryScope | None:
         return None
 
-    def start_turn(self, turn: int) -> Disposable | None:
+    def start_turn(self, turn: int) -> TelemetryScope | None:
         return None
 
     def record_turn_usage(

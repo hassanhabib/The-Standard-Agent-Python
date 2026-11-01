@@ -20,7 +20,7 @@ class ToolSelector:
 
         self._select = select
 
-    async def select_async(
+    async def select(
             self,
             task: str,
             described_tool_names: Sequence[str]) -> Sequence[str]:

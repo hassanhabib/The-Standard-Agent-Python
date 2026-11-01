@@ -8,7 +8,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from standard_agents.brokers.telemetries.activities import Activity, ActivitySource, Meter
-from standard_agents.brokers.telemetries.telemetry_broker import Disposable, TelemetryBroker
+from standard_agents.brokers.telemetries.telemetry_broker import TelemetryScope, TelemetryBroker
 
 SOURCE_NAME = "Standard.Agents"
 
@@ -34,7 +34,7 @@ class ActivityTelemetryBroker(TelemetryBroker):
     def __init__(self, agent_name: str = "standard-agent") -> None:
         self._agent_name = agent_name
 
-    def start_run(self, session_id: str) -> Disposable | None:
+    def start_run(self, session_id: str) -> TelemetryScope | None:
         run = _activity_source.start_activity(f"invoke_agent {self._agent_name}")
 
         if run is not None:
@@ -46,7 +46,7 @@ class ActivityTelemetryBroker(TelemetryBroker):
 
         return run
 
-    def start_turn(self, turn: int) -> Disposable | None:
+    def start_turn(self, turn: int) -> TelemetryScope | None:
         turn_activity = _activity_source.start_activity(f"turn {turn}")
 
         if turn_activity is not None:
@@ -82,6 +82,6 @@ class ActivityTelemetryBroker(TelemetryBroker):
             current.set_tag("gen_ai.usage.output_tokens", completion_tokens)
 
             _operation_duration.record(
-                (datetime.now(timezone.utc) - current.start_time_utc).total_seconds(),
+                (datetime.now(timezone.utc) - current.start_time).total_seconds(),
                 ("gen_ai.operation.name", "invoke_agent"),
                 ("standard.agents.run.status", status))

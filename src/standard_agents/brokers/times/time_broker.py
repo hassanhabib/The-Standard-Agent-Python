@@ -11,5 +11,5 @@ from datetime import datetime
 
 class TimeBroker(ABC):
     @abstractmethod
-    def get_current_date_time_offset(self) -> datetime:
+    def get_current_date_time(self) -> datetime:
         ...

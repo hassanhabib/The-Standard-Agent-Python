@@ -228,20 +228,20 @@ class AgentRunScope:
     """Restores whatever run was active before.
 
     A nested agent (the fractal: an agent used as a tool of another agent) returns its caller's
-    run rather than leaving it cleared. dispose() ends the scope; it is also a context manager.
+    run rather than leaving it cleared. close() ends the scope; it is also a context manager.
     """
 
     def __init__(self, enclosing_run: AgentRun | None) -> None:
         self._enclosing_run = enclosing_run
 
-    def dispose(self) -> None:
+    def close(self) -> None:
         _current.set(self._enclosing_run)
 
     def __enter__(self) -> "AgentRunScope":
         return self
 
     def __exit__(self, exc_type, exc_value, traceback) -> None:
-        self.dispose()
+        self.close()
 
 
 def _grant_key(tool_name: str, scope: str) -> str:
