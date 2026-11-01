@@ -12,7 +12,9 @@ from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.brokers.tools.tool_broker import ToolBroker
 from standard_agents.models.foundations.internal_tools.exceptions import (
     FailedInternalToolDependencyException,
+    FailedInternalToolServiceException,
     InternalToolDependencyException,
+    InternalToolServiceException,
     InternalToolValidationException,
     InvalidInternalToolException)
 
@@ -31,7 +33,7 @@ class InternalToolService:
             return await self.tool_broker.has(name)
 
     async def run(self, name: str, input: str) -> str:
-        async with _handling_exceptions(self.logging_broker):
+        async with _handling_tool_exceptions(self.logging_broker):
             _validate_name(name)
 
             return await self.tool_broker.run(name, input)
@@ -52,6 +54,23 @@ def _validate_name(name: str | None) -> None:
 
 @asynccontextmanager
 async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[None]:
+    try:
+        yield
+    except InvalidInternalToolException as invalid_internal_tool_exception:
+        raise await _create_and_log_validation_exception(
+            logging_broker, invalid_internal_tool_exception)
+    except Exception as exception:
+        failed_internal_tool_service_exception = FailedInternalToolServiceException(
+            message="Failed internal tool service error occurred, contact support.",
+            inner_exception=exception)
+
+        raise await _create_and_log_service_exception(
+            logging_broker, failed_internal_tool_service_exception)
+
+
+@asynccontextmanager
+async def _handling_tool_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[None]:
+    """Maps the failures of running a tool: whatever the tool raises is a dependency failure."""
     try:
         yield
     except InvalidInternalToolException as invalid_internal_tool_exception:
@@ -90,3 +109,16 @@ async def _create_and_log_dependency_exception(
     await logging_broker.log_error(internal_tool_dependency_exception)
 
     return internal_tool_dependency_exception
+
+
+async def _create_and_log_service_exception(
+        logging_broker: LoggingBroker,
+        exception: Exception) -> InternalToolServiceException:
+
+    internal_tool_service_exception = InternalToolServiceException(
+        message="Internal tool service error occurred, contact support.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(internal_tool_service_exception)
+
+    return internal_tool_service_exception
