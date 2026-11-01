@@ -11,6 +11,7 @@ typing.get_type_hints resolves each constructor parameter to the class it names,
 compares classes rather than spellings.
 """
 
+import collections.abc
 import functools
 import importlib
 import inspect
@@ -120,6 +121,21 @@ class TierMap:
             if _is_a_dependency(_unwrap(parameter.annotation)))
 
     @staticmethod
+    def carries_a_delegate(annotation: object) -> bool:
+        """A Callable, or a generic that carries one: Python's delegate."""
+        unwrapped = _unwrap(annotation)
+
+        if typing.get_origin(unwrapped) is collections.abc.Callable:
+            return True
+
+        if unwrapped is collections.abc.Callable or unwrapped is typing.Callable:
+            return True
+
+        return any(
+            TierMap.carries_a_delegate(argument)
+            for argument in _flattened(typing.get_args(unwrapped)))
+
+    @staticmethod
     def role(broker_name: str) -> str:
         """One broker ROLE, which may be versioned.
 
@@ -149,6 +165,15 @@ def _unwrap(annotation: object) -> object:
     return annotation
 
 
+def _flattened(arguments: tuple[object, ...]) -> typing.Iterator[object]:
+    """Generic arguments, with Callable's parameter list opened up."""
+    for argument in arguments:
+        if isinstance(argument, list):
+            yield from argument
+        else:
+            yield argument
+
+
 def _is_broker_contract(annotation: object) -> bool:
     """A broker's interface: in Python, the abstract class a concrete broker implements."""
     return (
@@ -176,6 +201,8 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
     services_by_fixture = {
         "foundation_service": tier_map.services_under("foundations"),
         "service_above_foundations": tier_map.services_above_foundations(),
+        "tier_service": (
+            tier_map.services_under("foundations") + tier_map.services_above_foundations()),
     }
 
     for fixture_name, services in services_by_fixture.items():

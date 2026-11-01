@@ -102,3 +102,29 @@ def test_should_depend_only_on_the_tier_directly_below_it(service_above_foundati
         f"nothing else: it takes [{', '.join(reached_past_it)}]. A service that reaches past the "
         "tier below it borrows another nature's internals, and no test of counts or brokers "
         "will ever see it.")
+
+
+def test_should_hold_no_naked_delegate_in_any_service_constructor(tier_service, tier_map):
+    """The counting escape the sweep demonstrated.
+
+    Replace any service with a Callable and the dependency vanishes from every count above. A
+    delegate that participates in a service's decisions is a collaborator, and a collaborator
+    the count cannot see belongs inside a named model under models/ (policy is Data), where its
+    arrival is a reviewed diff.
+    """
+    # given
+    service_name = tier_service.__name__
+
+    # when
+    naked_delegates = sorted({
+        parameter.name
+        for constructor in tier_map.constructors(tier_service)
+        for parameter in constructor
+        if tier_map.carries_a_delegate(parameter.annotation)})
+
+    # then
+    assert naked_delegates == [], (
+        f"{service_name} takes [{', '.join(naked_delegates)}]: a delegate that participates in "
+        "a service's decisions is a collaborator the dependency count cannot see. Policy is "
+        "Data: carry it inside a named model under models/, where its arrival is a reviewed "
+        "diff rather than constructor sprawl")
