@@ -52,6 +52,14 @@ class AgentTool(Tool):
             .replace(_INPUT_PLACEHOLDER, input))
         outcome = await self._agent.run(handed_off, cancellation=None)
 
+        # How the handoff ended, recorded on the OUTER run (the nested run's own ambient state
+        # never flows back across the await). The string returned below cannot carry a status,
+        # and a transfer needs one: the loop adopts an answer and keeps working past anything
+        # else. Recorded on every handoff; the loop clears it before each act, so it only ever
+        # reads the act it just performed.
+        if outer_run is not None:
+            outer_run.handoff_outcome = outcome
+
         if outcome.status is AgentStatus.RESPONDED:
             return outcome.result
 
