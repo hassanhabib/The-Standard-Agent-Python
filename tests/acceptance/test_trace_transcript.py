@@ -93,3 +93,13 @@ async def test_should_write_turn_step_process_transcript_at_full_verbosity(tmp_p
     assert "Gate" in transcript
     assert "Judge" in transcript
     assert "Step 2: Direction" in transcript
+
+
+async def test_should_omit_steps_and_processes_at_summary_verbosity(tmp_path):
+    # given . when
+    transcript = await _run_and_read_transcript(tmp_path, TraceVerbosity.SUMMARY)
+
+    # then
+    assert "Turn 0" in transcript
+    assert "Step 0: Data" not in transcript
+    assert "Process 0:" not in transcript
