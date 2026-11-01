@@ -42,3 +42,29 @@ async def test_should_throw_validation_exception_on_generate_if_user_prompt_is_i
         call.log_error(same_exception_as(expected_brain_validation_exception))]
 
     assert generator_broker.mock_calls == []
+
+
+@pytest.mark.parametrize("empty_system_prompt", [None, "", " "])
+async def test_should_generate_on_generate_even_if_system_prompt_is_empty(
+        empty_system_prompt,
+        brain_service,
+        generator_broker,
+        logging_broker,
+        create_random_string):
+
+    # given
+    random_user_prompt = create_random_string()
+    random_reply = create_random_string()
+    expected_reply = random_reply
+    generator_broker.generate.return_value = random_reply
+
+    # when
+    actual_reply = await brain_service.generate(empty_system_prompt, random_user_prompt)
+
+    # then
+    assert actual_reply == expected_reply
+
+    assert generator_broker.mock_calls == [
+        call.generate(empty_system_prompt, random_user_prompt)]
+
+    assert logging_broker.mock_calls == []
