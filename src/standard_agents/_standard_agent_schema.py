@@ -12,7 +12,9 @@ one list (principal review 2026-09-04, F-24).
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
+from typing import Any
 
 _STRING = "string"
 _NUMBER = "number"
@@ -263,3 +265,111 @@ def document_property_names(key: str) -> tuple[str, ...]:
         section for section in (*_DOCUMENT_SECTIONS, *_NESTED_SECTIONS) if section.key == key]
 
     return tuple(document_property.name for document_property in section.properties)
+
+
+def document_schema_json() -> str:
+    """The JSON Schema of the agent document, emitted from the table above.
+
+    Indented for a person, and with plain characters rather than escapes: an editor reads this
+    file, not a browser, so nothing here needs HTML-safe escaping.
+    """
+    schema = {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "Standard.Agents agent document",
+        "description": (
+            "The whole configurable surface of a StandardAgent as data: one key per builder "
+            + "verb."),
+        "type": _OBJECT,
+        "additionalProperties": False,
+        "properties": {section.key: _describe_section(section) for section in _DOCUMENT_SECTIONS},
+    }
+
+    return json.dumps(schema, indent=2, ensure_ascii=False)
+
+
+def _describe_section(section: _DocumentSection) -> dict[str, Any]:
+    return {
+        "description": section.description,
+        "anyOf": [_describe_shape(section, shape) for shape in section.shapes],
+        "examples": [json.loads(section.example)],
+    }
+
+
+def _describe_shape(section: _DocumentSection, shape: str) -> dict[str, Any]:
+    if shape == _OBJECT:
+        return _describe_object(section)
+
+    if shape == _ARRAY:
+        return _describe_array(section)
+
+    if shape == _STRING and section.names is not None:
+        return {"type": _STRING, "enum": list(section.names)}
+
+    if shape == _BOOLEAN and section.boolean_must_be_false:
+        return {"type": _BOOLEAN, "const": False}
+
+    return {"type": shape}
+
+
+def _describe_object(section: _DocumentSection) -> dict[str, Any]:
+    # A section with no property list (the contract, which is a JSON Schema itself) stays open;
+    # every other object is closed, exactly as the document switch closes it.
+    if section.properties is None:
+        return {"type": _OBJECT}
+
+    described: dict[str, Any] = {
+        "type": _OBJECT,
+        "additionalProperties": False,
+        "properties": {
+            document_property.name: _describe_property(document_property)
+            for document_property in section.properties},
+    }
+
+    required = [
+        document_property.name for document_property in section.properties
+        if document_property.required]
+
+    if required:
+        described["required"] = required
+
+    return described
+
+
+def _describe_property(document_property: _DocumentProperty) -> dict[str, Any]:
+    described: dict[str, Any] = {"type": document_property.kind}
+
+    if document_property.positive:
+        described["exclusiveMinimum"] = 0
+
+    if document_property.names is not None:
+        described["enum"] = list(document_property.names)
+
+    if document_property.kind == _ARRAY:
+        described["items"] = (
+            _describe_object(_nested_section("redact.rules"))
+            if document_property.name == "rules"
+            else {"type": _STRING})
+
+    return described
+
+
+def _describe_array(section: _DocumentSection) -> dict[str, Any]:
+    # An array's items are strings, or the section's own object shape beside a string (an MCP
+    # server by URL or by object; a fleet member by path or as an inline document).
+    if section.items_section is None:
+        items: dict[str, Any] = {"type": section.items_kind or _STRING}
+    else:
+        items = {
+            "anyOf": [
+                {"type": _STRING},
+                {"type": _OBJECT} if section.properties is None else _describe_object(section),
+            ],
+        }
+
+    return {"type": _ARRAY, "minItems": 1, "items": items}
+
+
+def _nested_section(key: str) -> _DocumentSection:
+    (section,) = [section for section in _NESTED_SECTIONS if section.key == key]
+
+    return section

@@ -28,6 +28,7 @@ from standard_agents._standard_agent_composition import (
     render_tool_catalog,
     render_tool_catalog_entries)
 from standard_agents._standard_agent_configuration import apply_document
+from standard_agents._standard_agent_schema import document_schema_json
 from standard_agents.agent import Agent
 from standard_agents.brokers.agents.agent_registry_broker import AgentRegistryBroker
 from standard_agents.brokers.agents.file_agent_registry_broker import FileAgentRegistryBroker
@@ -261,6 +262,10 @@ class StandardAgent(Agent):
         self._skill_sources.append(FileSkillBroker(os.path.join(os.getcwd(), path)))
 
         return self
+
+    @staticmethod
+    def document_schema_json() -> str:
+        return document_schema_json()
 
     @classmethod
     def from_json(cls, json: str) -> StandardAgent:
