@@ -25,7 +25,11 @@ from standard_agents.services.orchestrations.decision.guardians.guardian_orchest
 from standard_agents.services.orchestrations.decision.inferences.inference_orchestration_service \
     import InferenceOrchestrationService
 
+# A guardian that emits one of these is trying to answer rather than classify.
+_SAY_PREFIX = "SAY:"
+
 _REFUSE_VERDICT = "refuse"
+
 _ROUTE_VERDICT = "route"
 _REFUSE_DIRECTION = "Refuse"
 _RETURN_RESPONSE_DIRECTION = "ReturnResponse"
@@ -172,12 +176,25 @@ class DecisionCoordinationService:
     async def _routed_by_gate(self, context: AgentContext, verdict: str) -> AgentContext:
         """Everything else the Gate's verdict carries, handled once for both doors.
 
-        A route label rides through as data.
+        A route label rides through as data. A verdict is only ever read as a classification,
+        so a Gate that emits SAY: falls through to the Brain and its text never becomes the
+        answer, but the overreach is recorded (SPEC.md 7.6): a guardian trying to answer is
+        exactly the event a security review needs to see.
         """
+        if _is_guardian_overreach(verdict):
+            await self._log_guardian_overreach()
+
         return (
             dataclasses.replace(context, route=_extract_route_label(verdict))
             if _is_route(verdict)
             else context)
+
+    async def _log_guardian_overreach(self) -> None:
+        await self.logging_broker.log_process(
+            "Decision",
+            "Gate overreach \u2014 a guardian tried to answer or act instead of classifying; "
+            "neutralized and passed to the Brain "
+            "(Invariant 6: a guardian is never the Brain)")
 
     async def _resolve_skill_conflict(
             self,
@@ -281,6 +298,11 @@ def _is_refusal(verdict: str) -> bool:
 
 def _is_route(verdict: str) -> bool:
     return verdict.startswith(_ROUTE_VERDICT)
+
+
+def _is_guardian_overreach(verdict: str) -> bool:
+    """SAY: is an overreach: narration is a voice, and a guardian is never a voice."""
+    return _SAY_PREFIX in verdict
 
 
 def _extract_route_label(verdict: str) -> str:
