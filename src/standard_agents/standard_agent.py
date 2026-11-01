@@ -42,6 +42,7 @@ from standard_agents.brokers.generators.openai_generator_broker_v1 import OpenAi
 from standard_agents.brokers.knowledges.knowledge_broker import KnowledgeBroker
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.brokers.loggings.stdlib_logging_broker import StdlibLoggingBroker
+from standard_agents.brokers.mcps.composite_mcp_broker import CompositeMcpBroker
 from standard_agents.brokers.mcps.http_mcp_broker import HttpMcpBroker
 from standard_agents.brokers.mcps.mcp_broker import McpBroker
 from standard_agents.brokers.mcps.not_configured_mcp_broker import NotConfiguredMcpBroker
@@ -501,10 +502,22 @@ class StandardAgent(Agent):
 
         tool_broker = InMemoryToolBroker(all_tools)
 
-        mcp = (
-            self._mcp_sources[0]() if self._mcp_sources
-            else NotConfiguredMcpBroker())
-        skill_service = SkillService(skill_broker=self._skill_sources[0], logging_broker=logging)
+        # One source composes as itself; several compose behind the same seam the service already
+        # speaks, so the tier above never learns how many integrations answered.
+        mcp_brokers = [source() for source in self._mcp_sources]
+
+        if not mcp_brokers:
+            mcp: McpBroker = NotConfiguredMcpBroker()
+        elif len(mcp_brokers) == 1:
+            mcp = mcp_brokers[0]
+        else:
+            mcp = CompositeMcpBroker(mcp_brokers)
+
+        skills = (
+            self._skill_sources[0] if self._skill_sources
+            else FileSkillBroker(os.path.join(os.getcwd(), "Skills")))
+
+        skill_service = SkillService(skill_broker=skills, logging_broker=logging)
 
         if self._knowledge_broker is not None:
             knowledge_service = KnowledgeService(
