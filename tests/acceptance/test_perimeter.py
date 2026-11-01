@@ -10,6 +10,7 @@ record outcome. These pin the guarantees a bank actually asks about.
 from collections import deque
 from unittest.mock import create_autospec
 
+from standard_agents.brokers.approvals.approval_broker import ApprovalDecision
 from standard_agents.brokers.knowledges.knowledge_broker import KnowledgeBroker
 from standard_agents.brokers.memories.memory_broker import MemoryBroker
 from standard_agents.brokers.skills.skill_broker import SkillBroker
@@ -75,3 +76,22 @@ async def test_should_not_run_an_irreversible_tool_without_approval():
     # then: waiting is not consent
     assert tool.execution_count == 0
     assert "waiting for approval" in actual_result
+
+
+async def test_should_run_an_irreversible_tool_once_approved():
+    # given
+    tool = _CountingTool()
+
+    async def approve(effect):
+        return ApprovalDecision.APPROVED
+
+    agent = (_agent_that_calls_the_tool(tool, "ACTION: wire_transfer: 10000", "FINAL: paid")
+        .require_approval("wire_transfer")
+        .on_approval(approve))
+
+    # when
+    actual_result = await agent.process_prompt("pay the invoice")
+
+    # then
+    assert tool.execution_count == 1
+    assert actual_result == "paid"
