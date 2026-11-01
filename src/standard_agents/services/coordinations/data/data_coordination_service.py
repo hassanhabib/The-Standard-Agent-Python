@@ -132,7 +132,7 @@ def _with_caller_vocabulary(system_prompt: str, context: AgentContext) -> str:
         return system_prompt
 
     lines = (
-        f"- {tool.name} — {tool.description} parameters: {tool.parameters_json}"
+        f"- {tool.name} \u2014 {tool.description} parameters: {tool.parameters_json}"
         for tool in caller_tools)
 
     return (

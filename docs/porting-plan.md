@@ -70,14 +70,14 @@ live in `src/xeptions` and `src/restfulsense`, and the wheel must not ship them 
   loop): C# writes the milliseconds elapsed since year one, about 6.4e13 in 2026, and so does
   this port. None would make that line raise a `TypeError`, or need a branch that writes
   something else, so the default stays.
-- The direction coordination records a tool failure on the ledger as `str(exception)`, which is
-  empty for a bare `Exception()`; .NET's message there is "Exception of type 'System.Exception'
-  was thrown." (Phase 3, the effect ledger).
 
 ## Deliberate differences, for the README at parity
 
 Places where Python cannot or should not reproduce .NET, kept on purpose:
 
+- The effect ledger records a tool failure as `str(exception)`, which is empty for a bare
+  `Exception()` where .NET's `Message` is "Exception of type 'System.Exception' was thrown."
+  Reproducing it would mean naming .NET types in Python; no C# test pins it.
 - Validations read blank text with `str.isspace`, which also counts U+001C to U+001F; .NET's
   `IsNullOrWhiteSpace` does not. Brokers that reproduce a wire or file format keep the .NET set.
 - Lowercasing is per character, so U+0130 stays as it is; .NET's `ToLowerInvariant` gives `i` or
