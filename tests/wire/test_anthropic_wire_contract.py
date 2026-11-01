@@ -130,3 +130,22 @@ async def test_should_read_an_answer_with_no_blocks_as_empty():
 
     # then
     assert actual_result == expected_result
+
+
+# No C# twin: DefaultRequestHeaders.Add("x-api-key", null) adds the header with an empty value,
+# so a broker built without a key still sends x-api-key, empty, and lets the API refuse it.
+async def test_should_send_an_empty_api_key_header_when_built_without_an_api_key():
+    # given
+    server = ScriptedServerHandler.answering('{"content":[]}')
+
+    broker = AnthropicGeneratorBrokerV1(
+        api_key=None,
+        model="claude-x",
+        api_url="http://anthropic.test/",
+        handler=server)
+
+    # when
+    await broker.generate(CONVERSATION, TOOLS)
+
+    # then
+    assert header_of(server.requests[0], "x-api-key") == ""
