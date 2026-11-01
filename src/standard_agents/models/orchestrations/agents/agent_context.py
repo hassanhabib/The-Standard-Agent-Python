@@ -6,28 +6,29 @@
 from dataclasses import dataclass
 
 from standard_agents.models.orchestrations.agents.agent_status import AgentStatus
+from standard_agents.models.orchestrations.agents.turn import Turn
 
 
-# The one thing the three natures pass around the loop. Frozen, so every nature returns a new
-# context rather than changing the one it was handed (dataclasses.replace is C#'s "with").
+# The single carrier that threads the loop (SPEC.md 3.2). All of it is Data; the groups say
+# which nature last writes each field. Frozen, so a nature returns an updated copy and never
+# changes the one it was handed: dataclasses.replace is the copy-on-write.
 @dataclass(frozen=True)
 class AgentContext:
     prompt: str = ""
 
-    # Data: what the agent has this turn. Memories and knowledge are recalled fresh every turn;
-    # observations are what Direction saw, and they accumulate across the run.
+    # Data
+    session_id: str | None = None
+    history: tuple[Turn, ...] = ()
     system_prompt: str = ""
-    memories: tuple[str, ...] = ()
-    knowledge: tuple[str, ...] = ()
     observations: tuple[str, ...] = ()
+    grounding_sources: tuple[str, ...] = ()
 
-    # Decision: what the brain chose, in the loop's terms.
+    # Decision
     intent: str = ""
     direction_type: str = ""
     payload: str = ""
-    narration: str = ""
     raw_reply: str = ""
 
-    # Direction: what was done, and whether the run goes on.
+    # Direction
     result: str = ""
     status: AgentStatus = AgentStatus.WORKING

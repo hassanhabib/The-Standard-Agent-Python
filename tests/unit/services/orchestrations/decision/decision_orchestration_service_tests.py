@@ -38,9 +38,7 @@ class DecisionOrchestrationServiceTests:
         return AgentContext(
             prompt=cls.create_random_string(),
             system_prompt=cls.create_random_string(),
-            memories=(cls.create_random_string(),),
-            knowledge=(cls.create_random_string(),),
-            observations=(cls.create_random_string(),))
+            observations=(cls.create_random_string(), cls.create_random_string()))
 
     # What the brain is shown: the task, then everything the agent has and has seen, written out
     # here by hand so the test pins the shape rather than recomputing it.
@@ -49,9 +47,8 @@ class DecisionOrchestrationServiceTests:
         return (
             f"Task: {context.prompt}\n\n"
             + "Observations so far:\n"
-            + f"- {context.memories[0]}\n"
-            + f"- {context.knowledge[0]}\n"
-            + f"- {context.observations[0]}\n")
+            + f"- {context.observations[0]}\n"
+            + f"- {context.observations[1]}\n")
 
     def assert_logged_once(self, log_method_name: str, expected_exception: Xeption) -> None:
         error_calls = [
