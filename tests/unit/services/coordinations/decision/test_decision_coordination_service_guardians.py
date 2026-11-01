@@ -105,3 +105,24 @@ async def test_should_not_call_brain_on_think_if_gate_refuses(
     assert judge_service.evaluate.mock_calls == []
     assert brain_service.mock_calls == []
     assert judge_service.mock_calls == []
+
+
+async def test_should_loop_on_think_if_judge_scores_below_threshold(
+        decision_coordination_service,
+        brain_service,
+        judge_service,
+        create_random_agent_context,
+        setup_gate_allows):
+
+    # given
+    input_context = create_random_agent_context()
+    setup_gate_allows()
+    brain_service.generate.return_value = "FINAL: a poor answer"
+    judge_service.evaluate.return_value = Judgement(score=0.1)
+
+    # when
+    actual_context = await decision_coordination_service.think(input_context)
+
+    # then
+    assert actual_context.status is AgentStatus.REVISING
+    assert actual_context.direction_type != "ReturnResponse"
