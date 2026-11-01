@@ -7,47 +7,27 @@ from xeptions import Xeption
 
 
 class EffectLedgerDependencyException(Xeption):
-    def __init__(
-        self,
-        message: str,
-        inner_exception: BaseException | None = None,
-    ) -> None:
+    def __init__(self, message: str, inner_exception: BaseException | None = None) -> None:
         super().__init__(message, inner_exception)
 
 
 class EffectLedgerServiceException(Xeption):
-    def __init__(
-        self,
-        message: str,
-        inner_exception: BaseException | None = None,
-    ) -> None:
+    def __init__(self, message: str, inner_exception: BaseException | None = None) -> None:
         super().__init__(message, inner_exception)
 
 
 class EffectLedgerValidationException(Xeption):
-    def __init__(
-        self,
-        message: str,
-        inner_exception: BaseException | None = None,
-    ) -> None:
+    def __init__(self, message: str, inner_exception: BaseException | None = None) -> None:
         super().__init__(message, inner_exception)
 
 
 class FailedEffectLedgerDependencyException(Xeption):
-    def __init__(
-        self,
-        message: str,
-        inner_exception: BaseException | None = None,
-    ) -> None:
+    def __init__(self, message: str, inner_exception: BaseException | None = None) -> None:
         super().__init__(message, inner_exception)
 
 
 class FailedEffectLedgerServiceException(Xeption):
-    def __init__(
-        self,
-        message: str,
-        inner_exception: BaseException | None = None,
-    ) -> None:
+    def __init__(self, message: str, inner_exception: BaseException | None = None) -> None:
         super().__init__(message, inner_exception)
 
 

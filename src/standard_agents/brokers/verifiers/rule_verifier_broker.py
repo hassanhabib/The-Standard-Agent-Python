@@ -19,7 +19,7 @@ class RuleVerifierBroker(VerifierBroker):
     async def verify(self, task: str, candidate: str) -> str:
         missing_pattern = next(
             (pattern for pattern in self._required_patterns
-                if _contains_ordinal_ignore_case(candidate, pattern) is False),
+                if not _contains_ordinal_ignore_case(candidate, pattern)),
             None)
 
         return (
@@ -27,13 +27,16 @@ class RuleVerifierBroker(VerifierBroker):
             else f"SCORE: 0.0\nREASON: missing required content '{missing_pattern}'")
 
 
-# string.Contains(value, StringComparison.OrdinalIgnoreCase): each character compared by its
-# simple (one character) upper-case mapping, never a culture's.
 def _contains_ordinal_ignore_case(text: str, value: str) -> bool:
-    return _to_upper_ordinal(value) in _to_upper_ordinal(text)
+    """Mirror .NET's string.Contains(value, StringComparison.OrdinalIgnoreCase)."""
+    return _fold_ordinal_ignore_case(value) in _fold_ordinal_ignore_case(text)
 
 
-def _to_upper_ordinal(text: str) -> str:
+def _fold_ordinal_ignore_case(text: str) -> str:
+    """Uppercase each character by its simple (one character) mapping, never a culture's.
+
+    A character whose Python uppercase expands to more than one character is kept as it is.
+    """
     return "".join(
-        upper if len(upper) == 1 else character
-        for character, upper in ((character, character.upper()) for character in text))
+        upper if len(upper := character.upper()) == 1 else character
+        for character in text)

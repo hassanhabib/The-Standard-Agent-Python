@@ -11,18 +11,22 @@ from typing import Any
 _MISSING = object()
 
 
-# Params is None for parameterless methods such as tools/list, and the serializer omits it
-# (WhenWritingNull) rather than sending "params": null, which some servers reject.
-#
-# Wire names follow JsonNamingPolicy.CamelCase, except "jsonrpc", which the C# record pins
-# with [JsonPropertyName("jsonrpc")]; reads are case-insensitive.
 @dataclass(frozen=True)
 class JsonRpcRequest:
+    """A JSON-RPC 2.0 request to an MCP server.
+
+    Params is None for parameterless methods such as tools/list, and the serializer omits it
+    (WhenWritingNull) rather than sending "params": null, which some servers reject.
+
+    Wire names follow JsonNamingPolicy.CamelCase, except "jsonrpc", which is pinned with
+    [JsonPropertyName("jsonrpc")]; reads are case-insensitive.
+    """
+
     json_rpc: str
     id: int | None
     method: str
 
-    # Typed object in C#, so it is written by its runtime type: a params DTO writes itself,
+    # Written by its runtime type, as an object-typed property is: a params DTO writes itself,
     # anything else is written as the JSON it already is.
     params: Any | None
 
@@ -38,24 +42,27 @@ class JsonRpcRequest:
 
         return {key: value for key, value in values.items() if value is not None}
 
-    # An object property reads back as raw JSON (a JsonElement in C#).
     @classmethod
     def from_json_dict(cls, data: dict) -> JsonRpcRequest:
+        """Read a request; params reads back as the raw JSON it arrived as (a JsonElement)."""
         if not isinstance(data, dict):
             raise ValueError("The JSON value could not be converted to JsonRpcRequest.")
 
-        request_id = _read(data, "id")
-        params = _read(data, "params")
+        request_id = _read_ignoring_case(data, "id")
+        params = _read_ignoring_case(data, "params")
 
         return cls(
-            json_rpc=_as_string(_read(data, "jsonrpc")),
+            json_rpc=_as_string(_read_ignoring_case(data, "jsonrpc")),
             id=None if request_id is _MISSING or request_id is None else _as_int32(request_id),
-            method=_as_string(_read(data, "method")),
+            method=_as_string(_read_ignoring_case(data, "method")),
             params=None if params is _MISSING else params)
 
 
-# PropertyNameCaseInsensitive: every key matching ignoring case is read, the last one wins.
-def _read(data: dict, name: str) -> Any:
+def _read_ignoring_case(data: dict, name: str) -> Any:
+    """Read a property the way PropertyNameCaseInsensitive does.
+
+    Every key that matches the name ignoring case is read, and the last one wins.
+    """
     found = _MISSING
 
     for key, value in data.items():
@@ -65,8 +72,11 @@ def _read(data: dict, name: str) -> Any:
     return found
 
 
-# An absent constructor parameter is default(string), which is null.
 def _as_string(value: Any) -> str | None:
+    """Read a JSON string, reading an absent or null value as None.
+
+    An absent constructor parameter is default(string), which is null.
+    """
     if value is _MISSING or value is None:
         return None
 

@@ -6,11 +6,15 @@
 from dataclasses import dataclass, field
 
 
-# One native tool call and its result, kept together. The id is the whole point: a hosted model
-# that asked for a call expects the answer back as a tool message naming that call, which is the
-# one thing the text protocol cannot express (SPEC.md 6).
 @dataclass(frozen=True)
 class ToolExchange:
+    """One native tool call and its result, kept together.
+
+    The id is the whole point: a hosted model that asked for a call expects the answer back as
+    a tool message naming that call, which is the one thing the text protocol cannot express
+    (SPEC.md 6).
+    """
+
     call_id: str
     tool_name: str
     arguments_json: str

@@ -11,8 +11,9 @@ from standard_agents.brokers.sessions.session_broker import SessionBroker
 from standard_agents.models.brokers.sessions.agent_session import AgentSession
 
 
-# The Custom mode's substrate: host-supplied read and write, for a store the host already has.
 class FunctionSessionBroker(SessionBroker):
+    """The Custom mode's substrate: host-supplied read and write, for a store the host has."""
+
     def __init__(
             self,
             select: Callable[[str], Awaitable[AgentSession | None]],

@@ -11,13 +11,17 @@ from typing import ClassVar
 from standard_agents.models.brokers.generators.v1.conversation import ToolDefinition
 
 
-# The output of precedence (configured, then request, then framework default), resolved once at
-# the boundary (docs/per-request-inference.md 2, 4). This is what rides the context and reaches
-# the brokers; PromptRequest never travels below the entry, so a tier handed this record cannot
-# see a value precedence discarded. That is what makes the dangerous state (a model constrained
-# to one schema and validated against another) unreachable rather than avoided.
 @dataclass(frozen=True)
 class ResolvedInference:
+    """The output of precedence (configured, then request, then framework default).
+
+    Resolved once at the boundary (docs/per-request-inference.md 2, 4). This is what rides the
+    context and reaches the brokers; PromptRequest never travels below the entry, so a tier
+    handed this record cannot see a value precedence discarded. That is what makes the
+    dangerous state (a model constrained to one schema and validated against another)
+    unreachable rather than avoided.
+    """
+
     # The framework's third rung, applied by resolution at the boundary and nowhere else.
     # Brokers receive concrete values and decide nothing.
     DEFAULT_TEMPERATURE: ClassVar[float] = 0.7

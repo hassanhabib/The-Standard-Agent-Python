@@ -12,26 +12,31 @@ from standard_agents.brokers.redactions.redaction_broker import RedactionBroker
 from standard_agents.models.brokers.generators.resolved_inference import ResolvedInference
 
 
-# Redaction at the wire, by decoration (SPEC.md 4.6).
-#
-# It used to live inside BrainService, GateService and JudgeService: three foundations each
-# holding a second broker, and an invariant that read "every model call is redacted" but was
-# really "three services each remembered to". Wrapping the generator instead makes it true by
-# construction: the service above holds one broker and does not know redaction exists, and a
-# fourth model call added tomorrow cannot forget.
 class RedactingGeneratorBroker(GeneratorBroker):
+    """Redaction at the wire, by decoration (SPEC.md 4.6).
+
+    It used to live inside BrainService, GateService and JudgeService: three foundations each
+    holding a second broker, and an invariant that read "every model call is redacted" but was
+    really "three services each remembered to". Wrapping the generator instead makes it true by
+    construction: the service above holds one broker and does not know redaction exists, and a
+    fourth model call added tomorrow cannot forget.
+    """
+
     def __init__(
-        self,
-        generator_broker: GeneratorBroker,
-        redaction_broker: RedactionBroker) -> None:
+            self,
+            generator_broker: GeneratorBroker,
+            redaction_broker: RedactionBroker) -> None:
 
         self._generator_broker = generator_broker
         self._redaction_broker = redaction_broker
 
-    # Explicit pass-throughs, never the interface's defaults: a decorator that leaned on the
-    # default member would degrade HERE and silently drop the resolved options before the wire.
     @property
     def honors_request(self) -> bool:
+        """The wrapped broker's flag, passed through explicitly.
+
+        Never the interface's default: a decorator that leaned on the default member would
+        degrade HERE and silently drop the resolved options before the wire.
+        """
         return self._generator_broker.honors_request
 
     async def generate(
@@ -74,11 +79,11 @@ class RedactingGeneratorBroker(GeneratorBroker):
             redacted_user_prompt,
             inference=inference)
 
-        # The pending text, as the StringBuilder the C# appends to.
+        # The text held back until a placeholder split across tokens can be restored.
         pending: list[str] = []
 
         async for token in tokens:
-            if len(vault) == 0:
+            if not vault:
                 yield token
 
                 continue
@@ -86,20 +91,23 @@ class RedactingGeneratorBroker(GeneratorBroker):
             pending.append(token)
             ready = self._drain_ready(pending, vault)
 
-            if len(ready) > 0:
+            if ready:
                 yield ready
 
-        if len(vault) > 0 and len("".join(pending)) > 0:
+        if vault and "".join(pending):
             yield self._redaction_broker.rehydrate("".join(pending), vault)
 
-    # Streaming makes rehydration a boundary problem: a placeholder can arrive split across two
-    # tokens, so anything from the last unmatched "{{" onward is held back until more text
-    # arrives. Without it a token boundary mid-placeholder leaks "{{EMAIL_" to the caller and
-    # never restores the value.
-    #
-    # This buffering belongs to redaction, which is why it moved here with it. A service that
-    # knew nothing about redaction had no business owning it.
     def _drain_ready(self, pending: list[str], vault: Mapping[str, str]) -> str:
+        """Rehydrate the pending text and return what is safe to hand on.
+
+        Streaming makes rehydration a boundary problem: a placeholder can arrive split across
+        two tokens, so anything from the last unmatched "{{" onward is held back until more text
+        arrives. Without it a token boundary mid-placeholder leaks "{{EMAIL_" to the caller and
+        never restores the value.
+
+        This buffering belongs to redaction, which is why it moved here with it. A service that
+        knew nothing about redaction had no business owning it.
+        """
         buffer = self._redaction_broker.rehydrate("".join(pending), vault)
 
         hold = buffer.rfind("{")

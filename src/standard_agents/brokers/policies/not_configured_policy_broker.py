@@ -12,8 +12,12 @@ from standard_agents.models.orchestrations.effects.authorization_decision import
 )
 
 
-# The default. SPEC.md 4.9: absent every perimeter control, behavior is exactly as if the
-# section did not exist, so with no policy configured every registered tool is runnable.
 class NotConfiguredPolicyBroker(PolicyBroker):
+    """The default: every registered tool is runnable.
+
+    SPEC.md 4.9: absent every perimeter control, behavior is exactly as if the section did not
+    exist, so with no policy configured every registered tool is runnable.
+    """
+
     async def authorize(self, effect: AgentEffect) -> AuthorizationDecision:
         return AuthorizationDecision.allow()

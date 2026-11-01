@@ -7,36 +7,20 @@ from xeptions import Xeption
 
 
 class FailedSkillDependencyException(Xeption):
-    def __init__(
-        self,
-        message: str,
-        inner_exception: BaseException | None = None,
-    ) -> None:
+    def __init__(self, message: str, inner_exception: BaseException | None = None) -> None:
         super().__init__(message, inner_exception)
 
 
 class FailedSkillServiceException(Xeption):
-    def __init__(
-        self,
-        message: str,
-        inner_exception: BaseException | None = None,
-    ) -> None:
+    def __init__(self, message: str, inner_exception: BaseException | None = None) -> None:
         super().__init__(message, inner_exception)
 
 
 class SkillDependencyException(Xeption):
-    def __init__(
-        self,
-        message: str,
-        inner_exception: BaseException | None = None,
-    ) -> None:
+    def __init__(self, message: str, inner_exception: BaseException | None = None) -> None:
         super().__init__(message, inner_exception)
 
 
 class SkillServiceException(Xeption):
-    def __init__(
-        self,
-        message: str,
-        inner_exception: BaseException | None = None,
-    ) -> None:
+    def __init__(self, message: str, inner_exception: BaseException | None = None) -> None:
         super().__init__(message, inner_exception)

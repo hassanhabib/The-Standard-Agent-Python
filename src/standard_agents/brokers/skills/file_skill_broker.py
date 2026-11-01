@@ -22,14 +22,14 @@ class FileSkillBroker(SkillBroker):
         self._search_pattern = search_pattern
 
     async def select_skills(self) -> Sequence[Skill]:
-        if os.path.isdir(self._skills_path) is False:
+        if not os.path.isdir(self._skills_path):
             return []
 
         skills: list[Skill] = []
 
         for file_path in enumerate_files(
                 self._skills_path, self._search_pattern, all_directories=True):
-            raw_content = _read_all_text(file_path)
+            raw_content = _read_text_detecting_bom(file_path)
 
             relative_name = os.path.relpath(file_path, self._skills_path).replace("\\", "/")
 
@@ -42,7 +42,7 @@ def _build_skill(relative_name: str, raw_content: str) -> Skill:
     name, description, body = _parse_frontmatter(raw_content)
 
     return Skill(
-        name=relative_name if _is_null_or_white_space(name) else name,
+        name=relative_name if _is_blank(name) else name,
         description=description if description is not None else "",
         content=body)
 
@@ -50,13 +50,13 @@ def _build_skill(relative_name: str, raw_content: str) -> Skill:
 def _parse_frontmatter(content: str) -> tuple[str | None, str | None, str]:
     lines = content.replace("\r\n", "\n").split("\n")
 
-    if len(lines) == 0 or _trim(lines[0]) != _FRONTMATTER_FENCE:
+    if not lines or _strip_dotnet_whitespace(lines[0]) != _FRONTMATTER_FENCE:
         return None, None, content
 
     closing_index = -1
 
     for index in range(1, len(lines)):
-        if _trim(lines[index]) == _FRONTMATTER_FENCE:
+        if _strip_dotnet_whitespace(lines[index]) == _FRONTMATTER_FENCE:
             closing_index = index
 
             break
@@ -75,24 +75,30 @@ def _read_field(lines: list[str], start: int, end: int, key: str) -> str | None:
     prefix = key + ":"
 
     for index in range(start, end):
-        trimmed_line = _trim(lines[index])
+        trimmed_line = _strip_dotnet_whitespace(lines[index])
 
         if _starts_with_ordinal_ignore_case(trimmed_line, prefix):
-            return _trim(trimmed_line[len(prefix):])
+            return _strip_dotnet_whitespace(trimmed_line[len(prefix):])
 
     return None
 
 
-# string.StartsWith(prefix, StringComparison.OrdinalIgnoreCase): each character compared by its
-# simple uppercase mapping.
 def _starts_with_ordinal_ignore_case(text: str, prefix: str) -> bool:
+    """Mirror .NET's string.StartsWith(prefix, StringComparison.OrdinalIgnoreCase).
+
+    Each character compares by its simple uppercase mapping.
+    """
     if len(text) < len(prefix):
         return False
 
-    return _fold(text[:len(prefix)]) == _fold(prefix)
+    return _fold_ordinal_ignore_case(text[:len(prefix)]) == _fold_ordinal_ignore_case(prefix)
 
 
-def _fold(value: str) -> str:
+def _fold_ordinal_ignore_case(value: str) -> str:
+    """Uppercase each character by its simple mapping, as .NET's OrdinalIgnoreCase compares.
+
+    A character whose Python uppercase expands to more than one character is kept as it is.
+    """
     folded: list[str] = []
 
     for character in value:
@@ -102,39 +108,46 @@ def _fold(value: str) -> str:
     return "".join(folded)
 
 
-# .NET char.IsWhiteSpace: the Zs, Zl and Zp categories plus U+0009 to U+000D and U+0085.
-def _is_white_space(character: str) -> bool:
+def _is_dotnet_whitespace(character: str) -> bool:
+    """Mirror .NET's char.IsWhiteSpace.
+
+    The Zs, Zl and Zp categories plus U+0009 to U+000D and U+0085. It differs from
+    str.isspace, which also counts U+001C to U+001F.
+    """
     if character in "\t\n\v\f\r\x85":
         return True
 
     return unicodedata.category(character) in ("Zs", "Zl", "Zp")
 
 
-# string.Trim(): removes leading and trailing .NET white space.
-def _trim(value: str) -> str:
+def _strip_dotnet_whitespace(value: str) -> str:
+    """Mirror .NET's string.Trim(): remove leading and trailing .NET white space."""
     start = 0
     end = len(value)
 
-    while start < end and _is_white_space(value[start]):
+    while start < end and _is_dotnet_whitespace(value[start]):
         start += 1
 
-    while end > start and _is_white_space(value[end - 1]):
+    while end > start and _is_dotnet_whitespace(value[end - 1]):
         end -= 1
 
     return value[start:end]
 
 
-# string.IsNullOrWhiteSpace, with char.IsWhiteSpace's own set.
-def _is_null_or_white_space(text: str | None) -> bool:
+def _is_blank(text: str | None) -> bool:
+    """Mirror .NET's string.IsNullOrWhiteSpace, with char.IsWhiteSpace's own set."""
     if text is None:
         return True
 
-    return all(_is_white_space(character) for character in text)
+    return all(_is_dotnet_whitespace(character) for character in text)
 
 
-# File.ReadAllText: the encoding a byte order mark names, UTF-8 when there is none, invalid
-# sequences replaced rather than raised, line endings kept as written.
-def _read_all_text(path: str) -> str:
+def _read_text_detecting_bom(path: str) -> str:
+    """Read a whole file as .NET's File.ReadAllText does.
+
+    The encoding a byte order mark names, UTF-8 when there is none, invalid sequences replaced
+    rather than raised, line endings kept as written.
+    """
     with open(path, "rb") as file:
         data = file.read()
 

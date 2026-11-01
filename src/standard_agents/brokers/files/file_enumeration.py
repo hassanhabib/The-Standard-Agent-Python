@@ -3,9 +3,11 @@
 # Licensed under the The Standard Software License (TSSL)
 # ---------------------------------------------------------------
 
-# Directory.EnumerateFiles, as .NET performs it, for the brokers that enumerate a folder. Not a
-# broker: the one place the search-pattern grammar and the walk order live, so every broker that
-# lists files lists the same ones in the same order.
+"""Directory.EnumerateFiles, as .NET performs it, for the brokers that enumerate a folder.
+
+Not a broker: the one place the search-pattern grammar and the walk order live, so every broker
+that lists files lists the same ones in the same order.
+"""
 
 from __future__ import annotations
 
@@ -21,10 +23,13 @@ _DOS_QM = ">"
 _DOS_DOT = '"'
 
 
-# Lazily, as Directory.EnumerateFiles does: each path is the folder joined to the file's name,
-# a folder's files are yielded before any folder beneath it is entered, and folders beneath are
-# entered in the order they were found (breadth first). A folder that is a link is not entered.
 def enumerate_files(path: str, search_pattern: str, all_directories: bool) -> Iterator[str]:
+    """Yields the files under path that match search_pattern, lazily, as .NET does.
+
+    Each path is the folder joined to the file's name, a folder's files are yielded before any
+    folder beneath it is entered, and folders beneath are entered in the order they were found
+    (breadth first). A folder that is a link is not entered.
+    """
     directory, expression = _normalize_inputs(path, search_pattern)
     tokens = _tokenize(expression)
     ignore_case = os.name == "nt"
@@ -36,7 +41,7 @@ def enumerate_files(path: str, search_pattern: str, all_directories: bool) -> It
         with os.scandir(current) as entries:
             for entry in entries:
                 if entry.is_dir():
-                    if all_directories and entry.is_symlink() is False:
+                    if all_directories and not entry.is_symlink():
                         pending.append(os.path.join(current, entry.name))
 
                     continue
@@ -45,21 +50,20 @@ def enumerate_files(path: str, search_pattern: str, all_directories: bool) -> It
                     yield os.path.join(current, entry.name)
 
 
-# FileSystemEnumerableFactory.NormalizeInputs: a folder named inside the pattern moves into the
-# path, and the Win32 expression is translated to its wildcard grammar.
 def _normalize_inputs(directory: str, expression: str) -> tuple[str, str]:
-    if os.path.isabs(expression) or os.path.splitdrive(expression)[0] != "":
+    """A folder named inside the pattern moves into the path; the expression is normalized.
+
+    Mirrors FileSystemEnumerableFactory.NormalizeInputs.
+    """
+    if os.path.isabs(expression) or os.path.splitdrive(expression)[0]:
         raise ValueError(
             "Second path fragment must not be a drive or UNC name. (Parameter 'expression')")
 
     directory_name = os.path.dirname(expression)
 
-    if len(directory_name) != 0:
+    if directory_name:
         directory = os.path.join(directory, directory_name)
         expression = expression[len(directory_name) + 1:]
-
-    if expression == "*":
-        return directory, expression
 
     if expression in ("", ".", "*.*"):
         return directory, "*"
@@ -67,9 +71,12 @@ def _normalize_inputs(directory: str, expression: str) -> tuple[str, str]:
     return directory, expression
 
 
-# A token is (is_wildcard, character). On Windows '<', '>' and '"' cannot appear in a name and
-# act as the DOS wildcards they translate to; elsewhere they, and '\', are escaped to literals.
 def _tokenize(expression: str) -> tuple[tuple[bool, str], ...]:
+    """Translates a Win32 expression into (is_wildcard, character) tokens.
+
+    On Windows '<', '>' and '"' cannot appear in a name and act as the DOS wildcards they
+    translate to; elsewhere they, and '\\', are escaped to literals.
+    """
     dos_wildcards_are_literal = os.sep != "\\"
     tokens: list[tuple[bool, str]] = []
     length = len(expression)
@@ -94,10 +101,13 @@ def _tokenize(expression: str) -> tuple[tuple[bool, str], ...]:
     return tuple(tokens)
 
 
-# FileSystemName.MatchesWin32Expression over the translated expression: '*' matches any run of
-# characters; '<' any run that does not pass the name's final period; '>' any one character,
-# or nothing at a period or at the end; '"' a period, or nothing at the end.
 def _matches(tokens: tuple[tuple[bool, str], ...], name: str, ignore_case: bool) -> bool:
+    """FileSystemName.MatchesWin32Expression over the translated expression.
+
+    '*' matches any run of characters; '<' any run that does not pass the name's final period;
+    '>' any one character, or nothing at a period or at the end; '"' a period, or nothing at the
+    end.
+    """
     if tokens == ((True, _STAR),):
         return True
 
@@ -112,14 +122,14 @@ def _matches(tokens: tuple[tuple[bool, str], ...], name: str, ignore_case: bool)
         is_wildcard, character = tokens[token_index]
         name_finished = name_index == len(name)
 
-        if is_wildcard is False:
+        if not is_wildcard:
             if name_finished:
                 return False
 
             expected = _fold(character) if ignore_case else character
 
             return (folded_name[name_index] == expected
-                and match(token_index + 1, name_index + 1))
+                    and match(token_index + 1, name_index + 1))
 
         if character == _STAR:
             return any(
@@ -161,9 +171,11 @@ def _matches(tokens: tuple[tuple[bool, str], ...], name: str, ignore_case: bool)
     return match(0, 0)
 
 
-# Ordinal ignore-case: each character by its simple uppercase mapping, kept as it is when its
-# mapping expands.
 def _fold(text: str) -> str:
+    """Folds text for ordinal ignore-case comparison.
+
+    Each character by its simple uppercase mapping, kept as it is when its mapping expands.
+    """
     folded: list[str] = []
 
     for character in text:

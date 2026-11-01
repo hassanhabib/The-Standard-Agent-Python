@@ -10,8 +10,9 @@ from typing import Awaitable, Callable
 from standard_agents.brokers.usages.usage_broker import UsageBroker
 
 
-# The Custom mode's substrate: a host-supplied counter, for a tokenizer the host already has.
 class FunctionUsageBroker(UsageBroker):
+    """The Custom mode's substrate: a host-supplied counter, for a tokenizer the host has."""
+
     def __init__(self, count: Callable[[str], Awaitable[int]]) -> None:
         self._count = count
 

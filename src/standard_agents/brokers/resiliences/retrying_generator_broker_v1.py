@@ -16,21 +16,28 @@ from standard_agents.models.brokers.generators.v1.conversation import (
     ToolDefinition)
 
 
-# The same on the native path. A control that holds on one protocol and not the other is a
-# control a caller can step around by changing configuration.
 class RetryingGeneratorBrokerV1(GeneratorBrokerV1):
+    """Retry by decoration on the native path.
+
+    A control that holds on one protocol and not the other is a control a caller can step
+    around by changing configuration.
+    """
+
     def __init__(
-        self,
-        generator_broker: GeneratorBrokerV1,
-        resilience_broker: ResilienceBroker) -> None:
+            self,
+            generator_broker: GeneratorBrokerV1,
+            resilience_broker: ResilienceBroker) -> None:
 
         self._generator_broker = generator_broker
         self._resilience_broker = resilience_broker
 
-    # Explicit pass-throughs, never the interface's defaults: a decorator that leaned on the
-    # default member would silently drop the resolved options before the wire.
     @property
     def honors_request(self) -> bool:
+        """The wrapped broker's flag, passed through explicitly.
+
+        Never the interface's default: a decorator that leaned on the default member would
+        silently drop the resolved options before the wire.
+        """
         return self._generator_broker.honors_request
 
     async def generate(

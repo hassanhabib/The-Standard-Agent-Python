@@ -8,10 +8,13 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 
 
-# The liaison to whatever knows how to count tokens: a tokenizer in the box, a provider's own
-# counting endpoint, or a vocabulary shipped with a model.
 class UsageBroker(ABC):
-    # How many tokens the given text occupies. Returns 0 for empty text.
+    """The liaison to whatever knows how to count tokens.
+
+    A tokenizer in the box, a provider's own counting endpoint, or a vocabulary shipped with a
+    model.
+    """
+
     @abstractmethod
     async def count_tokens(self, text: str) -> int:
-        ...
+        """How many tokens the given text occupies. Returns 0 for empty text."""

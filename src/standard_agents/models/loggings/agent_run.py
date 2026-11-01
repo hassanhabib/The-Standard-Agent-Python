@@ -17,28 +17,31 @@ from standard_agents.models.orchestrations.effects.risk_level import RiskLevel
 _current: ContextVar["AgentRun | None"] = ContextVar("agent_run_current", default=None)
 
 
-# One prompt's run: its identity and its counters. SPEC.md 4.4 requires run state to be per
-# invocation, never per instance: one agent serves many prompts at once, and an implementation
-# that keeps a run's identity or counters in shared fields lets a second prompt silently corrupt
-# the first's record.
-#
-# The run is carried as ambient per-flow state (C#: AsyncLocal, here a ContextVar). Coordination
-# calls begin() at the top of a prompt; everything that prompt awaits reads the same run through
-# current(), while a concurrent prompt sees only its own.
 class AgentRun:
-    # C#: a private constructor. Use begin() or detached().
+    """One prompt's run: its identity and its counters.
+
+    SPEC.md 4.4 requires run state to be per invocation, never per instance: one agent serves
+    many prompts at once, and an implementation that keeps a run's identity or counters in
+    shared fields lets a second prompt silently corrupt the first's record.
+
+    The run is carried as ambient per-flow state in a ContextVar. Coordination calls begin() at
+    the top of a prompt; everything that prompt awaits reads the same run through current(),
+    while a concurrent prompt sees only its own.
+    """
+
     def __init__(self, id: str) -> None:
+        """Use begin() or detached() rather than constructing a run directly."""
         self._verdicts: dict[str, str] = {}
         self._verdicts_lock = threading.Lock()
 
-        # Keyed case-insensitively (C#: StringComparer.OrdinalIgnoreCase).
+        # Keyed case-insensitively, by _ordinal_ignore_case_key.
         self._grants: set[str] = set()
         self._grants_lock = threading.Lock()
 
         self._performed_effects: list[PerformedEffect] = []
         self._performed_effects_lock = threading.Lock()
 
-        # Keyed ordinally (C#: StringComparer.Ordinal).
+        # Keyed exactly (ordinal).
         self._replays: dict[str, int] = {}
         self._replays_lock = threading.Lock()
 
@@ -51,8 +54,8 @@ class AgentRun:
         self._cancellation_token: object | None = None
         self._replays_of_latest_ask = 0
 
-        # When the run started, stamped by the trace so the run reads one clock.
-        # C#: default(DateTimeOffset), 0001-01-01T00:00:00+00:00.
+        # When the run started, stamped by the trace so the run reads one clock. Until then it
+        # is .NET's default(DateTimeOffset), 0001-01-01T00:00:00+00:00.
         self.started_on: datetime = datetime(1, 1, 1, tzinfo=timezone.utc)
 
         # What the user originally asked this run, riding the run the way its token does, so a
@@ -72,58 +75,67 @@ class AgentRun:
         # before selection. Empty when there are none.
         self.remote_tools: tuple[McpTool, ...] = ()
 
-    # The run active on this flow, or None outside a run.
     @staticmethod
     def current() -> "AgentRun | None":
+        """The run active on this flow, or None outside a run."""
         return _current.get()
 
-    # Identifies exactly one prompt; never reused (SPEC.md 3.3).
     @property
     def id(self) -> str:
+        """Identifies exactly one prompt; never reused (SPEC.md 3.3)."""
         return self._id
 
-    # The token that stops this run, riding the run the way its identity does, so anything the
-    # run reaches (a nested agent included) can observe the same stop the outer loop observes at
-    # its turn boundaries (SPEC.md 4.10). None when the caller supplied none
-    # (C#: CancellationToken.None).
     @property
     def cancellation_token(self) -> object | None:
+        """The token that stops this run, or None when the caller supplied none.
+
+        It rides the run the way its identity does, so anything the run reaches (a nested
+        agent included) can observe the same stop the outer loop observes at its turn
+        boundaries (SPEC.md 4.10).
+        """
         return self._cancellation_token
 
-    # Starts a run on the calling flow and returns the scope that ends it. Call it from the
-    # coordination loop, before anything the run should be credited with.
-    # resumed_id: the identity of a run this one continues, or None to start a new one. A
-    # resumed run keeps the interrupted run's identity so the effects it already performed are
-    # recognised as its own rather than proposed again (SPEC.md 4.9, 4.11).
-    # cancellation_token: the token that stops this run, carried on the run so a nested agent
-    # can observe the same stop the outer loop observes.
-    @staticmethod
+    @classmethod
     def begin(
+            cls,
             resumed_id: str | None = None,
             cancellation_token: object | None = None) -> "AgentRunScope":
+        """Start a run on the calling flow and return the scope that ends it.
+
+        Call it from the coordination loop, before anything the run should be credited with.
+
+        resumed_id: the identity of a run this one continues, or None to start a new one. A
+        resumed run keeps the interrupted run's identity so the effects it already performed
+        are recognised as its own rather than proposed again (SPEC.md 4.9, 4.11).
+        cancellation_token: the token that stops this run, carried on the run so a nested agent
+        can observe the same stop the outer loop observes.
+        """
         enclosing_run = _current.get()
 
-        run = AgentRun(uuid.uuid4().hex if not resumed_id else resumed_id)
+        run = cls(resumed_id or uuid.uuid4().hex)
         run._cancellation_token = cancellation_token
         _current.set(run)
 
         return AgentRunScope(enclosing_run)
 
-    # A run that is not on any flow, for a trace driven outside the coordination loop, so it
-    # still numbers its records rather than faulting.
-    @staticmethod
-    def detached() -> "AgentRun":
-        return AgentRun(uuid.uuid4().hex)
+    @classmethod
+    def detached(cls) -> "AgentRun":
+        """A run that is not on any flow.
 
-    # The next record number for this run: monotonic, starting at zero.
+        For a trace driven outside the coordination loop, so it still numbers its records
+        rather than faulting.
+        """
+        return cls(uuid.uuid4().hex)
+
     def next_sequence(self) -> int:
+        """The next record number for this run: monotonic, starting at zero."""
         with self._sequence_lock:
             self._sequence += 1
 
             return self._sequence - 1
 
-    # The next process number within the current step.
     def next_process_index(self) -> int:
+        """The next process number within the current step."""
         with self._process_index_lock:
             self._process_index += 1
 
@@ -142,26 +154,27 @@ class AgentRun:
         with self._verdicts_lock:
             self._verdicts[prompt] = verdict
 
-    # Whether an authority has already permitted this tool at this scope during this run.
-    # A grant is for what it was granted for: the key is the tool AND the scope and the match is
-    # exact (case-insensitive). It lives on the run, so the run ending evicts it.
     def was_granted(self, tool_name: str, scope: str) -> bool:
-        with self._grants_lock:
-            return _ordinal_ignore_case_key(AgentRun._grant_key(tool_name, scope)) in self._grants
+        """Whether an authority has already permitted this tool at this scope during this run.
 
-    # Remembers that an authority permitted this tool at this scope.
+        A grant is for what it was granted for: the key is the tool AND the scope and the match
+        is exact (case-insensitive). It lives on the run, so the run ending evicts it.
+        """
+        with self._grants_lock:
+            return _ordinal_ignore_case_key(_grant_key(tool_name, scope)) in self._grants
+
     def remember_grant(self, tool_name: str, scope: str) -> None:
+        """Remember that an authority permitted this tool at this scope."""
         with self._grants_lock:
-            self._grants.add(_ordinal_ignore_case_key(AgentRun._grant_key(tool_name, scope)))
+            self._grants.add(_ordinal_ignore_case_key(_grant_key(tool_name, scope)))
 
-    @staticmethod
-    def _grant_key(tool_name: str, scope: str) -> str:
-        return f"{tool_name} {scope}"
-
-    # What this run actually performed, in order. Kept so the run can be unwound: compensation
-    # needs to know what happened, and only the run knows (SPEC.md 4.9).
     @property
     def performed_effects(self) -> tuple[PerformedEffect, ...]:
+        """What this run actually performed, in order.
+
+        Kept so the run can be unwound: compensation needs to know what happened, and only the
+        run knows (SPEC.md 4.9).
+        """
         with self._performed_effects_lock:
             return tuple(self._performed_effects)
 
@@ -172,10 +185,12 @@ class AgentRun:
         # An act that ran is not a repeat, whatever came before it.
         self._replays_of_latest_ask = 0
 
-    # Records that the run-once ledger answered this act again, and says how many times it has
-    # now done so in this run (SPEC.md 4.9, v1.14). Kept by the act's key, so a look after a
-    # write, which carries a different key, starts its own count.
     def record_replay(self, idempotency_key: str) -> int:
+        """Record that the run-once ledger answered this act again (SPEC.md 4.9, v1.14).
+
+        Returns how many times it has now done so in this run. Kept by the act's key, so a look
+        after a write, which carries a different key, starts its own count.
+        """
         with self._replays_lock:
             replayed = self._replays.get(idempotency_key, 0) + 1
             self._replays[idempotency_key] = replayed
@@ -183,31 +198,39 @@ class AgentRun:
 
             return replayed
 
-    # How many times the ledger has answered the most recent ask that reached it, or zero when
-    # that ask was performed (SPEC.md 4.10, v1.14).
     @property
     def replays_of_latest_ask(self) -> int:
+        """How many times the ledger has answered the most recent ask that reached it.
+
+        Zero when that ask was performed (SPEC.md 4.10, v1.14).
+        """
         return self._replays_of_latest_ask
 
-    # How many acts this run has performed on a scope that were not SAFE: what a look at that
-    # scope would see has changed that many times since the run began (SPEC.md 4.9, v1.14).
     def writes_to(self, scope: str) -> int:
+        """How many acts this run has performed on a scope that were not SAFE.
+
+        What a look at that scope would see has changed that many times since the run began
+        (SPEC.md 4.9, v1.14).
+        """
         with self._performed_effects_lock:
             return sum(
                 1 for performed in self._performed_effects
                 if performed.risk_level is not RiskLevel.SAFE
                 and performed.scope == scope)
 
-    # Restarts process numbering, called when a step begins.
     def reset_process_index(self) -> None:
+        """Restart process numbering, called when a step begins."""
         with self._process_index_lock:
             self._process_index = 0
 
 
-# Restores whatever run was active before, so a nested agent (the fractal: an agent used as a
-# tool of another agent) returns its caller's run rather than leaving it cleared.
-# C#: the private Scope : Disposable. dispose() mirrors Dispose(); it is also a context manager.
 class AgentRunScope:
+    """Restores whatever run was active before.
+
+    A nested agent (the fractal: an agent used as a tool of another agent) returns its caller's
+    run rather than leaving it cleared. dispose() ends the scope; it is also a context manager.
+    """
+
     def __init__(self, enclosing_run: AgentRun | None) -> None:
         self._enclosing_run = enclosing_run
 
@@ -221,10 +244,17 @@ class AgentRunScope:
         self.dispose()
 
 
-# StringComparer.OrdinalIgnoreCase: characters compared by their simple uppercase mapping.
-# Python's str.upper() applies full mappings (U+00DF becomes "SS"), so each character is
-# uppercased on its own and kept as it is when its mapping expands.
+def _grant_key(tool_name: str, scope: str) -> str:
+    return f"{tool_name} {scope}"
+
+
 def _ordinal_ignore_case_key(value: str) -> str:
+    """Fold a key the way .NET StringComparer.OrdinalIgnoreCase compares it.
+
+    Characters compare by their simple uppercase mapping. Python's str.upper() applies full
+    mappings (U+00DF becomes "SS"), so each character is uppercased on its own and kept as it
+    is when its mapping expands.
+    """
     folded: list[str] = []
 
     for character in value:

@@ -3,6 +3,16 @@
 # Licensed under the The Standard Software License (TSSL)
 # ---------------------------------------------------------------
 
+"""A small in-process span and metric recorder with .NET's System.Diagnostics lifecycle.
+
+The Python stand-in for the parts of System.Diagnostics (Activity, ActivitySource,
+ActivityListener) and System.Diagnostics.Metrics (Meter, Histogram, MeterListener) that
+ActivityTelemetryBroker uses. Python has no standard tracing library, so this is a small
+in-process recorder with the same lifecycle: a source hands out a span only while a listener
+listens to it, a started span becomes the current one, and a stopped span hands current back to
+its parent. A host (or an OpenTelemetry bridge of its own) observes through the listeners.
+"""
+
 from __future__ import annotations
 
 import contextvars
@@ -10,14 +20,7 @@ import threading
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable
 
-# The Python stand-in for the parts of System.Diagnostics (Activity, ActivitySource,
-# ActivityListener) and System.Diagnostics.Metrics (Meter, Histogram, MeterListener) that
-# ActivityTelemetryBroker uses. Python has no standard tracing library, so this is a small
-# in-process recorder with the same lifecycle: a source hands out a span only while a listener
-# listens to it, a started span becomes the current one, and a stopped span hands current back to
-# its parent. A host (or an OpenTelemetry bridge of its own) observes through the listeners.
-
-# Activity.Current is an AsyncLocal in .NET; a context variable is Python's equivalent.
+# The current span flows with the async context, as Activity.Current does in .NET.
 _current_activity: contextvars.ContextVar[Activity | None] = contextvars.ContextVar(
     "standard_agents_current_activity",
     default=None)
@@ -29,10 +32,10 @@ _meter_listeners: list[MeterListener] = []
 
 class ActivityListener:
     def __init__(
-        self,
-        should_listen_to: Callable[[ActivitySource], bool],
-        activity_started: Callable[[Activity], None] | None = None,
-        activity_stopped: Callable[[Activity], None] | None = None) -> None:
+            self,
+            should_listen_to: Callable[[ActivitySource], bool],
+            activity_started: Callable[[Activity], None] | None = None,
+            activity_stopped: Callable[[Activity], None] | None = None) -> None:
 
         self.should_listen_to = should_listen_to
         self.activity_started = activity_started
@@ -60,13 +63,16 @@ class ActivitySource:
             _activity_listeners.append(listener)
 
     def has_listeners(self) -> bool:
-        return len(self._listeners()) > 0
+        return bool(self._listeners())
 
-    # None when nothing listens to this source: an unobserved source costs nothing.
     def start_activity(self, name: str) -> Activity | None:
+        """Start a span as the current one, or return None when nothing listens to this source.
+
+        An unobserved source costs nothing.
+        """
         listeners = self._listeners()
 
-        if len(listeners) == 0:
+        if not listeners:
             return None
 
         activity = Activity(name, self, _current_activity.get())
@@ -86,7 +92,12 @@ class ActivitySource:
 
 
 class Activity:
-    def __init__(self, operation_name: str, source: ActivitySource, parent: Activity | None) -> None:
+    def __init__(
+            self,
+            operation_name: str,
+            source: ActivitySource,
+            parent: Activity | None) -> None:
+
         self.operation_name = operation_name
         self.display_name = operation_name
         self.source = source
@@ -100,8 +111,8 @@ class Activity:
     def current() -> Activity | None:
         return _current_activity.get()
 
-    # A None value removes the tag, as SetTag(key, null) does.
     def set_tag(self, key: str, value: Any) -> Activity:
+        """Set a tag; a None value removes it, as .NET's SetTag(key, null) does."""
         if value is None:
             self.tags.pop(key, None)
         else:
@@ -112,8 +123,12 @@ class Activity:
     def get_tag_item(self, key: str) -> Any:
         return self.tags.get(key)
 
-    # Stop() once: the duration is fixed, listeners hear of it, and the parent is current again.
     def stop(self) -> None:
+        """Stop the span, once.
+
+        The duration is fixed, listeners hear of it, and the parent is current again. A second
+        call does nothing.
+        """
         if self.is_stopped:
             return
 
@@ -138,9 +153,9 @@ class Activity:
 
 class MeterListener:
     def __init__(
-        self,
-        should_listen_to: Callable[[Histogram], bool],
-        measurement_recorded: Callable[[Histogram, int | float, dict[str, Any]], None]) -> None:
+            self,
+            should_listen_to: Callable[[Histogram], bool],
+            measurement_recorded: Callable[[Histogram, int | float, dict[str, Any]], None]) -> None:
 
         self.should_listen_to = should_listen_to
         self.measurement_recorded = measurement_recorded
@@ -175,8 +190,11 @@ class Histogram:
         self.name = name
         self.unit = unit
 
-    # A measurement nobody listens to goes nowhere.
     def record(self, value: int | float, *tags: tuple[str, Any]) -> None:
+        """Hand the measurement to every listener of this histogram.
+
+        A measurement nobody listens to goes nowhere.
+        """
         with _registry_lock:
             listeners = list(_meter_listeners)
 

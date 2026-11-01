@@ -12,12 +12,18 @@ from standard_agents.models.orchestrations.effects.permission_mode import Permis
 from standard_agents.models.orchestrations.effects.risk_level import RiskLevel
 
 
-# The perimeter's standing orders, as one datum: what mode permission runs in, what each tool
-# declared about itself, and the host's own hooks for who is acting and what is explicitly
-# permitted. Policy is Data: these ride together as a value the perimeter consults, not as
-# constructor sprawl no dependency count can see.
 @dataclass(frozen=True)
 class PerimeterPolicy:
+    """The perimeter's standing orders, as one datum.
+
+    What mode permission runs in, what each tool declared about itself, and the host's own
+    hooks for who is acting and what is explicitly permitted. Policy is Data: these ride
+    together as a value the perimeter consults, not as constructor sprawl no dependency count
+    can see.
+
+    The three per-tool mappings are keyed by tool name; the C# keys them OrdinalIgnoreCase.
+    """
+
     # What permission means when nothing named the act (SPEC.md 4.9).
     mode: PermissionMode = PermissionMode.OPEN
 
@@ -25,16 +31,13 @@ class PerimeterPolicy:
     irreversible_tools: Collection[str] = ()
 
     # Risk the host declared per tool, overriding what the tool says of itself.
-    # C#: an empty dictionary keyed OrdinalIgnoreCase by default.
     declared_risk: Mapping[str, RiskLevel] = field(default_factory=dict)
 
     # Risk each tool declares about itself, read once at composition.
-    # C#: an empty dictionary keyed OrdinalIgnoreCase by default.
     tool_risk: Mapping[str, RiskLevel] = field(default_factory=dict)
 
     # Each tool's own reading of what an act touches (Tool.ScopeOf). The tool is the only thing
     # that knows what its arguments mean; the framework never parses them.
-    # C#: an empty dictionary keyed OrdinalIgnoreCase by default.
     tool_scope: Mapping[str, Callable[[str], str]] = field(default_factory=dict)
 
     # Whether the configured allow-list speaks to an act at all, which the mode needs and a

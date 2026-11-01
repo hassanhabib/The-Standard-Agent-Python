@@ -42,15 +42,22 @@ _LINE_LIMIT = 2**31 - 1
 _BYTE_ORDER_MARK = "﻿"
 
 
-# The server's standard output, as the broker reads it: asyncio.StreamReader's readline, which
-# returns b"" (or "") at the end of the stream.
 class ServerOutput(Protocol):
+    """The server's standard output, as the broker reads it.
+
+    asyncio.StreamReader's readline, which returns b"" (or "") at the end of the stream.
+    """
+
     async def readline(self) -> bytes | str:
         ...
 
 
-# The server's standard input, as the broker writes it: asyncio.StreamWriter's write and drain.
 class ServerInput(Protocol):
+    """The server's standard input, as the broker writes it.
+
+    asyncio.StreamWriter's write and drain.
+    """
+
     def write(self, data: bytes) -> None:
         ...
 
@@ -59,19 +66,22 @@ class ServerInput(Protocol):
 
 
 class StdioMcpBroker(McpBroker):
-    # C# has two constructors: one over an output and an input already open, one that starts the
-    # server as a process (on first use, and again on the first use after it exits). Here they
-    # are one: pass server_output and server_input, or pass command.
+    """An MCP server spoken to over its standard input and output.
+
+    Pass server_output and server_input for streams already open, or pass command to start the
+    server as a process (on first use, and again on the first use after it exits).
+    """
+
     def __init__(
-        self,
-        server_output: ServerOutput | None = None,
-        server_input: ServerInput | None = None,
-        *,
-        timeout_seconds: int,
-        command: str | None = None,
-        arguments: Iterable[str] | None = None,
-        environment_variables: Mapping[str, str] | None = None,
-        working_directory: str | None = None) -> None:
+            self,
+            server_output: ServerOutput | None = None,
+            server_input: ServerInput | None = None,
+            *,
+            timeout_seconds: int,
+            command: str | None = None,
+            arguments: Iterable[str] | None = None,
+            environment_variables: Mapping[str, str] | None = None,
+            working_directory: str | None = None) -> None:
 
         self._connect: Callable[[], Awaitable[tuple[ServerOutput, ServerInput]]]
 
@@ -115,7 +125,7 @@ class StdioMcpBroker(McpBroker):
 
         return (
             mcp_json.to_json_string(structured_content)
-            if len(text) == 0 and structured_content is not None
+            if not text and structured_content is not None
             else text)
 
     async def list_tools(self) -> list[McpTool]:
@@ -232,9 +242,12 @@ class StdioMcpBroker(McpBroker):
             if _is_answer_to(message, request_id):
                 return message
 
-    # StreamReader.ReadLineAsync: None at the end of the output.
     async def _read_line(self, deadline: float) -> str | None:
-        while len(self._pending_lines) == 0:
+        """The next line as StreamReader.ReadLineAsync reads it: None at the end of the output.
+
+        A line ends at \\r\\n, \\r or \\n, and no empty line follows a final line break.
+        """
+        while not self._pending_lines:
             remaining_seconds = deadline - asyncio.get_running_loop().time()
 
             try:
@@ -246,7 +259,7 @@ class StdioMcpBroker(McpBroker):
                     "The MCP server did not answer within "
                     f"{self._timeout_seconds} seconds.") from timeout_error
 
-            if len(chunk) == 0:
+            if not chunk:
                 return None
 
             text = chunk.decode("utf-8", errors="replace") if isinstance(chunk, bytes) else chunk
@@ -257,7 +270,7 @@ class StdioMcpBroker(McpBroker):
 
             lines = _LINE_BREAK.split(text)
 
-            if lines[-1] == "":
+            if not lines[-1]:
                 lines.pop()
 
             self._pending_lines.extend(lines)
@@ -288,8 +301,8 @@ class StdioMcpBroker(McpBroker):
 
         await self._write(answer)
 
-    # One message per line: JSON never carries a raw line break, and the line ends with \n.
     async def _write(self, message: dict) -> None:
+        """One message per line: JSON never carries a raw line break, and the line ends with \\n."""
         self._server_input.write((mcp_json.to_json_string(message) + "\n").encode("utf-8"))
         await self._server_input.drain()
 
@@ -328,21 +341,23 @@ def _to_message(line: str) -> dict | None:
     return message if isinstance(message, dict) else None
 
 
-# The answer's id must be a JSON integer that fits an int and equals the request's.
 def _is_answer_to(message: dict | None, request_id: int) -> bool:
+    """The answer's id must be a JSON integer that fits an int and equals the request's."""
     if message is None:
         return False
 
     answer_id = message.get("id")
 
-    return isinstance(answer_id, int) \
-        and not isinstance(answer_id, bool) \
-        and -2**31 <= answer_id < 2**31 \
-        and answer_id == request_id
+    # A JSON true is not an id: bool is an int to isinstance.
+    return (
+        isinstance(answer_id, int)
+        and not isinstance(answer_id, bool)
+        and -2**31 <= answer_id < 2**31
+        and answer_id == request_id)
 
 
-# node?[name] on a JsonNode: null stays null, an object answers, anything else throws.
 def _index(node: Any, name: str) -> Any:
+    """node?[name] on a JsonNode: null stays null, an object answers, anything else throws."""
     if node is None:
         return None
 
@@ -352,35 +367,39 @@ def _index(node: Any, name: str) -> Any:
     raise TypeError(f"The node must be of type 'JsonObject' to read '{name}'.")
 
 
-# node?.GetValue<string>(): null stays null, a string answers, anything else throws.
 def _get_string(node: Any) -> str | None:
+    """node?.GetValue<string>(): null stays null, a string answers, anything else throws."""
     if node is None or isinstance(node, str):
         return node
 
     raise TypeError("An element of type other than 'String' cannot be converted to 'String'.")
 
 
-# node?.GetValue<int>(): null stays null, an integer that fits an int answers, anything else throws.
 def _get_int(node: Any) -> int | None:
+    """node?.GetValue<int>() on a JsonNode.
+
+    Null stays null, an integer that fits an int answers, anything else throws.
+    """
     if node is None:
         return None
 
+    # A JSON true or false is not an integer: bool is an int to isinstance.
     if isinstance(node, int) and not isinstance(node, bool) and -2**31 <= node < 2**31:
         return int(node)
 
     raise TypeError("An element of this type cannot be converted to 'Int32'.")
 
 
-# C# string interpolation writes null as nothing.
 def _text(value: str | None) -> str:
+    """The value as C# string interpolation writes it: null as nothing."""
     return "" if value is None else value
 
 
 async def _start_server_process(
-    command: str,
-    arguments: list[str],
-    environment_variables: Mapping[str, str] | None,
-    working_directory: str | None) -> tuple[ServerOutput, ServerInput]:
+        command: str,
+        arguments: list[str],
+        environment_variables: Mapping[str, str] | None,
+        working_directory: str | None) -> tuple[ServerOutput, ServerInput]:
 
     server_environment = dict(os.environ)
 
@@ -388,7 +407,9 @@ async def _start_server_process(
         # ProcessStartInfo.Environment is case-insensitive on Windows: a name replaces any
         # spelling of itself.
         if os.name == "nt":
-            for existing_name in [key for key in server_environment if key.upper() == name.upper()]:
+            spellings = [key for key in server_environment if key.upper() == name.upper()]
+
+            for existing_name in spellings:
                 del server_environment[existing_name]
 
         server_environment[name] = value
@@ -398,7 +419,7 @@ async def _start_server_process(
         *arguments,
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
-        # The C# drains standard error and drops every line of it.
+        # Standard error is dropped, every line of it, as the C# drains and discards it.
         stderr=asyncio.subprocess.DEVNULL,
         cwd=working_directory or None,
         env=server_environment,
@@ -410,8 +431,8 @@ async def _start_server_process(
     return server_process.stdout, server_process.stdin
 
 
-# Process.Kill(entireProcessTree: true); a process that has already exited is left alone.
 def _stop_server_process(server_process: asyncio.subprocess.Process) -> None:
+    """Process.Kill(entireProcessTree: true); a process that has already exited is left alone."""
     if server_process.returncode is not None:
         return
 
@@ -463,19 +484,22 @@ def _descendants_of(process_id: int) -> list[int]:
     return descendants
 
 
-# On Windows a bare name resolves through PATH and PATHEXT, so npx finds npx.cmd; a name with an
-# extension, or any name elsewhere, is started as given.
 def _resolve_command(command: str) -> str:
+    """The executable a command names.
+
+    On Windows a bare name resolves through PATH and PATHEXT, so npx finds npx.cmd; a name with an
+    extension, or any name elsewhere, is started as given.
+    """
     if os.name != "nt" or _has_extension(command):
         return command
 
     directories = [
         directory for directory in os.environ.get("PATH", "").split(os.pathsep)
-        if directory != ""]
+        if directory]
 
     extensions = [
         extension for extension in os.environ.get("PATHEXT", ".EXE;.CMD;.BAT").split(";")
-        if extension != ""]
+        if extension]
 
     for directory in directories:
         for extension in extensions:
@@ -487,20 +511,15 @@ def _resolve_command(command: str) -> str:
     return command
 
 
-# Path.HasExtension: a dot in the last segment that is not its final character.
 def _has_extension(path: str) -> bool:
-    for index in range(len(path) - 1, -1, -1):
-        if path[index] == ".":
-            return index != len(path) - 1
+    """Path.HasExtension: a dot in the last segment that is not its final character."""
+    last_segment = re.split(r"[\\/]", path)[-1]
 
-        if path[index] in "\\/":
-            return False
-
-    return False
+    return "." in last_segment and not last_segment.endswith(".")
 
 
-# The assembly version in C#; the installed distribution's version here, empty when there is none.
 def _client_version() -> str:
+    """The installed distribution's version (the assembly version in C#), empty when none."""
     try:
         return importlib.metadata.version("standard-agents")
     except importlib.metadata.PackageNotFoundError:

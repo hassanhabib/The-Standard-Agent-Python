@@ -8,10 +8,14 @@ from datetime import timedelta
 from decimal import Decimal
 
 
-# What one prompt is allowed to consume (SPEC.md 4.10). Any bound left None is unbounded, so
-# a budget constrains exactly what the host chose to constrain and nothing else.
 @dataclass(frozen=True)
 class AgentBudget:
+    """What one prompt is allowed to consume (SPEC.md 4.10).
+
+    Any bound left None is unbounded, so a budget constrains exactly what the host chose to
+    constrain and nothing else.
+    """
+
     max_tokens: int | None = None
     max_cost_usd: Decimal | None = None
     max_wall_clock: timedelta | None = None

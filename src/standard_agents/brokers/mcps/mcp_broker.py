@@ -15,8 +15,10 @@ class McpBroker(ABC):
     async def call(self, name: str, arguments_json: str) -> str:
         ...
 
-    # The server's tool catalog (tools/list). What makes more than one server composable: a
-    # router can only send a name to the server that owns it if servers say what they own.
     @abstractmethod
     async def list_tools(self) -> list[McpTool]:
-        ...
+        """The server's tool catalog (tools/list).
+
+        What makes more than one server composable: a router can only send a name to the server
+        that owns it if servers say what they own.
+        """

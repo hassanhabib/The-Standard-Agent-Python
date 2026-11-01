@@ -27,15 +27,19 @@ class _HttpResponse:
     body: bytes
 
 
-# The Python stand-in for RESTFulSense's RESTFulApiFactoryClient over an HttpClient whose
-# BaseAddress, default headers and Timeout the broker set: one POST, the status validated into
-# the matching RESTFulSense exception, the body handed back as parsed JSON.
 class RESTFulApiFactoryClient:
+    """The Python stand-in for RESTFulSense's RESTFulApiFactoryClient.
+
+    It plays the client over an HttpClient whose BaseAddress, default headers and Timeout the
+    broker set: one POST, the status validated into the matching RESTFulSense exception, the
+    body handed back as parsed JSON.
+    """
+
     def __init__(
-        self,
-        base_url: str,
-        headers: dict[str, str] | None = None,
-        timeout_seconds: float = 100.0) -> None:
+            self,
+            base_url: str,
+            headers: dict[str, str] | None = None,
+            timeout_seconds: float = 100.0) -> None:
 
         # HttpClient.BaseAddress takes an absolute address only, and Timeout a positive one.
         if not urllib.parse.urlsplit(base_url).scheme:
@@ -60,11 +64,13 @@ class RESTFulApiFactoryClient:
         response_content = read_as_string(response.body, response.content_type)
         validate_http_response(response.status_code, response.content_type, response_content)
 
-        return {} if len(response_content) == 0 else json.loads(response_content)
+        return json.loads(response_content) if response_content else {}
 
-    # HttpClient joins a relative address to its BaseAddress by RFC 3986, as urljoin does: a
-    # base address without a trailing slash drops its last segment.
     def _combine(self, relative_url: str) -> str:
+        """Join a relative address to the base address by RFC 3986, as HttpClient does.
+
+        A base address without a trailing slash drops its last segment.
+        """
         return urllib.parse.urljoin(self._base_url, relative_url)
 
     def _send(self, url: str, request_body: bytes) -> _HttpResponse:

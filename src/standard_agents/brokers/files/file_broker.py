@@ -10,9 +10,12 @@ from enum import Enum
 from typing import Iterable, Sequence
 
 
-# System.IO.SearchOption: whether a file search stays in the folder or descends into every
-# folder beneath it.
 class SearchOption(Enum):
+    """Whether a file search stays in the folder or descends into every folder beneath it.
+
+    Mirrors System.IO.SearchOption.
+    """
+
     TOP_DIRECTORY_ONLY = 0
     ALL_DIRECTORIES = 1
 
@@ -34,11 +37,9 @@ class FileBroker(ABC):
     async def read_file(self, path: str) -> str:
         ...
 
-    # C#: ReadFile, the synchronous twin of ReadFileAsync. Both would be read_file once the
-    # Async suffix is dropped, so this one keeps its synchrony in its name.
     @abstractmethod
     def read_file_sync(self, path: str) -> str:
-        ...
+        """The synchronous twin of read_file, for callers that cannot await."""
 
     @abstractmethod
     def file_exists(self, path: str) -> bool:

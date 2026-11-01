@@ -37,22 +37,27 @@ _MAX_DEPTH = 64
 _UTF8_BYTE_ORDER_MARK = b"\xef\xbb\xbf"
 
 
-# The request is built as a JSON tree rather than through typed records, converged onto the
-# construction V1 already uses, for the reason V1 already documents: growing optional record
-# fields answers one request and re-opens the same question at the next one
-# (docs/per-request-inference.md 5.1).
 class OpenAiGeneratorBroker(GeneratorBroker):
-    # handler is the host's handler under this broker's traffic (F-23). The handler is the
-    # host's: the opener around it holds nothing of its own.
+    """The brain over an OpenAI-compatible chat completions endpoint.
+
+    The request is built as a JSON tree rather than through typed records, converged onto the
+    construction V1 already uses, for the reason V1 already documents: growing optional record
+    fields answers one request and re-opens the same question at the next one
+    (docs/per-request-inference.md 5.1).
+
+    ``handler`` is the host's handler under this broker's traffic (F-23): the opener around it
+    holds nothing of its own.
+    """
+
     def __init__(
-        self,
-        api_url: str,
-        api_key: str,
-        model: str,
-        temperature: float,
-        max_tokens: int,
-        timeout_seconds: int,
-        handler: urllib.request.BaseHandler | None = None) -> None:
+            self,
+            api_url: str,
+            api_key: str,
+            model: str,
+            temperature: float,
+            max_tokens: int,
+            timeout_seconds: int,
+            handler: urllib.request.BaseHandler | None = None) -> None:
 
         self._base_address = _to_base_address(api_url)
         self._timeout_seconds = _to_timeout(timeout_seconds)
@@ -68,9 +73,9 @@ class OpenAiGeneratorBroker(GeneratorBroker):
         self._temperature = temperature
         self._max_tokens = max_tokens
 
-    # This broker puts resolved inference options on the wire.
     @property
     def honors_request(self) -> bool:
+        """This broker puts resolved inference options on the wire."""
         return True
 
     async def generate(
@@ -123,7 +128,7 @@ class OpenAiGeneratorBroker(GeneratorBroker):
                 if line is None:
                     break
 
-                if line.startswith(_DATA_FIELD_PREFIX) is False:
+                if not line.startswith(_DATA_FIELD_PREFIX):
                     continue
 
                 data = _trim(line[len(_DATA_FIELD_PREFIX):])
@@ -135,20 +140,20 @@ class OpenAiGeneratorBroker(GeneratorBroker):
 
                 content = (
                     chunk.choices[0].delta.content
-                    if chunk is not None and chunk.choices is not None and len(chunk.choices) > 0
+                    if chunk is not None and chunk.choices
                     else None)
 
-                if _is_null_or_empty(content) is False:
+                if content:
                     yield content
         finally:
             http_response.close()
 
     def _build_request(
-        self,
-        system_prompt: str,
-        user_prompt: str,
-        stream: bool,
-        inference: ResolvedInference | None) -> dict:
+            self,
+            system_prompt: str,
+            user_prompt: str,
+            stream: bool,
+            inference: ResolvedInference | None) -> dict:
 
         request = {
             "model": self._model,
@@ -172,23 +177,25 @@ class OpenAiGeneratorBroker(GeneratorBroker):
             await self._api_client.post_content(relative_url, content))
 
 
-# The resolved options, written as the wire knows them. The values arrive already
-# precedence-resolved at the boundary; this broker writes what it is given and decides nothing
-# (docs/per-request-inference.md 4.2).
 def _write_inference(request: dict, inference: ResolvedInference | None) -> None:
+    """Write the resolved options as the wire knows them.
+
+    The values arrive already precedence-resolved at the boundary; this broker writes what it is
+    given and decides nothing (docs/per-request-inference.md 4.2).
+    """
     if inference is None:
         return
 
     if inference.seed is not None:
         request["seed"] = inference.seed
 
-    if len(inference.stop) > 0:
-        request["stop"] = [stop for stop in inference.stop]
+    if inference.stop:
+        request["stop"] = list(inference.stop)
 
     # The schema that survived precedence seeds the wire, and the guardian already holds the
     # same schema, so an engine that quietly ignores response_format degrades to a guarantee
     # rather than to nothing (4.1).
-    if _is_null_or_white_space(inference.response_schema_json) is False:
+    if not _is_blank(inference.response_schema_json):
         schema = _try_parse(inference.response_schema_json)
 
         if schema is not None:
@@ -212,15 +219,15 @@ def _try_parse(text: str) -> Any:
         return None
 
 
-# JsonSerializer.Deserialize<ChatCompletionChunk>: the JSON literal null reads as no chunk.
 def _deserialize_chunk(data: str) -> ChatCompletionChunk | None:
+    """JsonSerializer.Deserialize<ChatCompletionChunk>: the JSON literal null reads as no chunk."""
     node = _parse_json(data)
 
     return None if node is None else ChatCompletionChunk.from_json_dict(node)
 
 
-# System.Text.Json's reader: strict JSON, no NaN or Infinity, nesting no deeper than 64.
 def _parse_json(text: str) -> Any:
+    """System.Text.Json's reader: strict JSON, no NaN or Infinity, nesting no deeper than 64."""
     try:
         node = json.loads(text, parse_constant=_reject_constant)
     except RecursionError:
@@ -248,24 +255,28 @@ def _ensure_depth(node: Any, depth: int) -> None:
             _ensure_depth(child, depth)
 
 
-# JsonObject.ToJsonString: compact; a NaN or Infinity is refused rather than written.
 def _to_json_string(node: Any) -> str:
+    """JsonObject.ToJsonString: compact; a NaN or Infinity is refused rather than written."""
     return json.dumps(node, separators=(",", ":"), allow_nan=False)
 
 
-# A StreamReader over the response body: UTF-8 with its byte-order mark skipped, and a line
-# ended by "\n", "\r" or "\r\n", the terminator not part of the line.
 class _StreamReader:
+    """A StreamReader over the response body.
+
+    UTF-8 with its byte-order mark skipped, and a line ended by "\\n", "\\r" or "\\r\\n", the
+    terminator not part of the line.
+    """
+
     def __init__(self, stream: Any) -> None:
         self._stream = stream
         self._lines: collections.deque[str] = collections.deque()
         self._at_start = True
 
     async def read_line(self) -> str | None:
-        while len(self._lines) == 0:
+        while not self._lines:
             raw = await asyncio.to_thread(self._stream.readline)
 
-            if len(raw) == 0:
+            if not raw:
                 return None
 
             if self._at_start:
@@ -280,7 +291,8 @@ class _StreamReader:
 
 
 def _split_lines(text: str) -> list[str]:
-    if len(text) == 0:
+    """The lines in one urllib readline, split at "\\r" as StreamReader.ReadLine also splits."""
+    if not text:
         return []
 
     if text.endswith("\n"):
@@ -294,14 +306,16 @@ def _split_lines(text: str) -> list[str]:
     return text.split("\r")
 
 
-# HttpClient.SendAsync then EnsureSuccessStatusCode. A request that never got an answer is an
-# HttpRequestException, as is a status outside 2xx (carrying that status). A timeout is not:
-# HttpClient cancels the request, so it stays a TimeoutError rather than claiming a refusal.
 def _send(
-    opener: urllib.request.OpenerDirector,
-    http_request: urllib.request.Request,
-    timeout_seconds: float) -> Any:
+        opener: urllib.request.OpenerDirector,
+        http_request: urllib.request.Request,
+        timeout_seconds: float) -> Any:
+    """HttpClient.SendAsync then EnsureSuccessStatusCode.
 
+    A request that never got an answer is an HttpRequestException, as is a status outside 2xx
+    (carrying that status). A timeout is not: HttpClient cancels the request, so it stays a
+    TimeoutError rather than claiming a refusal.
+    """
     try:
         return opener.open(http_request, timeout=timeout_seconds)
     except urllib.error.HTTPError as http_error:
@@ -323,8 +337,11 @@ def _send(
         raise HttpRequestException(message=str(error)) from error
 
 
-# HttpClient sends no User-Agent of its own, so urllib's default one is dropped.
 def _build_opener(handler: urllib.request.BaseHandler | None) -> urllib.request.OpenerDirector:
+    """An opener over the host's handler, if any.
+
+    HttpClient sends no User-Agent of its own, so urllib's default one is dropped.
+    """
     opener = (
         urllib.request.build_opener() if handler is None
         else urllib.request.build_opener(handler))
@@ -334,16 +351,16 @@ def _build_opener(handler: urllib.request.BaseHandler | None) -> urllib.request.
     return opener
 
 
-# new Uri(apiUrl): an address that is not absolute is refused when the broker is built.
 def _to_base_address(api_url: str) -> str:
+    """new Uri(apiUrl): an address that is not absolute is refused when the broker is built."""
     if not urllib.parse.urlsplit(api_url).scheme:
         raise ValueError("Invalid URI: The format of the URI could not be determined.")
 
     return api_url
 
 
-# HttpClient.Timeout refuses a span that is not positive.
 def _to_timeout(timeout_seconds: int) -> float:
+    """HttpClient.Timeout refuses a span that is not positive."""
     if timeout_seconds <= 0:
         raise ValueError(
             "Specified argument was out of the range of valid values. (Parameter 'value')")
@@ -351,34 +368,35 @@ def _to_timeout(timeout_seconds: int) -> float:
     return float(timeout_seconds)
 
 
-# AuthenticationHeaderValue("Bearer", apiKey) writes the scheme alone when there is no key.
 def _to_bearer(api_key: str | None) -> str:
+    """AuthenticationHeaderValue("Bearer", apiKey) writes the scheme alone when there is no key."""
     return "Bearer" if not api_key else f"Bearer {api_key}"
 
 
-def _is_null_or_empty(text: str | None) -> bool:
-    return text is None or len(text) == 0
+def _is_whitespace(character: str) -> bool:
+    """char.IsWhiteSpace, which string.Trim and string.IsNullOrWhiteSpace use.
 
-
-# char.IsWhiteSpace's own set, which string.Trim and string.IsNullOrWhiteSpace use.
-def _is_white_space(character: str) -> bool:
+    Not str.isspace: .NET does not count U+001C..U+001F as white space.
+    """
     return (
         character in "\t\n\v\f\r\x85"
         or unicodedata.category(character) in ("Zs", "Zl", "Zp"))
 
 
-def _is_null_or_white_space(text: str | None) -> bool:
-    return text is None or all(_is_white_space(character) for character in text)
+def _is_blank(text: str | None) -> bool:
+    """string.IsNullOrWhiteSpace, over the .NET white-space set."""
+    return text is None or all(_is_whitespace(character) for character in text)
 
 
 def _trim(text: str) -> str:
+    """string.Trim, over the .NET white-space set."""
     start = 0
     end = len(text)
 
-    while start < end and _is_white_space(text[start]):
+    while start < end and _is_whitespace(text[start]):
         start += 1
 
-    while end > start and _is_white_space(text[end - 1]):
+    while end > start and _is_whitespace(text[end - 1]):
         end -= 1
 
     return text[start:end]

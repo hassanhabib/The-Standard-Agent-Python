@@ -19,19 +19,22 @@ from standard_agents.models.loggings.agent_run import AgentRun
 from standard_agents.models.loggings.agent_step import AgentStep
 
 
-# The decision log, applied by decoration: every event the loop narrates to its log is also
-# written to the audit sink as a durable record, stamped, sequenced and attributed, and the
-# logging broker underneath never learns the audit exists. A decorator implements the very
-# interface it takes, so it adds one concern to the call it wraps and owns no resource of its
-# own; that is the one shape in which a broker may hold another (principal review 2026-09-04,
-# F-16). Composed at the facade only when an audit sink is configured, over whichever logging
-# broker the deployment chose.
-#
-# What the record carries is policy (F-14): metadata by default (a payload's length and hash,
-# never the payload) and the payload itself only when the deployment opted in, as the configured
-# redaction leaves it. Redact protects the model boundary; this is the same rule at the audit
-# boundary.
 class AuditingLoggingBroker(LoggingBroker):
+    """The decision log, applied by decoration over a logging broker.
+
+    Every event the loop narrates to its log is also written to the audit sink as a durable
+    record, stamped, sequenced and attributed, and the logging broker underneath never learns
+    the audit exists. A decorator implements the very interface it takes, so it adds one concern
+    to the call it wraps and owns no resource of its own; that is the one shape in which a broker
+    may hold another (principal review 2026-09-04, F-16). Composed at the facade only when an
+    audit sink is configured, over whichever logging broker the deployment chose.
+
+    What the record carries is policy (F-14): metadata by default (a payload's length and hash,
+    never the payload) and the payload itself only when the deployment opted in, as the
+    configured redaction leaves it. Redact protects the model boundary; this is the same rule at
+    the audit boundary.
+    """
+
     def __init__(
             self,
             logging_broker: LoggingBroker,
@@ -78,9 +81,12 @@ class AuditingLoggingBroker(LoggingBroker):
         await self._audit(AuditKind.ERROR, actor="Agent", message=str(exception))
         await self._logging_broker.log_critical(exception)
 
-    # The trace underneath resets; the decision log is durable and records the start instead
-    # (SPEC.md 4.7).
     async def log_reset(self) -> None:
+        """Records the run's start, then resets the trace underneath.
+
+        The trace resets; the decision log is durable and records the start instead
+        (SPEC.md 4.7).
+        """
         await self._audit(AuditKind.RUN, actor="Agent", message="run started")
         await self._logging_broker.log_reset()
 
@@ -100,9 +106,12 @@ class AuditingLoggingBroker(LoggingBroker):
         await self._audit(AuditKind.PROCESS, actor, message, detail)
         await self._logging_broker.log_process(actor, message, detail)
 
-    # The summary is the record; the payload is its length and its hash, and the payload itself
-    # only under a policy that asked for it, redacted, because the sink outlives the run.
     async def log_payload(self, actor: str, summary: str, payload: str, detail: bool) -> None:
+        """Records the summary, with the payload's length and hash.
+
+        The payload itself is recorded only under a policy that asked for it, redacted, because
+        the sink outlives the run.
+        """
         recorded = (
             self._redaction_broker.redact(payload, {})
             if self._policy.payloads
@@ -147,25 +156,33 @@ class AuditingLoggingBroker(LoggingBroker):
         await self._audit_broker.write(record)
 
 
-# Enum.ToString(): the member's C# name, AgentStep.DATA as "Data".
 def _step_name(step: AgentStep) -> str:
+    """The step as .NET's Enum.ToString() names it: AgentStep.DATA as "Data"."""
     return "".join(word.capitalize() for word in step.name.split("_"))
 
 
-# string.Length: UTF-16 code units, so a character outside the Basic Multilingual Plane counts
-# as two.
 def _utf16_length(text: str) -> int:
+    """The length .NET's string.Length reports: UTF-16 code units.
+
+    A character outside the Basic Multilingual Plane counts as two.
+    """
     return len(text.encode("utf-16-le", errors="surrogatepass")) // 2
 
 
-# The same fingerprint on both implementations: lowercase hex either way, so a hash written by
-# one matches the same payload's hash written by the other.
 def _hash(payload: str) -> str:
+    """The payload's SHA-256 in lowercase hex.
+
+    The same fingerprint on both implementations, so a hash written by one matches the same
+    payload's hash written by the other.
+    """
     return hashlib.sha256(_utf8_bytes(payload)).hexdigest()
 
 
-# Encoding.UTF8.GetBytes: a lone surrogate encodes as U+FFFD, where Python's encoder would raise.
 def _utf8_bytes(value: str) -> bytes:
+    """Encodes as .NET's Encoding.UTF8.GetBytes: a lone surrogate becomes U+FFFD.
+
+    Python's own encoder would raise on it.
+    """
     utf16 = value.encode("utf-16-le", errors="surrogatepass")
 
     return utf16.decode("utf-16-le", errors="replace").encode("utf-8")

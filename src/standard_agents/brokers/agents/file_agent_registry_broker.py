@@ -17,11 +17,14 @@ if TYPE_CHECKING:
     from standard_agents.standard_agent import StandardAgent
 
 
-# The Local mode of the fleet seam: a folder where every .json document is an agent (the same
-# documents StandardAgent.from_json composes), read in path order. A document's name names the
-# agent (the file's own name when absent) and its description advertises it: no description,
-# no advertisement, exactly like a tool.
 class FileAgentRegistryBroker(AgentRegistryBroker):
+    """The Local mode of the fleet seam: a folder where every .json document is an agent.
+
+    The documents are the same ones StandardAgent.from_json composes, read in path order. A
+    document's name names the agent (the file's own name when absent) and its description
+    advertises it: no description, no advertisement, exactly like a tool.
+    """
+
     def __init__(self, agents_path: str) -> None:
         self._agents_path = agents_path
 
@@ -30,21 +33,23 @@ class FileAgentRegistryBroker(AgentRegistryBroker):
         # circular.
         from standard_agents.standard_agent import StandardAgent
 
-        if os.path.isdir(self._agents_path) is False:
+        if not os.path.isdir(self._agents_path):
             return []
+
+        # Ordinal order: UTF-16 code units, as StringComparer.Ordinal compares them.
+        document_paths = sorted(
+            enumerate_files(self._agents_path, "*.json", all_directories=False),
+            key=lambda path: path.encode("utf-16-be", errors="surrogatepass"))
 
         agents: list[RegisteredAgent] = []
 
-        # Ordinal order: UTF-16 code units, as StringComparer.Ordinal compares them.
-        for document_path in sorted(
-                enumerate_files(self._agents_path, "*.json", all_directories=False),
-                key=lambda path: path.encode("utf-16-be", errors="surrogatepass")):
+        for document_path in document_paths:
             composed: StandardAgent = StandardAgent.from_json(_read_all_text(document_path))
 
             agents.append(RegisteredAgent(
                 name=(
-                    _get_file_name_without_extension(document_path)
-                    if _is_null_or_white_space(composed.name)
+                    _name_without_extension(document_path)
+                    if _is_blank(composed.name)
                     else composed.name),
                 description=composed.description,
                 agent=composed))
@@ -52,17 +57,24 @@ class FileAgentRegistryBroker(AgentRegistryBroker):
         return agents
 
 
-# Path.GetFileNameWithoutExtension: the name up to its last dot, so ".json" names nothing.
-def _get_file_name_without_extension(path: str) -> str:
+def _name_without_extension(path: str) -> str:
+    """The file's name up to its last dot, so ".json" names nothing.
+
+    Mirrors Path.GetFileNameWithoutExtension, which os.path.splitext does not: splitext keeps a
+    leading-dot name whole.
+    """
     name = os.path.basename(path)
     dot = name.rfind(".")
 
     return name if dot < 0 else name[:dot]
 
 
-# File.ReadAllText: the encoding a byte order mark names, UTF-8 when there is none, invalid
-# sequences replaced rather than raised, line endings kept as written.
 def _read_all_text(path: str) -> str:
+    """Reads a file as .NET's File.ReadAllText does.
+
+    The encoding a byte order mark names, UTF-8 when there is none, invalid sequences replaced
+    rather than raised, line endings kept as written.
+    """
     with open(path, "rb") as file:
         data = file.read()
 
@@ -84,8 +96,12 @@ def _read_all_text(path: str) -> str:
     return data.decode("utf-8", errors="replace")
 
 
-# string.IsNullOrWhiteSpace, with char.IsWhiteSpace's own set.
-def _is_null_or_white_space(text: str | None) -> bool:
+def _is_blank(text: str | None) -> bool:
+    """True for None, empty, or all whitespace, as .NET's string.IsNullOrWhiteSpace decides.
+
+    The whitespace set is char.IsWhiteSpace's (Zs, Zl, Zp, U+0009 to U+000D and U+0085), which
+    differs from str.isspace on U+001C to U+001F.
+    """
     if text is None:
         return True
 

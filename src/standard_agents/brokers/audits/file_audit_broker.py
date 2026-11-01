@@ -40,17 +40,19 @@ _DATE_TIME_OFFSET_KEYS = frozenset({"timestamp"})
 _LINE_BREAK = re.compile(r"\r\n|\r|\n")
 
 
-# The decision log's file sink: one JSON object per line (SPEC.md 4.7).
-#
-# The broker owns three sink mechanics and no business flow: it appends, it serializes
-# concurrent writers, and it chains hashes. The chain lives here because only the sink knows
-# what the previous record on THIS sink was.
-#
-# Each write appends and closes rather than holding the file open. A decision log is read while
-# it is being written (by a tail, a shipper, a test) and a retained write handle locks those
-# readers out on Windows. The cost of reopening is paid once per record and buys a sink anything
-# can read at any moment.
 class FileAuditBroker(AuditBroker):
+    """The decision log's file sink: one JSON object per line (SPEC.md 4.7).
+
+    The broker owns three sink mechanics and no business flow: it appends, it serializes
+    concurrent writers, and it chains hashes. The chain lives here because only the sink knows
+    what the previous record on THIS sink was.
+
+    Each write appends and closes rather than holding the file open. A decision log is read while
+    it is being written (by a tail, a shipper, a test) and a retained write handle locks those
+    readers out on Windows. The cost of reopening is paid once per record and buys a sink
+    anything can read at any moment.
+    """
+
     def __init__(self, audit_path: str) -> None:
         self._audit_path = os.path.abspath(audit_path)
         self._write_lock = threading.Lock()
@@ -73,25 +75,25 @@ class FileAuditBroker(AuditBroker):
 
             self._previous_hash = _hash(line)
 
-    # Verifies a sink written by this broker: every record's previous_hash must equal the hash
-    # of the line before it. Returns the 1-based line number of the first record that does not,
-    # or None when the chain is intact, so a caller can prove no record in the MIDDLE of a
-    # decision log was altered or removed (SPEC.md 4.7).
-    #
-    # What it does not prove, said plainly (principal review 2026-09-04, F-13): a suffix cut off
-    # the end leaves a valid prefix with no broken link, and the chain is unkeyed, so anyone who
-    # can rewrite the file can recompute it. This is local, append-only, hash-linked evidence,
-    # not immutable audit storage. A regulated deployment anchors the terminal hash somewhere it
-    # cannot write, or keeps the sink on append-only storage.
     @staticmethod
     def find_broken_link(lines: Iterable[str]) -> int | None:
+        """Verifies a sink written by this broker.
+
+        Every record's previous_hash must equal the hash of the line before it. Returns the
+        1-based line number of the first record that does not, or None when the chain is intact,
+        so a caller can prove no record in the MIDDLE of a decision log was altered or removed
+        (SPEC.md 4.7).
+
+        What it does not prove, said plainly (principal review 2026-09-04, F-13): a suffix cut
+        off the end leaves a valid prefix with no broken link, and the chain is unkeyed, so anyone
+        who can rewrite the file can recompute it. This is local, append-only, hash-linked
+        evidence, not immutable audit storage. A regulated deployment anchors the terminal hash
+        somewhere it cannot write, or keeps the sink on append-only storage.
+        """
         expected_hash: str | None = None
-        line_number = 0
 
-        for line in lines:
-            line_number += 1
-
-            if _is_null_or_white_space(line):
+        for line_number, line in enumerate(lines, start=1):
+            if _is_blank(line):
                 continue
 
             data = _parse(line)
@@ -105,10 +107,12 @@ class FileAuditBroker(AuditBroker):
 
         return None
 
-    # Continues an existing sink's chain rather than restarting it, so a process restart does
-    # not read as tampering. Done once, on the first write, because the sink may not exist yet
-    # when the broker is constructed.
     def _seed_chain(self) -> None:
+        """Continues an existing sink's chain rather than restarting it.
+
+        A process restart then does not read as tampering. Done once, on the first write,
+        because the sink may not exist yet when the broker is constructed.
+        """
         if self._chain_seeded:
             return
 
@@ -116,40 +120,48 @@ class FileAuditBroker(AuditBroker):
 
         directory = os.path.dirname(self._audit_path)
 
-        if len(directory) > 0:
+        if directory:
             os.makedirs(directory, exist_ok=True)
 
-        if os.path.isfile(self._audit_path) is False:
+        if not os.path.isfile(self._audit_path):
             return
 
         last_line: str | None = None
 
         for line in _read_lines(self._audit_path):
-            if _is_null_or_white_space(line) is False:
+            if not _is_blank(line):
                 last_line = line
 
         self._previous_hash = None if last_line is None else _hash(last_line)
 
 
-# Lowercase hex, which is load-bearing: the chain one implementation wrote must verify on the
-# other.
 def _hash(line: str) -> str:
+    """The line's SHA-256 in lowercase hex.
+
+    Lowercase is load-bearing: the chain one implementation wrote must verify on the other.
+    """
     return hashlib.sha256(_utf8_bytes(line)).hexdigest()
 
 
-# Encoding.UTF8.GetBytes: a lone surrogate encodes as U+FFFD, where Python's encoder would raise.
 def _utf8_bytes(value: str) -> bytes:
+    """Encodes as .NET's Encoding.UTF8.GetBytes: a lone surrogate becomes U+FFFD.
+
+    Python's own encoder would raise on it.
+    """
     utf16 = value.encode("utf-16-le", errors="surrogatepass")
 
     return utf16.decode("utf-16-le", errors="replace").encode("utf-8")
 
 
-# File.ReadLines: the encoding a byte order mark names, UTF-8 when there is none, split at CR,
-# LF or CRLF, with no empty line after a final line break.
 def _read_lines(path: str) -> list[str]:
+    """Reads a file's lines as .NET's File.ReadLines does.
+
+    The encoding a byte order mark names, UTF-8 when there is none, split at CR, LF or CRLF, with
+    no empty line after a final line break.
+    """
     text = _read_all_text(path)
 
-    if text == "":
+    if not text:
         return []
 
     lines = _LINE_BREAK.split(text)
@@ -161,6 +173,11 @@ def _read_lines(path: str) -> list[str]:
 
 
 def _read_all_text(path: str) -> str:
+    """Reads a file as .NET's File.ReadAllText does.
+
+    The encoding a byte order mark names, UTF-8 when there is none, invalid sequences replaced
+    rather than raised, line endings kept as written.
+    """
     with open(path, "rb") as file:
         data = file.read()
 
@@ -182,8 +199,12 @@ def _read_all_text(path: str) -> str:
     return data.decode("utf-8", errors="replace")
 
 
-# string.IsNullOrWhiteSpace, with char.IsWhiteSpace's own set.
-def _is_null_or_white_space(text: str | None) -> bool:
+def _is_blank(text: str | None) -> bool:
+    """True for None, empty, or all whitespace, as .NET's string.IsNullOrWhiteSpace decides.
+
+    The whitespace set is char.IsWhiteSpace's (Zs, Zl, Zp, U+0009 to U+000D and U+0085), which
+    differs from str.isspace on U+001C to U+001F.
+    """
     if text is None:
         return True
 
@@ -197,8 +218,8 @@ def _reject_constant(constant: str) -> Any:
     raise ValueError(f"'{constant}' is an invalid JSON literal.")
 
 
-# JsonSerializer.Deserialize: strict JSON, no NaN or Infinity, nesting no deeper than 64.
 def _parse(text: str) -> Any:
+    """Parses as JsonSerializer.Deserialize: strict JSON, no NaN or Infinity, depth at most 64."""
     node = json.loads(text, parse_constant=_reject_constant)
     _ensure_depth(node, depth=0)
 
@@ -218,11 +239,12 @@ def _ensure_depth(node: Any, depth: int) -> None:
             _ensure_depth(child, depth)
 
 
-# JsonSerializer.Serialize with these options: compact, written with JavaScriptEncoder.Default.
 def _serialize(node: Any) -> str:
+    """Writes compact JSON as JsonSerializer.Serialize does with JavaScriptEncoder.Default."""
     if node is None:
         return "null"
 
+    # Identity, not truthiness: True and False are ints too, and 1 or 0 must stay numbers.
     if node is True:
         return "true"
 
@@ -248,9 +270,12 @@ def _serialize(node: Any) -> str:
     raise TypeError(f"Cannot write {type(node).__name__} as JSON.")
 
 
-# JavaScriptEncoder.Default: printable Basic Latin passes except the HTML-sensitive characters;
-# everything else is escaped, as \uXXXX in upper-case hex, surrogate pairs as two escapes.
 def _escape(text: str) -> str:
+    """Quotes and escapes a string as JavaScriptEncoder.Default does.
+
+    Printable Basic Latin passes except the HTML-sensitive characters; everything else is
+    escaped, as \\uXXXX in upper-case hex, surrogate pairs as two escapes.
+    """
     parts = ['"']
 
     for character in text:

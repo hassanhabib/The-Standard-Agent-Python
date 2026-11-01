@@ -7,47 +7,27 @@ from xeptions import Xeption
 
 
 class ApprovalDependencyException(Xeption):
-    def __init__(
-        self,
-        message: str,
-        inner_exception: BaseException | None = None,
-    ) -> None:
+    def __init__(self, message: str, inner_exception: BaseException | None = None) -> None:
         super().__init__(message, inner_exception)
 
 
 class ApprovalServiceException(Xeption):
-    def __init__(
-        self,
-        message: str,
-        inner_exception: BaseException | None = None,
-    ) -> None:
+    def __init__(self, message: str, inner_exception: BaseException | None = None) -> None:
         super().__init__(message, inner_exception)
 
 
 class ApprovalValidationException(Xeption):
-    def __init__(
-        self,
-        message: str,
-        inner_exception: BaseException | None = None,
-    ) -> None:
+    def __init__(self, message: str, inner_exception: BaseException | None = None) -> None:
         super().__init__(message, inner_exception)
 
 
 class FailedApprovalDependencyException(Xeption):
-    def __init__(
-        self,
-        message: str,
-        inner_exception: BaseException | None = None,
-    ) -> None:
+    def __init__(self, message: str, inner_exception: BaseException | None = None) -> None:
         super().__init__(message, inner_exception)
 
 
 class FailedApprovalServiceException(Xeption):
-    def __init__(
-        self,
-        message: str,
-        inner_exception: BaseException | None = None,
-    ) -> None:
+    def __init__(self, message: str, inner_exception: BaseException | None = None) -> None:
         super().__init__(message, inner_exception)
 
 

@@ -6,10 +6,14 @@
 from enum import Enum
 
 
-# What happens to an act that nothing explicitly permitted. Explicit permissions (AllowTools,
-# a policy broker, RequireApproval) always answer first. This is only the disposition toward
-# everything they did not mention, which is the case that cannot be enumerated in advance.
 class PermissionMode(Enum):
+    """What happens to an act that nothing explicitly permitted.
+
+    Explicit permissions (AllowTools, a policy broker, RequireApproval) always answer first.
+    This is only the disposition toward everything they did not mention, which is the case that
+    cannot be enumerated in advance.
+    """
+
     # Permitted. The default, and what every release before this one did: an unlisted tool ran
     # without being asked about, which is right for a chat agent and wrong for an agent with hands.
     OPEN = 0

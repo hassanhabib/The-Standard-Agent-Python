@@ -24,12 +24,16 @@ _TRACE = 5
 _LINE_ENDING = re.compile("\r\n|[\r\n\f\u0085  ]")
 
 
-# One resource, wrapped: the log. Both of its faces are the same sink: the logger the host gave
-# us, and the human-readable trace file that is that log written to disk. Nothing else lives
-# here. The decision log is another resource with another broker, and the two meet only by
-# decoration at composition (AuditingLoggingBroker), never by this broker holding that one
-# (principal review 2026-09-04, F-16).
 class StdlibLoggingBroker(LoggingBroker):
+    """One resource, wrapped: the log.
+
+    Both of its faces are the same sink: the logger the host gave us, and the human-readable
+    trace file that is that log written to disk. Nothing else lives here. The decision log is
+    another resource with another broker, and the two meet only by decoration at composition
+    (AuditingLoggingBroker), never by this broker holding that one (principal review 2026-09-04,
+    F-16).
+    """
+
     def __init__(
             self,
             logger: logging.Logger,
@@ -73,9 +77,12 @@ class StdlibLoggingBroker(LoggingBroker):
         self._logger.critical(str(exception), exc_info=exception)
         await self._emit(f"  → CRITICAL: {_replace_line_endings(str(exception), ' ')}")
 
-    # Starts a run. The human-readable trace is transient and is reset here; the decision log is
-    # durable and is not touched by this broker at all (SPEC.md 4.7).
     async def log_reset(self) -> None:
+        """Starts a run.
+
+        The human-readable trace is transient and is reset here; the decision log is durable
+        and is not touched by this broker at all (SPEC.md 4.7).
+        """
         self._run.reset_process_index()
         self._run.started_on = datetime.now(timezone.utc)
 
@@ -104,22 +111,27 @@ class StdlibLoggingBroker(LoggingBroker):
             indented = _replace_line_endings(message, f"{os.linesep}      ")
             await self._emit(f"    Process {self._run.next_process_index()}: {actor}: {indented}")
 
-    # The trace is the human's reading aid, so the payload is written in full: on the same line
-    # when it fits, under the summary when it spans lines.
     async def log_payload(self, actor: str, summary: str, payload: str, detail: bool) -> None:
+        """Writes the payload in full, because the trace is the human's reading aid.
+
+        On the same line as the summary when it fits, under the summary when it spans lines.
+        """
         separator = os.linesep if "\n" in payload else " "
 
         await self.log_process(actor, f"{summary} →{separator}{payload}", detail)
 
-    # The trace is a shared file and one broker serves every concurrent run, so writes are
-    # serialized: without this, sixty-four prompts in flight collide on the handle and most of
-    # them fail with an OSError rather than an answer.
-    #
-    # Concurrent runs interleave in the trace, and each run's reset truncates it. That is the
-    # trace being what SPEC.md 4.7 calls it: transient, a development aid, resettable. The
-    # artifact for a concurrent deployment is the decision log, which is append-only and keeps
-    # every run whole.
     async def _emit(self, line: str) -> None:
+        """Writes one line to the trace file, or to the logger when there is no file.
+
+        The trace is a shared file and one broker serves every concurrent run, so writes are
+        serialized: without this, sixty-four prompts in flight collide on the handle and most of
+        them fail with an OSError rather than an answer.
+
+        Concurrent runs interleave in the trace, and each run's reset truncates it. That is the
+        trace being what SPEC.md 4.7 calls it: transient, a development aid, resettable. The
+        artifact for a concurrent deployment is the decision log, which is append-only and keeps
+        every run whole.
+        """
         if self._log_path is None:
             self._logger.info(line)
 
@@ -134,16 +146,18 @@ def _replace_line_endings(text: str, replacement: str) -> str:
     return _LINE_ENDING.sub(lambda match: replacement, text)
 
 
-# Enum.ToString(): the member's C# name, AgentStep.DATA as "Data".
 def _step_name(step: AgentStep) -> str:
+    """The step as .NET's Enum.ToString() names it: AgentStep.DATA as "Data"."""
     return "".join(word.capitalize() for word in step.name.split("_"))
 
 
-# TimeSpan.TotalMilliseconds formatted F0: whole milliseconds, a midpoint rounded away from
-# zero, as .NET rounds it (Python's own formatting rounds a midpoint to even).
 def _total_milliseconds_f0(elapsed: timedelta) -> str:
+    """TimeSpan.TotalMilliseconds formatted F0: whole milliseconds.
+
+    A midpoint rounds away from zero, as .NET rounds it (Python's own formatting rounds a
+    midpoint to even).
+    """
     microseconds = elapsed // timedelta(microseconds=1)
     milliseconds = Decimal(microseconds) / Decimal(1000)
 
     return str(milliseconds.quantize(Decimal(1), rounding=ROUND_HALF_UP))
-

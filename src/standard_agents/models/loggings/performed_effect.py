@@ -8,14 +8,19 @@ from dataclasses import dataclass, field
 from standard_agents.models.orchestrations.effects.risk_level import RiskLevel
 
 
-# An act this run actually performed, and what it produced. Recorded so the run can be unwound
-# (SPEC.md 4.9): compensation needs the arguments the tool was called with and the outcome it
-# returned, because the outcome carries the identity the undo has to name.
-# Only performed acts are kept. An effect denied by policy, held for approval, or replayed from
-# the ledger was never performed by this run, and compensating it would undo something this run
-# did not do.
 @dataclass(frozen=True)
 class PerformedEffect:
+    """An act this run actually performed, and what it produced.
+
+    Recorded so the run can be unwound (SPEC.md 4.9): compensation needs the arguments the tool
+    was called with and the outcome it returned, because the outcome carries the identity the
+    undo has to name.
+
+    Only performed acts are kept. An effect denied by policy, held for approval, or replayed
+    from the ledger was never performed by this run, and compensating it would undo something
+    this run did not do.
+    """
+
     tool_name: str
     arguments: str
     outcome: str

@@ -7,56 +7,32 @@ from xeptions import Xeption
 
 
 class ExternalToolDependencyException(Xeption):
-    def __init__(
-        self,
-        message: str,
-        inner_exception: BaseException | None = None,
-    ) -> None:
+    def __init__(self, message: str, inner_exception: BaseException | None = None) -> None:
         super().__init__(message, inner_exception)
 
 
 class ExternalToolDependencyValidationException(Xeption):
-    def __init__(
-        self,
-        message: str,
-        inner_exception: BaseException | None = None,
-    ) -> None:
+    def __init__(self, message: str, inner_exception: BaseException | None = None) -> None:
         super().__init__(message, inner_exception)
 
 
 class ExternalToolServiceException(Xeption):
-    def __init__(
-        self,
-        message: str,
-        inner_exception: BaseException | None = None,
-    ) -> None:
+    def __init__(self, message: str, inner_exception: BaseException | None = None) -> None:
         super().__init__(message, inner_exception)
 
 
 class ExternalToolValidationException(Xeption):
-    def __init__(
-        self,
-        message: str,
-        inner_exception: BaseException | None = None,
-    ) -> None:
+    def __init__(self, message: str, inner_exception: BaseException | None = None) -> None:
         super().__init__(message, inner_exception)
 
 
 class FailedExternalToolDependencyException(Xeption):
-    def __init__(
-        self,
-        message: str,
-        inner_exception: BaseException | None = None,
-    ) -> None:
+    def __init__(self, message: str, inner_exception: BaseException | None = None) -> None:
         super().__init__(message, inner_exception)
 
 
 class FailedExternalToolServiceException(Xeption):
-    def __init__(
-        self,
-        message: str,
-        inner_exception: BaseException | None = None,
-    ) -> None:
+    def __init__(self, message: str, inner_exception: BaseException | None = None) -> None:
         super().__init__(message, inner_exception)
 
 

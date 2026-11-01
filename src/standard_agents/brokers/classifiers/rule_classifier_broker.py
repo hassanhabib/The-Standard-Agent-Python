@@ -20,24 +20,33 @@ class RuleClassifierBroker(ClassifierBroker):
     async def classify(self, input: str) -> str:
         matched_rule = next(
             (pattern for pattern in self._refuse_patterns
-                if _contains_ordinal_ignore_case(input, pattern)),
+             if _contains_ordinal_ignore_case(input, pattern)),
             None)
 
-        return (
-            _ACCEPT if matched_rule is None
-            else f"refuse: blocked by rule '{matched_rule}'")
+        if matched_rule is None:
+            return _ACCEPT
+
+        return f"refuse: blocked by rule '{matched_rule}'"
 
     async def assess(self, system_prompt: str, input: str) -> str:
         return _NO_CONFLICT
 
 
-# string.Contains(value, StringComparison.OrdinalIgnoreCase): each character compared by its
-# simple (one character) upper-case mapping, never a culture's.
 def _contains_ordinal_ignore_case(text: str, value: str) -> bool:
+    """string.Contains(value, StringComparison.OrdinalIgnoreCase).
+
+    Each character is compared by its simple (one character) upper-case mapping, never a
+    culture's.
+    """
     return _to_upper_ordinal(value) in _to_upper_ordinal(text)
 
 
 def _to_upper_ordinal(text: str) -> str:
-    return "".join(
-        upper if len(upper) == 1 else character
-        for character, upper in ((character, character.upper()) for character in text))
+    """Uppercases each character on its own, keeping it as it is when its mapping expands."""
+    folded: list[str] = []
+
+    for character in text:
+        upper = character.upper()
+        folded.append(upper if len(upper) == 1 else character)
+
+    return "".join(folded)

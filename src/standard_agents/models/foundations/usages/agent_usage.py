@@ -11,8 +11,7 @@ from typing import ClassVar
 
 @dataclass(frozen=True)
 class AgentUsage:
-    """
-    What one model call consumed.
+    """What one model call consumed.
 
     prompt_tokens: tokens sent, the system prompt, observations and the user message.
     completion_tokens: tokens the model produced in reply.

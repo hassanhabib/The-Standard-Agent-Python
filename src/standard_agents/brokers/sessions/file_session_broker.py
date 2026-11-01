@@ -15,13 +15,13 @@ from standard_agents.brokers.sessions.db_concurrency_exception import DBConcurre
 from standard_agents.brokers.sessions.session_broker import SessionBroker
 from standard_agents.models.brokers.sessions.agent_session import AgentSession
 
-# JsonSerializerOptions.MaxDepth's default.
+# System.Text.Json's default maximum nesting depth.
 _MAX_DEPTH = 64
 
-# Utf8JsonWriter's indentation: two spaces per level.
+# System.Text.Json's indented writer: two spaces per level.
 _INDENT = "  "
 
-# The characters JavaScriptEncoder.Default escapes even inside Basic Latin.
+# The characters .NET's JavaScriptEncoder.Default escapes even inside Basic Latin.
 _HTML_SENSITIVE = frozenset('"&\'+<>`')
 
 _SHORT_ESCAPES = {
@@ -34,15 +34,17 @@ _SHORT_ESCAPES = {
 }
 
 
-# The Local mode: one JSON file per session in a folder.
-#
-# Written to a temporary file and moved into place, so a crash mid-write leaves the previous
-# session intact rather than a half-written one. A session is the thing resumption depends on;
-# corrupting it while saving it would defeat the feature at exactly the moment it is needed.
-#
-# It is a real store rather than an in-memory one on purpose: SPEC.md 4.11 requires resumption
-# to work from a DIFFERENT process, and an in-memory session cannot demonstrate that.
 class FileSessionBroker(SessionBroker):
+    """The Local mode: one JSON file per session in a folder.
+
+    Written to a temporary file and moved into place, so a crash mid-write leaves the previous
+    session intact rather than a half-written one. A session is the thing resumption depends on;
+    corrupting it while saving it would defeat the feature at exactly the moment it is needed.
+
+    It is a real store rather than an in-memory one on purpose: SPEC.md 4.11 requires resumption
+    to work from a DIFFERENT process, and an in-memory session cannot demonstrate that.
+    """
+
     def __init__(self, sessions_path: str) -> None:
         self._sessions_path = os.path.abspath(sessions_path)
 
@@ -57,10 +59,13 @@ class FileSessionBroker(SessionBroker):
         with self._file_lock:
             return _read_session(self._file_for(session_id))
 
-    # Compare-and-swap on the version, a file's stand-in for a store's own: a write based on a
-    # read that is no longer current is refused with the concurrency failure the foundation
-    # localizes, rather than erasing the turn a faster writer stored.
     async def upsert_session(self, session: AgentSession) -> None:
+        """Store the session, compare-and-swap on its version.
+
+        The version is a file's stand-in for a store's own: a write based on a read that is no
+        longer current is refused with the concurrency failure the foundation localizes, rather
+        than erasing the turn a faster writer stored.
+        """
         with self._file_lock:
             os.makedirs(self._sessions_path, exist_ok=True)
 
@@ -80,35 +85,44 @@ class FileSessionBroker(SessionBroker):
 
             os.replace(temporary_file, session_file)
 
-    # A session id comes from the host and may be anything: an email, a ticket reference, a
-    # path fragment. Hashing it keeps it off the filesystem's grammar entirely rather than
-    # trying to sanitize a name that could escape the folder. Lowercase hex, which is
-    # load-bearing: a session written by one implementation must be found by the other.
     def _file_for(self, session_id: str) -> str:
-        safe_name = hashlib.sha256(_utf8_bytes(session_id)).hexdigest()[:32]
+        """The file a session id is stored in.
+
+        A session id comes from the host and may be anything: an email, a ticket reference, a
+        path fragment. Hashing it keeps it off the filesystem's grammar entirely rather than
+        trying to sanitize a name that could escape the folder. Lowercase hex, which is
+        load-bearing: a session written by one implementation must be found by the other.
+        """
+        safe_name = hashlib.sha256(_encode_utf8_replacing_surrogates(session_id)).hexdigest()[:32]
 
         return os.path.join(self._sessions_path, f"{safe_name}.json")
 
 
 def _read_session(session_file: str) -> AgentSession | None:
-    if os.path.isfile(session_file) is False:
+    if not os.path.isfile(session_file):
         return None
 
-    data = _parse(_read_all_text(session_file))
+    data = _parse_strict_json(_read_text_detecting_bom(session_file))
 
     return None if data is None else AgentSession.from_json_dict(data)
 
 
-# Encoding.UTF8.GetBytes: a lone surrogate encodes as U+FFFD, where Python's encoder would raise.
-def _utf8_bytes(value: str) -> bytes:
+def _encode_utf8_replacing_surrogates(value: str) -> bytes:
+    """Encode as .NET's Encoding.UTF8.GetBytes does.
+
+    A lone surrogate encodes as U+FFFD, where Python's encoder would raise.
+    """
     utf16 = value.encode("utf-16-le", errors="surrogatepass")
 
     return utf16.decode("utf-16-le", errors="replace").encode("utf-8")
 
 
-# File.ReadAllText: the encoding a byte order mark names, UTF-8 when there is none, invalid
-# sequences replaced rather than raised, line endings kept as written.
-def _read_all_text(path: str) -> str:
+def _read_text_detecting_bom(path: str) -> str:
+    """Read a whole file as .NET's File.ReadAllText does.
+
+    The encoding a byte order mark names, UTF-8 when there is none, invalid sequences replaced
+    rather than raised, line endings kept as written.
+    """
     with open(path, "rb") as file:
         data = file.read()
 
@@ -134,8 +148,11 @@ def _reject_constant(constant: str) -> Any:
     raise ValueError(f"'{constant}' is an invalid JSON literal.")
 
 
-# JsonSerializer.Deserialize: strict JSON, no NaN or Infinity, nesting no deeper than 64.
-def _parse(text: str) -> Any:
+def _parse_strict_json(text: str) -> Any:
+    """Parse as System.Text.Json's JsonSerializer.Deserialize does.
+
+    Strict JSON, no NaN or Infinity, nesting no deeper than 64.
+    """
     node = json.loads(text, parse_constant=_reject_constant)
     _ensure_depth(node, depth=0)
 
@@ -155,13 +172,17 @@ def _ensure_depth(node: Any, depth: int) -> None:
             _ensure_depth(child, depth)
 
 
-# JsonSerializer.Serialize with WriteIndented: two spaces per level, "name": value, every member
-# and element on its own line, an empty object or array as {} or [], lines ended by the
-# platform's line ending, written with JavaScriptEncoder.Default.
 def _serialize_indented(node: Any, depth: int) -> str:
+    """Write JSON as System.Text.Json's JsonSerializer.Serialize does with WriteIndented.
+
+    Two spaces per level, "name": value, every member and element on its own line, an empty
+    object or array as {} or [], lines ended by the platform's line ending, strings written
+    with JavaScriptEncoder.Default.
+    """
     if node is None:
         return "null"
 
+    # Identity, not truthiness: a JSON boolean has to be told apart from the numbers 1 and 0.
     if node is True:
         return "true"
 
@@ -172,32 +193,35 @@ def _serialize_indented(node: Any, depth: int) -> str:
         return json.dumps(node)
 
     if isinstance(node, str):
-        return _escape(node)
+        return _encode_json_string(node)
 
     inner = os.linesep + _INDENT * (depth + 1)
     closing = os.linesep + _INDENT * depth
 
     if isinstance(node, (list, tuple)):
-        if len(node) == 0:
+        if not node:
             return "[]"
 
         return "[" + inner + ("," + inner).join(
             _serialize_indented(item, depth + 1) for item in node) + closing + "]"
 
     if isinstance(node, dict):
-        if len(node) == 0:
+        if not node:
             return "{}"
 
         return "{" + inner + ("," + inner).join(
-            _escape(key) + ": " + _serialize_indented(value, depth + 1)
+            _encode_json_string(key) + ": " + _serialize_indented(value, depth + 1)
             for key, value in node.items()) + closing + "}"
 
     raise TypeError(f"Cannot write {type(node).__name__} as JSON.")
 
 
-# JavaScriptEncoder.Default: printable Basic Latin passes except the HTML-sensitive characters;
-# everything else is escaped, as \uXXXX in upper-case hex, surrogate pairs as two escapes.
-def _escape(text: str) -> str:
+def _encode_json_string(text: str) -> str:
+    """Quote and escape a string as .NET's JavaScriptEncoder.Default does.
+
+    Printable Basic Latin passes except the HTML-sensitive characters; everything else is
+    escaped, as \\uXXXX in upper-case hex, surrogate pairs as two escapes.
+    """
     parts = ['"']
 
     for character in text:

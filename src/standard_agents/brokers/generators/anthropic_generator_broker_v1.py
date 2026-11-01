@@ -54,26 +54,31 @@ _SHORT_ESCAPES = {
 }
 
 
-# Native tool calling against the Anthropic Messages API: the same GeneratorBrokerV1 seam as
-# the OpenAI-compatible broker, under a different wire shape: system prompts travel as a
-# top-level `system` field, tools carry `input_schema`, the model's choice comes back as
-# `tool_use` content blocks, and a tool's result returns as a `tool_result` block inside a user
-# message. Usage comes back reported (`input_tokens`/`output_tokens`), never guessed.
-#
-# Like its sibling, the request is built as a JSON tree: the tool schemas are already JSON the
-# host wrote, and re-modelling them would only give us a second place for them to be wrong.
 class AnthropicGeneratorBrokerV1(GeneratorBrokerV1):
-    # handler is the host's handler under this broker's traffic (F-23). The handler is the
-    # host's: the opener around it holds nothing of its own.
+    """Native tool calling against the Anthropic Messages API.
+
+    The same GeneratorBrokerV1 seam as the OpenAI-compatible broker, under a different wire
+    shape: system prompts travel as a top-level ``system`` field, tools carry ``input_schema``,
+    the model's choice comes back as ``tool_use`` content blocks, and a tool's result returns as a
+    ``tool_result`` block inside a user message. Usage comes back reported
+    (``input_tokens``/``output_tokens``), never guessed.
+
+    Like its sibling, the request is built as a JSON tree: the tool schemas are already JSON the
+    host wrote, and re-modelling them would only give us a second place for them to be wrong.
+
+    ``handler`` is the host's handler under this broker's traffic (F-23): the opener around it
+    holds nothing of its own.
+    """
+
     def __init__(
-        self,
-        api_key: str,
-        model: str,
-        temperature: float = 0.7,
-        max_tokens: int = 1024,
-        timeout_seconds: int = 120,
-        api_url: str = "https://api.anthropic.com/",
-        handler: urllib.request.BaseHandler | None = None) -> None:
+            self,
+            api_key: str,
+            model: str,
+            temperature: float = 0.7,
+            max_tokens: int = 1024,
+            timeout_seconds: int = 120,
+            api_url: str = "https://api.anthropic.com/",
+            handler: urllib.request.BaseHandler | None = None) -> None:
 
         self._base_address = _to_base_address(api_url)
         self._timeout_seconds = _to_timeout(timeout_seconds)
@@ -114,9 +119,9 @@ class AnthropicGeneratorBrokerV1(GeneratorBrokerV1):
         return _read_result(body)
 
     def _build_request(
-        self,
-        messages: Sequence[ConversationMessage],
-        tools: Sequence[ToolDefinition]) -> dict:
+            self,
+            messages: Sequence[ConversationMessage],
+            tools: Sequence[ToolDefinition]) -> dict:
 
         request = {
             "model": self._model,
@@ -132,22 +137,24 @@ class AnthropicGeneratorBrokerV1(GeneratorBrokerV1):
             for text in (
                 message.content for message in messages
                 if message.role is MessageRole.SYSTEM)
-            if _is_null_or_white_space(text) is False)
+            if not _is_blank(text))
 
-        if _is_null_or_empty(system) is False:
+        if system:
             request["system"] = system
 
-        if len(tools) > 0:
+        if tools:
             request["tools"] = [_tool_to_json(tool) for tool in tools]
 
         return request
 
 
-# The API alternates user and assistant turns, and a tool's result is a `tool_result` block
-# inside a USER message that must directly follow the assistant `tool_use` it answers, so
-# consecutive tool results merge into one user message rather than each claiming a turn of its
-# own.
 def _render_messages(messages: Sequence[ConversationMessage]) -> list:
+    """The conversation as the Messages API's alternating turns.
+
+    A tool's result is a ``tool_result`` block inside a USER message that must directly follow
+    the assistant ``tool_use`` it answers, so consecutive tool results merge into one user
+    message rather than each claiming a turn of its own.
+    """
     rendered: list = []
     pending_tool_results: list = []
 
@@ -176,9 +183,9 @@ def _render_messages(messages: Sequence[ConversationMessage]) -> list:
     return rendered
 
 
-# The pending results land as one user message, and a fresh list replaces them (the C# ref).
 def _flush_tool_results(rendered: list, pending_tool_results: list) -> list:
-    if len(pending_tool_results) == 0:
+    """Land the pending results as one user message; returns the list that replaces them."""
+    if not pending_tool_results:
         return pending_tool_results
 
     rendered.append({
@@ -190,12 +197,12 @@ def _flush_tool_results(rendered: list, pending_tool_results: list) -> list:
 
 
 def _render_content(message: ConversationMessage) -> Any:
-    if len(message.tool_calls) == 0:
+    if not message.tool_calls:
         return message.content
 
     blocks: list = []
 
-    if _is_null_or_white_space(message.content) is False:
+    if not _is_blank(message.content):
         blocks.append({
             "type": "text",
             "text": message.content
@@ -220,19 +227,22 @@ def _tool_to_json(tool: ToolDefinition) -> dict:
     }
 
 
-# Same posture as the sibling broker: a schema that does not parse degrades to an argument-less
-# tool rather than failing the whole turn on one bad schema.
 def _parse_schema(parameters_json: str) -> Any:
+    """A tool's parameters as its input schema.
+
+    Same posture as the sibling broker: a schema that does not parse degrades to an
+    argument-less tool rather than failing the whole turn on one bad schema.
+    """
     parsed = _parse_json_or_empty(parameters_json)
 
-    if isinstance(parsed, dict) and ("type" in parsed) is False:
+    if isinstance(parsed, dict) and "type" not in parsed:
         parsed["type"] = "object"
 
     return parsed
 
 
 def _parse_json_or_empty(text: str) -> Any:
-    if _is_null_or_white_space(text):
+    if _is_blank(text):
         return {}
 
     try:
@@ -259,14 +269,14 @@ def _read_result(body: Any) -> GenerationResult:
                 text.append(_or_default(_get_string(_member(block, "text")), ""))
 
             elif block_type == "tool_use":
-                id = _or_default(_get_string(_member(block, "id")), "")
+                call_id = _or_default(_get_string(_member(block, "id")), "")
                 name = _or_default(_get_string(_member(block, "name")), "")
+                tool_input = _member(block, "input")
+                arguments = "{}" if tool_input is None else _to_json_string(tool_input)
 
-                input = _member(block, "input")
-                arguments = "{}" if input is None else _to_json_string(input)
-
-                if _is_null_or_white_space(name) is False:
-                    tool_calls.append(ModelToolCall(id=id, name=name, arguments_json=arguments))
+                if not _is_blank(name):
+                    tool_calls.append(
+                        ModelToolCall(id=call_id, name=name, arguments_json=arguments))
 
     return GenerationResult(
         content="".join(text),
@@ -275,9 +285,12 @@ def _read_result(body: Any) -> GenerationResult:
         completion_tokens=_or_default(_get_int(_member(usage, "output_tokens")), 0))
 
 
-# JsonNode's indexers. A missing member and the JSON literal null both read as None; indexing a
-# node of the wrong kind is refused (InvalidOperationException, here RuntimeError).
 def _member(node: Any, name: str) -> Any:
+    """JsonNode's member indexer, node?[name].
+
+    A missing member and the JSON literal null both read as None; indexing a node of the wrong
+    kind is refused (InvalidOperationException, here RuntimeError).
+    """
     if node is None:
         return None
 
@@ -287,8 +300,8 @@ def _member(node: Any, name: str) -> Any:
     return node.get(name)
 
 
-# JsonNode.GetValue<string>(): only a JSON string reads as one.
 def _get_string(node: Any) -> str | None:
+    """JsonNode.GetValue<string>(): only a JSON string reads as one."""
     if node is None:
         return None
 
@@ -298,8 +311,8 @@ def _get_string(node: Any) -> str | None:
     return node
 
 
-# JsonNode.GetValue<int>(): only a JSON integer token within Int32 reads as one.
 def _get_int(node: Any) -> int | None:
+    """JsonNode.GetValue<int>(): only a JSON integer token within Int32 reads as one."""
     if node is None:
         return None
 
@@ -318,14 +331,16 @@ def _or_default(value: Any, default: Any) -> Any:
     return default if value is None else value
 
 
-# A number as it was written, the way a parsed JsonNode keeps the raw token and writes it back:
-# a tool's arguments reach the caller exactly as the model wrote their numbers.
 class _RawNumber(str):
-    pass
+    """A JSON number as it was written.
+
+    The way a parsed JsonNode keeps the raw token and writes it back: a tool's arguments reach
+    the caller exactly as the model wrote their numbers.
+    """
 
 
-# JsonNode.Parse: strict JSON, no NaN or Infinity, nesting no deeper than 64.
 def _parse_json(text: str) -> Any:
+    """JsonNode.Parse: strict JSON, no NaN or Infinity, nesting no deeper than 64."""
     try:
         node = json.loads(
             text,
@@ -357,11 +372,15 @@ def _ensure_depth(node: Any, depth: int) -> None:
             _ensure_depth(child, depth)
 
 
-# JsonNode.ToJsonString with default options: compact, written with JavaScriptEncoder.Default.
 def _to_json_string(node: Any) -> str:
+    """JsonNode.ToJsonString with default options.
+
+    Compact, and written with JavaScriptEncoder.Default.
+    """
     if node is None:
         return "null"
 
+    # Identity, not truthiness: a bool is an int, and 1 and 0 must stay numbers.
     if node is True:
         return "true"
 
@@ -391,11 +410,15 @@ def _to_json_string(node: Any) -> str:
     raise TypeError(f"Cannot write {type(node).__name__} as JSON.")
 
 
-# A double as System.Text.Json writes it: the shortest round-trip form, no ".0" on a whole
-# number, an upper-case exponent, and NaN or Infinity refused.
 def _format_double(value: float) -> str:
+    """A double as System.Text.Json writes it.
+
+    The shortest round-trip form, no ".0" on a whole number, an upper-case exponent, and NaN or
+    Infinity refused.
+    """
     if value != value or value in (float("inf"), float("-inf")):
-        raise ValueError(".NET number values such as positive and negative infinity cannot be "
+        raise ValueError(
+            ".NET number values such as positive and negative infinity cannot be "
             "written as valid JSON.")
 
     text = repr(value)
@@ -406,9 +429,12 @@ def _format_double(value: float) -> str:
     return text.replace("e", "E")
 
 
-# JavaScriptEncoder.Default: printable Basic Latin passes except the HTML-sensitive characters;
-# everything else is escaped, as \uXXXX in upper-case hex, surrogate pairs as two escapes.
 def _escape(text: str) -> str:
+    """A JSON string as JavaScriptEncoder.Default writes it.
+
+    Printable Basic Latin passes except the HTML-sensitive characters; everything else is
+    escaped, as \\uXXXX in upper-case hex, surrogate pairs as two escapes.
+    """
     parts = ['"']
 
     for character in text:
@@ -430,15 +456,16 @@ def _escape(text: str) -> str:
     return "".join(parts)
 
 
-# HttpClient.PostAsync (the body buffered inside the call), EnsureSuccessStatusCode, then
-# ReadAsStringAsync. A request that never got an answer is an HttpRequestException, as is a
-# status outside 2xx (carrying that status). A timeout is not: HttpClient cancels the request,
-# so it stays a TimeoutError rather than claiming a refusal.
 def _post(
-    opener: urllib.request.OpenerDirector,
-    http_request: urllib.request.Request,
-    timeout_seconds: float) -> str:
+        opener: urllib.request.OpenerDirector,
+        http_request: urllib.request.Request,
+        timeout_seconds: float) -> str:
+    """HttpClient.PostAsync, EnsureSuccessStatusCode, then ReadAsStringAsync.
 
+    The body is buffered inside the call. A request that never got an answer is an
+    HttpRequestException, as is a status outside 2xx (carrying that status). A timeout is not:
+    HttpClient cancels the request, so it stays a TimeoutError rather than claiming a refusal.
+    """
     try:
         with opener.open(http_request, timeout=timeout_seconds) as http_response:
             body = http_response.read()
@@ -464,9 +491,12 @@ def _post(
     return _decode(body, charset)
 
 
-# HttpContent.ReadAsStringAsync: the charset the response names, UTF-8 when it names none, a
-# UTF-8 byte-order mark skipped, and an undecodable byte replaced rather than refused.
 def _decode(body: bytes, charset: str | None) -> str:
+    """HttpContent.ReadAsStringAsync's decoding.
+
+    The charset the response names, UTF-8 when it names none, a UTF-8 byte-order mark skipped,
+    and an undecodable byte replaced rather than refused.
+    """
     encoding = codecs.lookup(charset or "utf-8").name
 
     if encoding == "utf-8":
@@ -475,8 +505,11 @@ def _decode(body: bytes, charset: str | None) -> str:
     return body.decode(encoding, errors="replace")
 
 
-# HttpClient sends no User-Agent of its own, so urllib's default one is dropped.
 def _build_opener(handler: urllib.request.BaseHandler | None) -> urllib.request.OpenerDirector:
+    """An opener over the host's handler, if any.
+
+    HttpClient sends no User-Agent of its own, so urllib's default one is dropped.
+    """
     opener = (
         urllib.request.build_opener() if handler is None
         else urllib.request.build_opener(handler))
@@ -486,16 +519,16 @@ def _build_opener(handler: urllib.request.BaseHandler | None) -> urllib.request.
     return opener
 
 
-# new Uri(apiUrl): an address that is not absolute is refused when the broker is built.
 def _to_base_address(api_url: str) -> str:
+    """new Uri(apiUrl): an address that is not absolute is refused when the broker is built."""
     if not urllib.parse.urlsplit(api_url).scheme:
         raise ValueError("Invalid URI: The format of the URI could not be determined.")
 
     return api_url
 
 
-# HttpClient.Timeout refuses a span that is not positive.
 def _to_timeout(timeout_seconds: int) -> float:
+    """HttpClient.Timeout refuses a span that is not positive."""
     if timeout_seconds <= 0:
         raise ValueError(
             "Specified argument was out of the range of valid values. (Parameter 'value')")
@@ -503,12 +536,11 @@ def _to_timeout(timeout_seconds: int) -> float:
     return float(timeout_seconds)
 
 
-def _is_null_or_empty(text: str | None) -> bool:
-    return text is None or len(text) == 0
+def _is_blank(text: str | None) -> bool:
+    """string.IsNullOrWhiteSpace, over char.IsWhiteSpace's own set.
 
-
-# string.IsNullOrWhiteSpace, with char.IsWhiteSpace's own set.
-def _is_null_or_white_space(text: str | None) -> bool:
+    Not str.isspace: .NET does not count U+001C..U+001F as white space.
+    """
     if text is None:
         return True
 

@@ -11,10 +11,14 @@ from typing import Any
 _MISSING = object()
 
 
-# Wire names follow JsonNamingPolicy.CamelCase; reads are case-insensitive and null values are
-# omitted on write (WhenWritingNull), as the HttpMcpBroker's serializer options leave them.
 @dataclass(frozen=True)
 class ToolListParams:
+    """The params of a tools/list request: the cursor of the page to read.
+
+    Wire names follow JsonNamingPolicy.CamelCase; reads are case-insensitive and null values are
+    omitted on write (WhenWritingNull), as the HttpMcpBroker's serializer options leave them.
+    """
+
     cursor: str
 
     def to_json_dict(self) -> dict:
@@ -29,11 +33,14 @@ class ToolListParams:
         if not isinstance(data, dict):
             raise ValueError("The JSON value could not be converted to ToolListParams.")
 
-        return cls(cursor=_as_string(_read(data, "cursor")))
+        return cls(cursor=_as_string(_read_ignoring_case(data, "cursor")))
 
 
-# PropertyNameCaseInsensitive: every key matching ignoring case is read, the last one wins.
-def _read(data: dict, name: str) -> Any:
+def _read_ignoring_case(data: dict, name: str) -> Any:
+    """Read a property the way PropertyNameCaseInsensitive does.
+
+    Every key that matches the name ignoring case is read, and the last one wins.
+    """
     found = _MISSING
 
     for key, value in data.items():
@@ -43,8 +50,11 @@ def _read(data: dict, name: str) -> Any:
     return found
 
 
-# An absent constructor parameter is default(string), which is null.
 def _as_string(value: Any) -> str | None:
+    """Read a JSON string, reading an absent or null value as None.
+
+    An absent constructor parameter is default(string), which is null.
+    """
     if value is _MISSING or value is None:
         return None
 

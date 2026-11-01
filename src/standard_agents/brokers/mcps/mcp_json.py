@@ -3,15 +3,17 @@
 # Licensed under the The Standard Software License (TSSL)
 # ---------------------------------------------------------------
 
+"""The System.Text.Json behaviours the two MCP brokers rely on.
+
+Python's json module does not have them: a parsed number that writes back the token it was read
+from (JsonNode.ToJsonString), the default encoder's escaping (JsonSerializer.Serialize,
+JsonNode.ToJsonString), and the exact text a member arrived as (JsonElement.GetRawText).
+"""
+
 from __future__ import annotations
 
 import json
 from typing import Any
-
-# The System.Text.Json behaviours the two MCP brokers rely on, which Python's json module does
-# not have: a parsed number that writes back the token it was read from (JsonNode.ToJsonString),
-# the default encoder's escaping (JsonSerializer.Serialize, JsonNode.ToJsonString), and the
-# exact text a member arrived as (JsonElement.GetRawText).
 
 _WHITESPACE = " \t\n\r"
 _HTML_SENSITIVE = "&'+<>`"
@@ -19,8 +21,9 @@ _SHORT_ESCAPES = {"\\": "\\\\", "\b": "\\b", "\t": "\\t", "\n": "\\n", "\f": "\\
 _DECODER = json.JSONDecoder()
 
 
-# A JSON integer that keeps its token: an int to every reader, its own text to the writer.
 class JsonInteger(int):
+    """A JSON integer that keeps its token: an int to every reader, its own text to the writer."""
+
     text: str
 
     def __new__(cls, text: str) -> JsonInteger:
@@ -33,8 +36,9 @@ class JsonInteger(int):
         return (JsonInteger, (self.text,))
 
 
-# A JSON number with a fraction or an exponent, kept as JsonInteger keeps an integer.
 class JsonFloat(float):
+    """A JSON number with a fraction or an exponent, kept as JsonInteger keeps an integer."""
+
     text: str
 
     def __new__(cls, text: str) -> JsonFloat:
@@ -47,9 +51,12 @@ class JsonFloat(float):
         return (JsonFloat, (self.text,))
 
 
-# JsonNode.Parse: objects are dicts, arrays lists, numbers keep their tokens, and a JSON null is
-# None. NaN and Infinity are not JSON to System.Text.Json, so they are not JSON here.
 def parse(text: str) -> Any:
+    """Parse as JsonNode.Parse does.
+
+    Objects are dicts, arrays lists, numbers keep their tokens, and a JSON null is None. NaN and
+    Infinity are not JSON to System.Text.Json, so they are not JSON here.
+    """
     return json.loads(
         text,
         parse_int=JsonInteger,
@@ -57,13 +64,16 @@ def parse(text: str) -> Any:
         parse_constant=_reject_constant)
 
 
-# JsonNode.ToJsonString and JsonSerializer.Serialize with the default encoder: no whitespace,
-# numbers as they were read, and every character outside printable ASCII, every HTML-sensitive
-# character and the double quote written as an uppercase \uXXXX escape.
 def to_json_string(value: Any) -> str:
+    """Write as JsonNode.ToJsonString and JsonSerializer.Serialize with the default encoder do.
+
+    No whitespace, numbers as they were read, and every character outside printable ASCII, every
+    HTML-sensitive character and the double quote written as an uppercase \\uXXXX escape.
+    """
     if value is None:
         return "null"
 
+    # Identity, not truthiness: a bool is an int, and 1 and 0 must stay numbers.
     if value is True:
         return "true"
 
@@ -93,10 +103,13 @@ def to_json_string(value: Any) -> str:
     raise TypeError(f"The type '{type(value).__name__}' cannot be written as JSON.")
 
 
-# JsonElement.GetRawText of an object's member, matched as the case-insensitive deserializer
-# matches it (the last member whose name matches ignoring case). None when text is not an
-# object or has no such member. text must already be valid JSON.
 def raw_member(text: str | None, name: str) -> str | None:
+    """JsonElement.GetRawText of an object's member.
+
+    Matched as the case-insensitive deserializer matches it (the last member whose name matches
+    ignoring case). None when text is not an object or has no such member. text must already be
+    valid JSON.
+    """
     if text is None:
         return None
 
@@ -128,8 +141,8 @@ def raw_member(text: str | None, name: str) -> str | None:
         index = _skip_whitespace(text, index + 1)
 
 
-# JsonElement.GetRawText of each item of an array. None when text is not an array.
 def raw_items(text: str | None) -> list[str] | None:
+    """JsonElement.GetRawText of each item of an array. None when text is not an array."""
     if text is None:
         return None
 

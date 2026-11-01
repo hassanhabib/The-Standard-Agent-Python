@@ -11,9 +11,12 @@ from standard_agents.brokers.audits.audit_broker import AuditBroker
 from standard_agents.models.brokers.audits.audit_record import AuditRecord
 
 
-# The Custom mode's substrate: a host-supplied function standing in for a broker, the same shape
-# FunctionGeneratorBroker gives a host-supplied brain.
 class FunctionAuditBroker(AuditBroker):
+    """The Custom mode's substrate: a host-supplied function standing in for a broker.
+
+    The same shape FunctionGeneratorBroker gives a host-supplied brain.
+    """
+
     def __init__(self, write: Callable[[AuditRecord], Awaitable[None]]) -> None:
         self._write = write
 

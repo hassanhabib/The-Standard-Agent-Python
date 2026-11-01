@@ -10,8 +10,9 @@ from typing import Awaitable, Callable, Sequence
 from standard_agents.brokers.memories.memory_broker import MemoryBroker
 
 
-# The Custom mode's substrate for memory (SPEC.md 4.8).
 class FunctionMemoryBroker(MemoryBroker):
+    """The Custom mode's substrate for memory (SPEC.md 4.8)."""
+
     def __init__(
             self,
             recall: Callable[[], Awaitable[Sequence[str]]],

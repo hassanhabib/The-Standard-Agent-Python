@@ -11,11 +11,14 @@ from standard_agents.brokers.skills.skill_broker import SkillBroker
 from standard_agents.models.foundations.skills.skill import Skill
 
 
-# Many skill sources (folders, registries, delegates) as the one stream the agent reads. The
-# sources are read in registration order and their skills concatenate, so what a skill file
-# relies on (earlier files establish context for later ones) holds across sources exactly as it
-# holds across files within one folder.
 class CompositeSkillBroker(SkillBroker):
+    """Many skill sources (folders, registries, delegates) as the one stream the agent reads.
+
+    The sources are read in registration order and their skills concatenate, so what a skill
+    file relies on (earlier files establish context for later ones) holds across sources exactly
+    as it holds across files within one folder.
+    """
+
     def __init__(self, brokers: Iterable[SkillBroker]) -> None:
         self._brokers: tuple[SkillBroker, ...] = tuple(brokers)
 

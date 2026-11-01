@@ -63,21 +63,24 @@ class _HttpResponse:
 
 
 class HttpMcpBroker(McpBroker):
-    # C# has two constructors: the one without a handler builds a default one, the other takes
-    # the host's (F-23). Here the handler is a urllib OpenerDirector, the composition of handlers
-    # urllib sends through; it is the host's, and this broker never closes it. A dynamic token is
-    # asked for on every request, because the one from composition time expires (OAuth). Static
-    # credentials ride the default headers; the provider, when present, wins over both.
+    """An MCP server reached over Streamable HTTP.
+
+    ``handler`` is the host's (F-23): a urllib OpenerDirector, the composition of handlers urllib
+    sends through, which this broker never closes; without one, a default is built. A dynamic
+    token is asked for on every request, because the one from composition time expires (OAuth).
+    Static credentials ride the default headers; the provider, when present, wins over both.
+    """
+
     def __init__(
-        self,
-        endpoint_url: str,
-        relative_url: str,
-        timeout_seconds: int,
-        bearer_token: str | None = None,
-        api_key: str | None = None,
-        api_key_header: str = "X-Api-Key",
-        bearer_token_provider: Callable[[], Awaitable[str]] | None = None,
-        handler: urllib.request.OpenerDirector | None = None) -> None:
+            self,
+            endpoint_url: str,
+            relative_url: str,
+            timeout_seconds: int,
+            bearer_token: str | None = None,
+            api_key: str | None = None,
+            api_key_header: str = "X-Api-Key",
+            bearer_token_provider: Callable[[], Awaitable[str]] | None = None,
+            handler: urllib.request.OpenerDirector | None = None) -> None:
 
         # HttpClient.BaseAddress takes an absolute address only, and Timeout a positive one.
         if not urllib.parse.urlsplit(endpoint_url).scheme:
@@ -162,8 +165,10 @@ class HttpMcpBroker(McpBroker):
 
         return tools
 
-    # Returns the page and the raw JSON of the page, which the schemas are read from verbatim.
-    async def _list_tools_page(self, cursor: str | None) -> tuple[ToolListResult | None, str | None]:
+    async def _list_tools_page(
+            self,
+            cursor: str | None) -> tuple[ToolListResult | None, str | None]:
+        """The page and the raw JSON of the page, which the schemas are read from verbatim."""
         json_rpc_request = JsonRpcRequest(
             json_rpc=_JSON_RPC_VERSION,
             id=self._next_request_id(),
@@ -185,7 +190,7 @@ class HttpMcpBroker(McpBroker):
             return
 
         async with self._initialization_lock:
-            if self._is_initialized is False:
+            if not self._is_initialized:
                 await self._initialize()
                 self._is_initialized = True
 
@@ -208,8 +213,8 @@ class HttpMcpBroker(McpBroker):
 
         initialize_response, _ = _read(initialize_http_response, JsonRpcInitializeResponse)
 
-        if initialize_response.error is not None \
-                and initialize_response.error.code == _METHOD_NOT_FOUND_CODE:
+        if (initialize_response.error is not None
+                and initialize_response.error.code == _METHOD_NOT_FOUND_CODE):
             return
 
         if initialize_response.error is not None:
@@ -250,16 +255,16 @@ class HttpMcpBroker(McpBroker):
                 self._protocol_version = None
                 await self._initialize()
 
-    # The response is closed unread, as the C# disposes it unread.
     async def _notify(self, relative_url: str, content: Any) -> None:
+        """Send a notification; the response is closed unread."""
         await self._send(relative_url, content, self._start_deadline(), read_body=False)
 
     async def _send(
-        self,
-        relative_url: str,
-        content: Any,
-        deadline: float,
-        read_body: bool = True) -> _HttpResponse:
+            self,
+            relative_url: str,
+            content: Any,
+            deadline: float,
+            read_body: bool = True) -> _HttpResponse:
 
         remaining_seconds = deadline - asyncio.get_running_loop().time()
 
@@ -271,11 +276,11 @@ class HttpMcpBroker(McpBroker):
             raise TimeoutError(self._timeout_message()) from timeout_error
 
     async def _send_until(
-        self,
-        relative_url: str,
-        content: Any,
-        read_body: bool,
-        remaining_seconds: float) -> _HttpResponse:
+            self,
+            relative_url: str,
+            content: Any,
+            read_body: bool,
+            remaining_seconds: float) -> _HttpResponse:
 
         request_json = mcp_json.to_json_string(content)
         headers = dict(self._default_headers)
@@ -334,10 +339,10 @@ class HttpMcpBroker(McpBroker):
 
 
 def _exchange(
-    handler: urllib.request.OpenerDirector,
-    request: urllib.request.Request,
-    timeout_seconds: float,
-    read_body: bool) -> _HttpResponse:
+        handler: urllib.request.OpenerDirector,
+        request: urllib.request.Request,
+        timeout_seconds: float,
+        read_body: bool) -> _HttpResponse:
 
     try:
         response = handler.open(request, timeout=timeout_seconds)
@@ -359,8 +364,10 @@ def _to_text(json_rpc_response: JsonRpcResponse, response_json: str) -> str:
     contents = (result.content if result is not None else None) or ()
     text = "".join(_content_to_text(content) for content in contents)
 
-    if len(text) == 0 and result is not None and result.structured_content is not None:
-        return mcp_json.raw_member(mcp_json.raw_member(response_json, "result"), "structuredContent")
+    if not text and result is not None and result.structured_content is not None:
+        return mcp_json.raw_member(
+            mcp_json.raw_member(response_json, "result"),
+            "structuredContent")
 
     return text
 
@@ -385,10 +392,12 @@ def _is_expired_session(http_response: _HttpResponse, sent_session_id: str | Non
     return http_response.status_code == 404 and sent_session_id is not None
 
 
-# ReadAsync: RESTFulSense validates the status (reading the whole body), then the body, or the
-# event that answers inside an event stream, is deserialized. Returns the model and the JSON it
-# was read from.
 def _read(http_response: _HttpResponse, result_type: type) -> tuple[Any, str]:
+    """The model and the JSON it was read from.
+
+    As RESTFulSense's ReadAsync: the status is validated (reading the whole body), then the body,
+    or the event that answers inside an event stream, is deserialized.
+    """
     content_type = http_response.headers.get("Content-Type")
     content = read_as_string(http_response.body, content_type)
     validate_http_response(http_response.status_code, content_type, content)
@@ -403,13 +412,16 @@ def _read(http_response: _HttpResponse, result_type: type) -> tuple[Any, str]:
 
 
 def _is_event_stream(content_type: str | None) -> bool:
-    return content_type is not None \
-        and content_type.split(";")[0].strip() == _EVENT_STREAM_MEDIA_TYPE
+    return (
+        content_type is not None
+        and content_type.split(";")[0].strip() == _EVENT_STREAM_MEDIA_TYPE)
 
 
-# A StreamReader over the body: UTF-8 unless a byte order mark says otherwise, whatever the
-# charset says.
 def _read_response_from_event_stream(body: bytes) -> str:
+    """The data of the event that answers, read as a StreamReader over the body reads it.
+
+    UTF-8 unless a byte order mark says otherwise, whatever the charset says.
+    """
     event_data: list[str] = []
 
     for line in _read_lines(read_as_string(body, None)):
@@ -418,10 +430,10 @@ def _read_response_from_event_stream(body: bytes) -> str:
 
             continue
 
-        if len(line) == 0 and _is_response("".join(event_data)):
+        if not line and _is_response("".join(event_data)):
             return "".join(event_data)
 
-        if len(line) == 0:
+        if not line:
             event_data.clear()
 
     if _is_response("".join(event_data)):
@@ -431,10 +443,14 @@ def _read_response_from_event_stream(body: bytes) -> str:
 
 
 def _read_lines(text: str) -> list[str]:
+    """The lines StreamReader.ReadLine yields: ended by \\r\\n, \\r or \\n.
+
+    ReadLine yields no empty line after a final line break, nor for an empty stream, which
+    str.splitlines does not match (it also breaks on \\v, \\f, \\x1c..\\x1e, \\x85 and more).
+    """
     lines = _LINE_BREAK.split(text)
 
-    # ReadLine yields no empty line after a final line break, nor for an empty stream.
-    if lines[-1] == "":
+    if not lines[-1]:
         lines.pop()
 
     return lines
@@ -447,7 +463,7 @@ def _to_field_value(line: str) -> str:
 
 
 def _is_response(event_data: str) -> bool:
-    if len(event_data) == 0 or event_data.isspace():
+    if not event_data or event_data.isspace():
         return False
 
     message = mcp_json.parse(event_data)
@@ -455,13 +471,13 @@ def _is_response(event_data: str) -> bool:
     return isinstance(message, dict) and ("result" in message or "error" in message)
 
 
-# C# string interpolation writes null as nothing.
 def _text(value: str | None) -> str:
+    """The value as C# string interpolation writes it: null as nothing."""
     return "" if value is None else value
 
 
-# The assembly version in C#; the installed distribution's version here, empty when there is none.
 def _client_version() -> str:
+    """The installed distribution's version (the assembly version in C#), empty when none."""
     try:
         return importlib.metadata.version("standard-agents")
     except importlib.metadata.PackageNotFoundError:

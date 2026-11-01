@@ -32,17 +32,23 @@ _SHORT_ESCAPES = {
 _DATE_TIME_OFFSET_KEYS = frozenset({"claimedOn", "leaseUntil", "recordedOn"})
 
 
-# The Local mode of the ledger: one JSON file per act, in a folder, so run-once survives the
-# process (SPEC.md 4.9). Local and single-process by design: the atomic claim is the file
-# system's create-new, which one machine honours; a fleet shares a ledger through
-# use_effect_ledger.
 class FileEffectLedgerBroker(EffectLedgerBroker):
+    """The Local mode of the ledger: one JSON file per act, in a folder.
+
+    Run-once survives the process (SPEC.md 4.9). Local and single-process by design: the atomic
+    claim is the file system's create-new, which one machine honours; a fleet shares a ledger
+    through use_effect_ledger.
+    """
+
     def __init__(self, ledger_path: str) -> None:
         self._ledger_path = os.path.abspath(ledger_path)
 
-    # Claim and write in one step: create-new refuses a key that already has a file, which is
-    # exactly what run-once needs to know, and the record is written into the file so created.
     async def insert_claim(self, claim: EffectRecord) -> bool:
+        """Claims and writes in one step.
+
+        Create-new refuses a key that already has a file, which is exactly what run-once needs to
+        know, and the record is written into the file so created.
+        """
         os.makedirs(self._ledger_path, exist_ok=True)
 
         try:
@@ -51,7 +57,7 @@ class FileEffectLedgerBroker(EffectLedgerBroker):
 
             return True
         except PermissionError:
-            # C#: UnauthorizedAccessException is not an IOException, so it is not caught.
+            # UnauthorizedAccessException is not an IOException, so it is not caught.
             raise
         except OSError:
             return False
@@ -59,16 +65,19 @@ class FileEffectLedgerBroker(EffectLedgerBroker):
     async def select_record(self, idempotency_key: str) -> EffectRecord | None:
         file = self._file_for(idempotency_key)
 
-        if os.path.isfile(file) is False:
+        if not os.path.isfile(file):
             return None
 
         data = _parse(_read_all_text(file))
 
         return None if data is None else EffectRecord.from_json_dict(data)
 
-    # Written aside and moved into place, so a crash mid-write leaves the previous record
-    # standing rather than a half-written one that would read as a different act.
     async def update_record(self, record: EffectRecord) -> None:
+        """Writes the record aside and moves it into place.
+
+        A crash mid-write leaves the previous record standing rather than a half-written one
+        that would read as a different act.
+        """
         os.makedirs(self._ledger_path, exist_ok=True)
         file = self._file_for(record.idempotency_key)
         temporary_file = f"{file}.writing"
@@ -90,15 +99,21 @@ class FileEffectLedgerBroker(EffectLedgerBroker):
 
             raise
 
-    # The key is already a hash (SPEC.md 4.9 requires it derived, never supplied), so it is a
-    # safe file name as it stands.
     def _file_for(self, idempotency_key: str) -> str:
+        """The record's file, named by its key.
+
+        The key is already a hash (SPEC.md 4.9 requires it derived, never supplied), so it is a
+        safe file name as it stands.
+        """
         return os.path.join(self._ledger_path, f"{idempotency_key}.json")
 
 
-# File.ReadAllText: the encoding a byte order mark names, UTF-8 when there is none, invalid
-# sequences replaced rather than raised, line endings kept as written.
 def _read_all_text(path: str) -> str:
+    """Reads a file as .NET's File.ReadAllText does.
+
+    The encoding a byte order mark names, UTF-8 when there is none, invalid sequences replaced
+    rather than raised, line endings kept as written.
+    """
     with open(path, "rb") as file:
         data = file.read()
 
@@ -124,8 +139,8 @@ def _reject_constant(constant: str) -> Any:
     raise ValueError(f"'{constant}' is an invalid JSON literal.")
 
 
-# JsonSerializer.Deserialize: strict JSON, no NaN or Infinity, nesting no deeper than 64.
 def _parse(text: str) -> Any:
+    """Parses as JsonSerializer.Deserialize: strict JSON, no NaN or Infinity, depth at most 64."""
     node = json.loads(text, parse_constant=_reject_constant)
     _ensure_depth(node, depth=0)
 
@@ -145,11 +160,12 @@ def _ensure_depth(node: Any, depth: int) -> None:
             _ensure_depth(child, depth)
 
 
-# JsonSerializer.Serialize with these options: compact, written with JavaScriptEncoder.Default.
 def _serialize(node: Any) -> str:
+    """Writes compact JSON as JsonSerializer.Serialize does with JavaScriptEncoder.Default."""
     if node is None:
         return "null"
 
+    # Identity, not truthiness: True and False are ints too, and 1 or 0 must stay numbers.
     if node is True:
         return "true"
 
@@ -175,9 +191,12 @@ def _serialize(node: Any) -> str:
     raise TypeError(f"Cannot write {type(node).__name__} as JSON.")
 
 
-# JavaScriptEncoder.Default: printable Basic Latin passes except the HTML-sensitive characters;
-# everything else is escaped, as \uXXXX in upper-case hex, surrogate pairs as two escapes.
 def _escape(text: str) -> str:
+    """Quotes and escapes a string as JavaScriptEncoder.Default does.
+
+    Printable Basic Latin passes except the HTML-sensitive characters; everything else is
+    escaped, as \\uXXXX in upper-case hex, surrogate pairs as two escapes.
+    """
     parts = ['"']
 
     for character in text:

@@ -8,10 +8,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
-# Whether an effect may proceed, and why. The reason is not optional: a denial without one
-# cannot be audited, cannot be appealed, and cannot be told apart from a fault (SPEC.md 4.1).
 @dataclass(frozen=True)
 class AuthorizationDecision:
+    """Whether an effect may proceed, and why.
+
+    The reason is not optional: a denial without one cannot be audited, cannot be appealed, and
+    cannot be told apart from a fault (SPEC.md 4.1).
+    """
+
     permitted: bool
     reason: str
 

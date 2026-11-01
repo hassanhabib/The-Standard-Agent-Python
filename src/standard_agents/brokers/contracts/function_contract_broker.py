@@ -10,9 +10,12 @@ from typing import Awaitable, Callable
 from standard_agents.brokers.contracts.contract_broker import ContractBroker
 
 
-# The Custom mode's substrate: host-supplied validation, for rules a schema cannot express (a
-# total that must equal the sum of its lines, an account that must exist).
 class FunctionContractBroker(ContractBroker):
+    """The Custom mode's substrate: host-supplied validation, for rules a schema cannot express.
+
+    A total that must equal the sum of its lines, an account that must exist.
+    """
+
     def __init__(self, validate: Callable[[str, str], Awaitable[str | None]]) -> None:
         self._validate = validate
 

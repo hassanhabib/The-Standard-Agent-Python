@@ -12,8 +12,11 @@ T = TypeVar("T")
 
 
 class ResilienceBroker(ABC):
-    # result_type is the C# type argument T, which Python does not carry at run time: a broker
-    # that shapes a result of its own (a fallback) needs to know which protocol is asking.
     @abstractmethod
     async def execute(self, operation: Callable[[], Awaitable[T]], result_type: type[T]) -> T:
-        ...
+        """Run the operation under this broker's policy.
+
+        result_type names the type of the operation's result, which Python does not carry at
+        run time: a broker that shapes a result of its own (a fallback) needs to know which
+        protocol is asking.
+        """

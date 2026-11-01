@@ -33,6 +33,28 @@ the C# framework.
 Exception models keep their C# class names, because callers catch them by name, and live one
 module per entity: `models/foundations/memories/exceptions.py`.
 
+### Broker names
+
+Where a C# concrete broker shared its interface's name, the ABC keeps the name and the concrete
+class says what it is:
+
+| C# | Python ABC | Python concrete |
+|---|---|---|
+| `IGeneratorBroker`, `GeneratorBroker` | `GeneratorBroker` | `OpenAiGeneratorBroker` |
+| `IGeneratorBrokerV1`, `GeneratorBrokerV1` | `GeneratorBrokerV1` | `OpenAiGeneratorBrokerV1` |
+| `IClassifierBroker`, `ClassifierBroker` | `ClassifierBroker` | `OpenAiClassifierBroker` |
+| `IVerifierBroker`, `VerifierBroker` | `VerifierBroker` | `OpenAiVerifierBroker` |
+| `IMcpBroker`, `McpBroker` | `McpBroker` | `HttpMcpBroker` |
+| `ILoggingBroker`, `LoggingBroker` | `LoggingBroker` | `StdlibLoggingBroker` |
+| `IFileBroker`, `FileBroker` | `FileBroker` | `LocalFileBroker` |
+| `ITimeBroker`, `TimeBroker` | `TimeBroker` | `SystemTimeBroker` |
+| `IToolBroker`, `ToolBroker` | `ToolBroker` | `InMemoryToolBroker` |
+| `ITool` | `Tool` | |
+| `IAgent` | `Agent` (`standard_agents.agent`) | |
+
+Every other concrete broker already said what it was (`FunctionMemoryBroker`,
+`FileSessionBroker`, `RetryingGeneratorBroker`) and keeps its C# name.
+
 ## Paths
 
 | C# | Python |
@@ -47,15 +69,16 @@ pytest, written the way pytest is meant to be written:
 
 | C# | Python |
 |---|---|
-| `MemoryServiceTests.cs` (constructor building mocks and the service) | `tests/unit/services/foundations/memories/conftest.py` with fixtures: `memory_broker`, `logging_broker`, `memory_service` |
-| `MemoryServiceTests.Logic.Remember.cs` | `test_memory_service_logic_remember.py`, module-level test functions taking those fixtures |
+| `MemoryServiceTests.cs` (constructor building mocks and the service) | `tests/unit/services/foundations/memories/conftest.py` with fixtures: `memory_broker`, `logging_broker`, `memory_service`, and factory fixtures for random data (`create_random_string`) |
+| `MemoryServiceTests.Logic.Remember.cs`, `.Logic.RecallMemories.cs`, ... | one module per kind, not per method: `test_memory_service_logic.py`, `test_memory_service_validations.py`, `test_memory_service_exceptions.py`. The split is The Standard's; the file-per-method layout is only how C# organizes partial classes |
 | `[Fact] public async Task ShouldRememberAsync()` | `async def test_should_remember(memory_service, memory_broker):` (pytest-asyncio, auto mode); the name is what `tools/parity.py` matches |
 | `[Theory]` with `[InlineData]` / `[MemberData]` | `@pytest.mark.parametrize` |
 | `new Mock<IMemoryBroker>()` | `create_autospec(MemoryBroker, instance=True)` |
 | `.ReturnsAsync(x)` / `.ThrowsAsync(e)` | `.return_value = x` / `.side_effect = e` |
 | `Verify(..., Times.Once)` and `VerifyNoOtherCalls()` | `assert memory_broker.mock_calls == [call.insert_memory(memory)]` |
 | `Assert.ThrowsAsync<T>` | `with pytest.raises(T) as raised:` |
-| `It.Is(SameExceptionAs(expected))`, `BeEquivalentTo` | `assert raised.value.same_exception_as(expected)`; `==` for dataclasses |
+| `BeEquivalentTo` on an exception | `assert raised.value.same_exception_as(expected)`; `==` for dataclasses |
+| `It.Is(SameExceptionAs(expected))` in a `Verify` | `call.log_error(same_exception_as(expected))`, where the `same_exception_as` fixture is a small matcher class in `conftest.py` |
 | `DeepClone()` | `copy.deepcopy` |
 | Tynamix random values | small helpers in `conftest.py` over `uuid` and `random` |
 

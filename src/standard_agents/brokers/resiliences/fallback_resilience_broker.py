@@ -14,27 +14,31 @@ from standard_agents.models.brokers.generators.v1.conversation import Generation
 
 T = TypeVar("T")
 
-# default(DateTimeOffset): the circuit has never opened.
+# The circuit has never opened: the earliest instant, as .NET's default(DateTimeOffset).
 _NEVER = datetime.min.replace(tzinfo=timezone.utc)
 
 
-# Degradation before failure (SPEC.md 4.10). After enough consecutive failures the primary is
-# judged unhealthy and the circuit opens: calls stop going to something that is not answering
-# and go to the alternative instead. A degraded answer is worth more than no answer.
-#
-# It refuses to pretend. With no alternative configured this broker fails rather than returning
-# an empty result, because a caller cannot tell fabricated silence from a real one.
-#
-# The circuit closes again after a cool-down, so a provider that recovers is used again without
-# anyone restarting anything.
 class FallbackResilienceBroker(ResilienceBroker):
+    """Degradation before failure (SPEC.md 4.10).
+
+    After enough consecutive failures the primary is judged unhealthy and the circuit opens:
+    calls stop going to something that is not answering and go to the alternative instead. A
+    degraded answer is worth more than no answer.
+
+    It refuses to pretend. With no alternative configured this broker fails rather than
+    returning an empty result, because a caller cannot tell fabricated silence from a real one.
+
+    The circuit closes again after a cool-down, so a provider that recovers is used again
+    without anyone restarting anything.
+    """
+
     def __init__(
-        self,
-        primary: ResilienceBroker,
-        alternative: Callable[[], Awaitable[str]] | None = None,
-        failures_before_open: int = 3,
-        cool_down: timedelta | None = None,
-        now: Callable[[], datetime] | None = None) -> None:
+            self,
+            primary: ResilienceBroker,
+            alternative: Callable[[], Awaitable[str]] | None = None,
+            failures_before_open: int = 3,
+            cool_down: timedelta | None = None,
+            now: Callable[[], datetime] | None = None) -> None:
 
         self._primary = primary
         self._alternative = alternative
@@ -99,13 +103,16 @@ class FallbackResilienceBroker(ResilienceBroker):
         return _degrade(answer, result_type)
 
 
-# The alternative is text, what a host can write without knowing which protocol will ask for
-# it, so each protocol's result is shaped from that text explicitly: the text seam takes it as
-# the reply, the native seam takes it as a final answer with no tool calls. A bare cast to T
-# held on the first and threw on the second, at the exact moment the control was meant to work
-# (principal review 2026-09-04, F-07). A T this broker has not been taught is named rather than
-# guessed at.
 def _degrade(answer: str, result_type: type[T]) -> T:
+    """Shape the alternative's text into the result the asking protocol expects.
+
+    The alternative is text, what a host can write without knowing which protocol will ask for
+    it, so each protocol's result is shaped from that text explicitly: the text seam takes it as
+    the reply, the native seam takes it as a final answer with no tool calls. A bare cast to T
+    held on the first and threw on the second, at the exact moment the control was meant to
+    work (principal review 2026-09-04, F-07). A T this broker has not been taught is named
+    rather than guessed at.
+    """
     if result_type is str:
         return answer
 

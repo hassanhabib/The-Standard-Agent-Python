@@ -55,9 +55,12 @@ class LoggingBroker(ABC):
     async def log_process(self, actor: str, message: str, detail: bool = False) -> None:
         ...
 
-    # A process event that carries a payload: the prompt, the system prompt, the Brain's reply,
-    # a tool's input or output. The summary says what happened; the payload is the content, kept
-    # apart so a sink can decide what it keeps (principal review 2026-09-04, F-14). A broker that
-    # does not distinguish the two logs them as one message.
     async def log_payload(self, actor: str, summary: str, payload: str, detail: bool) -> None:
+        """Logs a process event that carries a payload.
+
+        The payload is the prompt, the system prompt, the Brain's reply, a tool's input or
+        output. The summary says what happened; the payload is the content, kept apart so a sink
+        can decide what it keeps (principal review 2026-09-04, F-14). A broker that does not
+        distinguish the two logs them as one message.
+        """
         await self.log_process(actor, f"{summary} → {payload}", detail)

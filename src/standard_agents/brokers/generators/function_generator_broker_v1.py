@@ -15,14 +15,17 @@ from standard_agents.models.brokers.generators.v1.conversation import (
     ToolDefinition)
 
 
-# The Custom mode for the V1 seam: a host-supplied conversation handler. Also what a test
-# scripts, which is how native tool calling is certified without a provider.
 class FunctionGeneratorBrokerV1(GeneratorBrokerV1):
+    """The Custom mode for the V1 seam: a host-supplied conversation handler.
+
+    Also what a test scripts, which is how native tool calling is certified without a provider.
+    """
+
     def __init__(
-        self,
-        generate: Callable[
-            [Sequence[ConversationMessage], Sequence[ToolDefinition]],
-            Awaitable[GenerationResult]]) -> None:
+            self,
+            generate: Callable[
+                [Sequence[ConversationMessage], Sequence[ToolDefinition]],
+                Awaitable[GenerationResult]]) -> None:
 
         self._generate = generate
 

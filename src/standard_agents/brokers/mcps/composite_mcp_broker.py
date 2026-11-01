@@ -12,12 +12,16 @@ from standard_agents.brokers.mcps.mcp_broker import McpBroker
 from standard_agents.models.brokers.mcps.mcp_tool import McpTool
 
 
-# Many MCP servers behind the one seam the agent already speaks. A call routes to the server
-# whose catalog owns the name; when two servers claim the same name, the first registered wins,
-# deterministic, and the same precedence internal tools already have over external ones.
-# Catalogs are discovered lazily and cached per server on success only, so a server that is
-# down at first use is asked again rather than remembered as empty.
 class CompositeMcpBroker(McpBroker):
+    """Many MCP servers behind the one seam the agent already speaks.
+
+    A call routes to the server whose catalog owns the name; when two servers claim the same
+    name, the first registered wins, deterministic, and the same precedence internal tools
+    already have over external ones. Catalogs are discovered lazily and cached per server on
+    success only, so a server that is down at first use is asked again rather than remembered as
+    empty.
+    """
+
     def __init__(self, brokers: Iterable[McpBroker]) -> None:
         self._brokers: list[McpBroker] = list(brokers)
         self._catalogs: list[list[McpTool] | None] = [None] * len(self._brokers)
@@ -49,11 +53,9 @@ class CompositeMcpBroker(McpBroker):
     async def _resolve(self, name: str) -> McpBroker | None:
         await self._discover()
 
-        for index in range(len(self._brokers)):
-            catalog = self._catalogs[index]
-
+        for broker, catalog in zip(self._brokers, self._catalogs):
             if catalog is not None and any(tool.name == name for tool in catalog):
-                return self._brokers[index]
+                return broker
 
         return None
 

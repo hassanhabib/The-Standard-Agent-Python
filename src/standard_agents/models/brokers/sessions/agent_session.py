@@ -16,9 +16,10 @@ from standard_agents.models.orchestrations.effects.agent_principal import AgentP
 from standard_agents.models.orchestrations.effects.risk_level import RiskLevel
 
 
-# One exchange: what was asked, what came back, and the work that produced it.
 @dataclass(frozen=True)
 class AgentTurn:
+    """One exchange: what was asked, what came back, and the work that produced it."""
+
     prompt: str
     answer: str
 
@@ -59,14 +60,16 @@ class AgentTurn:
         return cls(**arguments)
 
 
-# One conversation: what was said, and what it was left in the middle of.
-#
-# Invariant 4 says the agent instance is stateless across prompts. It does not say the
-# conversation is (SPEC.md 4.11). The session is where continuity lives (outside the agent, in a
-# broker), which is what lets a pause be resumed by a different process, or by a different
-# machine, long after the instance that created it is gone.
 @dataclass(frozen=True)
 class AgentSession:
+    """One conversation: what was said, and what it was left in the middle of.
+
+    Invariant 4 says the agent instance is stateless across prompts. It does not say the
+    conversation is (SPEC.md 4.11). The session is where continuity lives (outside the agent,
+    in a broker), which is what lets a pause be resumed by a different process, or by a
+    different machine, long after the instance that created it is gone.
+    """
+
     id: str = ""
 
     # What was said before, oldest first.
@@ -107,9 +110,12 @@ class AgentSession:
     # Zero for a record written before versions existed.
     version: int = 0
 
-    # The FileSessionBroker wire: camelCase names, null values omitted (WhenWritingNull), enums
-    # as camelCase strings, properties in declaration order, nested records included.
     def to_json_dict(self) -> dict:
+        """Return the session as the FileSessionBroker writes it.
+
+        camelCase names, null values omitted (WhenWritingNull), enums as camelCase strings,
+        properties in declaration order, nested records included.
+        """
         values = {
             "id": self.id,
             "history": _list_to_json(self.history, lambda turn: turn.to_json_dict()),
@@ -125,9 +131,12 @@ class AgentSession:
 
         return _without_nulls(values)
 
-    # Case-sensitive camelCase names; an absent property keeps its default.
     @classmethod
     def from_json_dict(cls, data: dict) -> AgentSession:
+        """Read a session the FileSessionBroker wrote.
+
+        Names are case-sensitive camelCase; an absent property keeps its default.
+        """
         _require_object(data, "AgentSession")
         arguments: dict[str, Any] = {}
 
@@ -228,9 +237,11 @@ def _agent_effect_to_json(effect: AgentEffect) -> dict:
     })
 
 
-# Read property by property, as the serializer does: the idempotency key is taken as stored,
-# never re-derived.
 def _agent_effect_from_json(data: Any) -> AgentEffect:
+    """Read an effect property by property, as the serializer does.
+
+    The idempotency key is taken as stored, never re-derived.
+    """
     _require_object(data, "AgentEffect")
     arguments: dict[str, Any] = {}
 
@@ -305,15 +316,18 @@ def _as_int64(value: Any) -> int:
     raise ValueError("The JSON value could not be converted to System.Int64.")
 
 
-# JsonStringEnumConverter(JsonNamingPolicy.CamelCase): AwaitingInput -> "awaitingInput".
 def _enum_to_json(value: Any) -> str:
+    """Write an enum member's name in camelCase.
+
+    Mirrors JsonStringEnumConverter(JsonNamingPolicy.CamelCase): AwaitingInput -> "awaitingInput".
+    """
     words = value.name.split("_")
 
     return words[0].lower() + "".join(word.capitalize() for word in words[1:])
 
 
-# Reads the enum's name ignoring case, or its integer value.
 def _enum_from_json(enum_type: Any, value: Any) -> Any:
+    """Read an enum member by its name, ignoring case, or by its integer value."""
     if isinstance(value, int) and not isinstance(value, bool):
         return enum_type(value)
 

@@ -15,21 +15,24 @@ from standard_agents.brokers.contracts.contract_broker import ContractBroker
 _MAX_DEPTH = 64
 
 
-# The Local mode: a validator in the box, so an answer can be held to a shape without the core
-# taking a dependency.
-#
-# It covers the subset a model actually gets wrong: is it JSON at all, is it the right kind of
-# thing, are the required members present, and are their types right. It does NOT implement JSON
-# Schema: no $ref, no allOf/anyOf/oneOf, no pattern, no numeric bounds, no nested validation past
-# the first level.
-#
-# That boundary is stated rather than discovered, because a partial validator claiming
-# completeness is worse than no validator: it would report an answer as conforming to a schema it
-# was never checked against. A host that needs the whole specification supplies a real library
-# through use_contract.
 class RuleContractBroker(ContractBroker):
+    """The Local mode: a validator in the box.
+
+    An answer can be held to a shape without the core taking a dependency.
+
+    It covers the subset a model actually gets wrong: is it JSON at all, is it the right kind of
+    thing, are the required members present, and are their types right. It does NOT implement
+    JSON Schema: no $ref, no allOf/anyOf/oneOf, no pattern, no numeric bounds, no nested
+    validation past the first level.
+
+    That boundary is stated rather than discovered, because a partial validator claiming
+    completeness is worse than no validator: it would report an answer as conforming to a schema
+    it was never checked against. A host that needs the whole specification supplies a real
+    library through use_contract.
+    """
+
     async def validate(self, answer: str, schema: str) -> str | None:
-        if _is_null_or_white_space(schema):
+        if _is_blank(schema):
             return None
 
         try:
@@ -50,49 +53,53 @@ class RuleContractBroker(ContractBroker):
 
 
 def _check(answer: Any, schema: Any) -> str | None:
-    found, expected_type = _try_get_property(schema, "type")
+    found, expected_type = _find_property(schema, "type")
 
     if (found
             and _kind_of(expected_type) == "String"
-            and _matches(_kind_of(answer), expected_type) is False):
-        return (f"expected {expected_type} but the answer was "
-            + f"{_describe(_kind_of(answer))}")
+            and not _matches(_kind_of(answer), expected_type)):
+        return f"expected {expected_type} but the answer was {_describe(_kind_of(answer))}"
 
     if _kind_of(answer) != "Object":
         return None
 
-    found, required = _try_get_property(schema, "required")
+    found, required = _find_property(schema, "required")
 
     if found and _kind_of(required) == "Array":
         for member in required:
             name = _get_string(member)
 
-            if (_is_null_or_empty(name) is False
-                    and _try_get_property(answer, name)[0] is False):
+            if name and not _find_property(answer, name)[0]:
                 return f"the required member '{name}' is missing"
 
-    found, properties = _try_get_property(schema, "properties")
+    found, properties = _find_property(schema, "properties")
 
     if found and _kind_of(properties) == "Object":
         for property_name, property_value in properties.pairs:
-            has_value, value = _try_get_property(answer, property_name)
+            has_value, value = _find_property(answer, property_name)
 
-            if has_value:
-                has_member_type, member_type = _try_get_property(property_value, "type")
+            if not has_value:
+                continue
 
-                if (has_member_type
-                        and _kind_of(member_type) == "String"
-                        and _matches(_kind_of(value), member_type) is False):
-                    return (f"member '{property_name}' should be {member_type} but was "
-                        + f"{_describe(_kind_of(value))}")
+            has_member_type, member_type = _find_property(property_value, "type")
+
+            if (has_member_type
+                    and _kind_of(member_type) == "String"
+                    and not _matches(_kind_of(value), member_type)):
+                return (
+                    f"member '{property_name}' should be {member_type} but was "
+                    f"{_describe(_kind_of(value))}")
 
     return None
 
 
-# "integer" is deliberately looser than JSON Schema requires: the parser does not distinguish 1
-# from 1.0, and rejecting a whole number because it arrived as a double would send the model
-# into a revision it cannot satisfy.
 def _matches(kind: str, expected: str | None) -> bool:
+    """Whether a JsonValueKind name satisfies a JSON Schema type name.
+
+    "integer" is deliberately looser than JSON Schema requires: the parser does not distinguish
+    1 from 1.0, and rejecting a whole number because it arrived as a double would send the model
+    into a revision it cannot satisfy.
+    """
     if expected == "object":
         return kind == "Object"
 
@@ -136,15 +143,19 @@ def _describe(kind: str) -> str:
     return "nothing"
 
 
-# A JSON object as JsonDocument keeps it: every member in document order, duplicates included,
-# because enumerating an object yields each one.
 class _JsonObject:
+    """A JSON object as JsonDocument keeps it.
+
+    Every member in document order, duplicates included, because enumerating an object yields
+    each one.
+    """
+
     def __init__(self, pairs: list[tuple[str, Any]]) -> None:
         self.pairs = pairs
 
 
-# JsonValueKind, by name.
 def _kind_of(element: Any) -> str:
+    """The element's JsonValueKind, by name."""
     if isinstance(element, _JsonObject):
         return "Object"
 
@@ -154,6 +165,7 @@ def _kind_of(element: Any) -> str:
     if isinstance(element, str):
         return "String"
 
+    # Identity, not truthiness: a JSON 1 or 0 is a Number, never a boolean.
     if element is True:
         return "True"
 
@@ -166,13 +178,17 @@ def _kind_of(element: Any) -> str:
     return "Number"
 
 
-# JsonElement.TryGetProperty: only an object has properties (anything else is an invalid
-# operation), names compare ordinally, and of duplicate names the last one wins.
-def _try_get_property(element: Any, name: str) -> tuple[bool, Any]:
+def _find_property(element: Any, name: str) -> tuple[bool, Any]:
+    """Whether the object has the named member, and its value, as JsonElement.TryGetProperty.
+
+    A pair rather than a value alone, because a member's value may itself be a JSON null. Only an
+    object has properties (anything else is an invalid operation), names compare ordinally, and
+    of duplicate names the last one wins.
+    """
     if not isinstance(element, _JsonObject):
         raise TypeError(
             "The requested operation requires an element of type 'Object', but the target "
-            + f"element has type '{_kind_of(element)}'.")
+            f"element has type '{_kind_of(element)}'.")
 
     for property_name, property_value in reversed(element.pairs):
         if property_name == name:
@@ -181,23 +197,25 @@ def _try_get_property(element: Any, name: str) -> tuple[bool, Any]:
     return False, None
 
 
-# JsonElement.GetString: a string's value, None for a JSON null, and an invalid operation for
-# anything else.
 def _get_string(element: Any) -> str | None:
+    """A string's value, None for a JSON null, and an invalid operation for anything else.
+
+    Mirrors JsonElement.GetString.
+    """
     if element is None or isinstance(element, str):
         return element
 
     raise TypeError(
         "The requested operation requires an element of type 'String', but the target "
-        + f"element has type '{_kind_of(element)}'.")
+        f"element has type '{_kind_of(element)}'.")
 
 
 def _reject_constant(constant: str) -> Any:
     raise ValueError(f"'{constant}' is an invalid JSON literal.")
 
 
-# JsonDocument.Parse: strict JSON, no NaN or Infinity, nesting no deeper than 64.
 def _parse_document(text: str) -> Any:
+    """Parses as JsonDocument.Parse: strict JSON, no NaN or Infinity, depth at most 64."""
     root = json.loads(text, object_pairs_hook=_JsonObject, parse_constant=_reject_constant)
     _ensure_depth(root, depth=0)
 
@@ -220,12 +238,12 @@ def _ensure_depth(element: Any, depth: int) -> None:
             _ensure_depth(child, depth)
 
 
-def _is_null_or_empty(text: str | None) -> bool:
-    return text is None or len(text) == 0
+def _is_blank(text: str | None) -> bool:
+    """True for None, empty, or all whitespace, as .NET's string.IsNullOrWhiteSpace decides.
 
-
-# string.IsNullOrWhiteSpace, with char.IsWhiteSpace's own set.
-def _is_null_or_white_space(text: str | None) -> bool:
+    The whitespace set is char.IsWhiteSpace's (Zs, Zl, Zp, U+0009 to U+000D and U+0085), which
+    differs from str.isspace on U+001C to U+001F.
+    """
     if text is None:
         return True
 

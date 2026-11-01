@@ -11,10 +11,14 @@ from typing import Any
 _MISSING = object()
 
 
-# Wire names follow JsonNamingPolicy.SnakeCaseLower; reads are case-insensitive and nulls are
-# written, as the broker's serializer options leave them.
 @dataclass(frozen=True)
 class ChatMessage:
+    """One message of a chat completion: a role and its content.
+
+    Wire names follow JsonNamingPolicy.SnakeCaseLower; reads are case-insensitive and nulls
+    are written, as the broker's serializer options leave them.
+    """
+
     role: str
     content: str
 
@@ -30,12 +34,15 @@ class ChatMessage:
             raise ValueError("The JSON value could not be converted to ChatMessage.")
 
         return cls(
-            role=_as_string(_read(data, "role")),
-            content=_as_string(_read(data, "content")))
+            role=_as_string(_read_ignoring_case(data, "role")),
+            content=_as_string(_read_ignoring_case(data, "content")))
 
 
-# PropertyNameCaseInsensitive: every key matching ignoring case is read, the last one wins.
-def _read(data: dict, name: str) -> Any:
+def _read_ignoring_case(data: dict, name: str) -> Any:
+    """Read a property the way PropertyNameCaseInsensitive does.
+
+    Every key that matches the name ignoring case is read, and the last one wins.
+    """
     found = _MISSING
 
     for key, value in data.items():
@@ -45,8 +52,11 @@ def _read(data: dict, name: str) -> Any:
     return found
 
 
-# An absent constructor parameter is default(string), which is null.
 def _as_string(value: Any) -> str | None:
+    """Read a JSON string, reading an absent or null value as None.
+
+    An absent constructor parameter is default(string), which is null.
+    """
     if value is _MISSING or value is None:
         return None
 

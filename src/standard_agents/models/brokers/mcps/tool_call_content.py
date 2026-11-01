@@ -3,6 +3,12 @@
 # Licensed under the The Standard Software License (TSSL)
 # ---------------------------------------------------------------
 
+"""The content items a tools/call result carries.
+
+Wire names follow JsonNamingPolicy.CamelCase; reads are case-insensitive and null values are
+omitted on write (WhenWritingNull), as the HttpMcpBroker's serializer options leave them.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -11,8 +17,6 @@ from typing import Any
 _MISSING = object()
 
 
-# Wire names follow JsonNamingPolicy.CamelCase; reads are case-insensitive and null values are
-# omitted on write (WhenWritingNull), as the HttpMcpBroker's serializer options leave them.
 @dataclass(frozen=True)
 class EmbeddedResource:
     uri: str | None
@@ -32,8 +36,8 @@ class EmbeddedResource:
             raise ValueError("The JSON value could not be converted to EmbeddedResource.")
 
         return cls(
-            uri=_as_string(_read(data, "uri")),
-            text=_as_string(_read(data, "text")))
+            uri=_as_string(_read_ignoring_case(data, "uri")),
+            text=_as_string(_read_ignoring_case(data, "text")))
 
 
 @dataclass(frozen=True)
@@ -62,21 +66,24 @@ class ToolCallContent:
         if not isinstance(data, dict):
             raise ValueError("The JSON value could not be converted to ToolCallContent.")
 
-        resource = _read(data, "resource")
+        resource = _read_ignoring_case(data, "resource")
 
         return cls(
-            type=_as_string(_read(data, "type")),
-            text=_as_string(_read(data, "text")),
+            type=_as_string(_read_ignoring_case(data, "type")),
+            text=_as_string(_read_ignoring_case(data, "text")),
             resource=(
                 None if resource is _MISSING or resource is None
                 else EmbeddedResource.from_json_dict(resource)),
-            uri=_as_string(_read(data, "uri")),
-            name=_as_string(_read(data, "name")),
-            mime_type=_as_string(_read(data, "mimeType")))
+            uri=_as_string(_read_ignoring_case(data, "uri")),
+            name=_as_string(_read_ignoring_case(data, "name")),
+            mime_type=_as_string(_read_ignoring_case(data, "mimeType")))
 
 
-# PropertyNameCaseInsensitive: every key matching ignoring case is read, the last one wins.
-def _read(data: dict, name: str) -> Any:
+def _read_ignoring_case(data: dict, name: str) -> Any:
+    """Read a property the way PropertyNameCaseInsensitive does.
+
+    Every key that matches the name ignoring case is read, and the last one wins.
+    """
     found = _MISSING
 
     for key, value in data.items():
@@ -86,8 +93,11 @@ def _read(data: dict, name: str) -> Any:
     return found
 
 
-# An absent constructor parameter is default(string), which is null.
 def _as_string(value: Any) -> str | None:
+    """Read a JSON string, reading an absent or null value as None.
+
+    An absent constructor parameter is default(string), which is null.
+    """
     if value is _MISSING or value is None:
         return None
 

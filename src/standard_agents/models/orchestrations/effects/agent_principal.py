@@ -6,12 +6,15 @@
 from dataclasses import dataclass
 
 
-# Who is acting, in the terms a policy actually decides on (SPEC.md 4.9).
-# Every field beyond id is optional. A host that has only a user id supplies only that, and
-# nothing about the perimeter changes. The framework consumes a principal, it does not mint one:
-# establishing identity (tokens, sessions, sign-in) is the host's.
 @dataclass(frozen=True)
 class AgentPrincipal:
+    """Who is acting, in the terms a policy actually decides on (SPEC.md 4.9).
+
+    Every field beyond id is optional. A host that has only a user id supplies only that, and
+    nothing about the perimeter changes. The framework consumes a principal, it does not mint
+    one: establishing identity (tokens, sessions, sign-in) is the host's.
+    """
+
     # Who is acting. The one field an identity cannot be without.
     id: str = ""
 
@@ -24,6 +27,6 @@ class AgentPrincipal:
     # Who this principal is acting for, when the act is delegated.
     delegated_by: str | None = None
 
-    # Reads as the identifier, so a trace or a message says who without ceremony.
     def __str__(self) -> str:
+        """Reads as the identifier, so a trace or a message says who without ceremony."""
         return self.id

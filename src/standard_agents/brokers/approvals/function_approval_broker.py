@@ -11,9 +11,12 @@ from standard_agents.brokers.approvals.approval_broker import ApprovalDecision, 
 from standard_agents.models.orchestrations.effects.agent_effect import AgentEffect
 
 
-# The Custom mode's substrate: a host-supplied approver standing in for a broker (a console
-# prompt, an internal service call, a test double).
 class FunctionApprovalBroker(ApprovalBroker):
+    """The Custom mode's substrate: a host-supplied approver standing in for a broker.
+
+    A console prompt, an internal service call, a test double.
+    """
+
     def __init__(self, request: Callable[[AgentEffect], Awaitable[ApprovalDecision]]) -> None:
         self._request = request
 

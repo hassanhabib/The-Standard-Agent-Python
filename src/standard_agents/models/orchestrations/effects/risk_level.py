@@ -6,9 +6,13 @@
 from enum import Enum
 
 
-# How much an act costs to get wrong. SAFE is the default, so an agent that adopts effects
-# without classifying its tools behaves exactly as it did before (SPEC.md 3.3).
 class RiskLevel(Enum):
+    """How much an act costs to get wrong.
+
+    SAFE is the default, so an agent that adopts effects without classifying its tools behaves
+    exactly as it did before (SPEC.md 3.3).
+    """
+
     # Reversible and cheap: a calculation, a lookup.
     SAFE = 0
 

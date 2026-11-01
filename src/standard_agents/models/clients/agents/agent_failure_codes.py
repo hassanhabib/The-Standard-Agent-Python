@@ -4,10 +4,13 @@
 # ---------------------------------------------------------------
 
 
-# The codes SPEC.md 3.6 (v1.14) names for a run that stopped without an answer. A host may
-# report codes of its own for stops these do not name, and must not reuse one of these for a
-# different reason.
 class AgentFailureCodes:
+    """The codes SPEC.md 3.6 (v1.14) names for a run that stopped without an answer.
+
+    A host may report codes of its own for stops these do not name, and must not reuse one of
+    these for a different reason.
+    """
+
     # The caller cancelled the run.
     CANCELLED = "cancelled"
 

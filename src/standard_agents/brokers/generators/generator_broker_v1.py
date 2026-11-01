@@ -15,12 +15,14 @@ from standard_agents.models.brokers.generators.v1.conversation import (
     ToolDefinition)
 
 
-# The V1 brain contract: a conversation in, a structured choice out.
-#
-# A sibling of GeneratorBroker, not a replacement (plan 1.3). V0 stays alive and supported,
-# because the provider packages implement it and none of them should have to move on our
-# schedule.
 class GeneratorBrokerV1(ABC):
+    """The V1 brain contract: a conversation in, a structured choice out.
+
+    A sibling of GeneratorBroker, not a replacement (plan 1.3). V0 stays alive and supported,
+    because the provider packages implement it and none of them should have to move on our
+    schedule.
+    """
+
     @abstractmethod
     async def generate(
             self,

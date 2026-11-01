@@ -6,10 +6,14 @@
 from enum import Enum
 
 
-# Where an act stands in the ledger (SPEC.md 4.9). The states are typed because the window
-# between "about to run" and "recorded" used to be a string, and a process that died inside it
-# left a claim every later proposal read as a result (principal review 2026-09-04, F-08).
 class EffectState(Enum):
+    """Where an act stands in the ledger (SPEC.md 4.9).
+
+    The states are typed because the window between "about to run" and "recorded" used to be a
+    string, and a process that died inside it left a claim every later proposal read as a
+    result (principal review 2026-09-04, F-08).
+    """
+
     # Claimed; the act is running, or a run died before it could say how it ended.
     IN_FLIGHT = 0
 

@@ -9,8 +9,12 @@ from standard_agents.brokers.audits.audit_broker import AuditBroker
 from standard_agents.models.brokers.audits.audit_record import AuditRecord
 
 
-# The default. SPEC.md 4.7: absent configuration no decision log is emitted, no sink is touched,
-# and behavior is exactly as if the section did not exist.
 class NotConfiguredAuditBroker(AuditBroker):
+    """The default audit sink, which writes nothing.
+
+    SPEC.md 4.7: absent configuration no decision log is emitted, no sink is touched, and
+    behavior is exactly as if the section did not exist.
+    """
+
     async def write(self, record: AuditRecord) -> None:
-        return None
+        pass

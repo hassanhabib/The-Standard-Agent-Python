@@ -13,8 +13,8 @@ from standard_agents.tools.tool import Tool
 
 class InMemoryToolBroker(ToolBroker):
     def __init__(self, tools: Iterable[Tool]) -> None:
-        # Keyed case-insensitively (C#: ToDictionary with StringComparer.OrdinalIgnoreCase), and
-        # a second tool under the same name is refused, as ToDictionary refuses it.
+        # Keyed case-insensitively (StringComparer.OrdinalIgnoreCase), and a second tool under
+        # the same name is refused, as ToDictionary refuses it.
         self._tools: dict[str, Tool] = {}
 
         for tool in tools:
@@ -32,15 +32,18 @@ class InMemoryToolBroker(ToolBroker):
     async def run(self, name: str, input: str) -> str:
         return await self._tool(name).execute(input)
 
-    # A tool that declares no way back returns None; the broker hands the natures an empty
-    # string, so nothing above it has to reason about None (SPEC.md 4.9).
     async def compensate(self, name: str, input: str, outcome: str) -> str:
+        """Undoes a tool's act, returning what was done, or "" when the tool declares no way back.
+
+        A tool that cannot be undone returns None; the broker hands the natures an empty string,
+        so nothing above it has to reason about None (SPEC.md 4.9).
+        """
         compensation = await self._tool(name).compensate(input, outcome)
 
         return compensation if compensation is not None else ""
 
-    # The dictionary's indexer: an absent name is a KeyError, as it is a KeyNotFoundException.
     def _tool(self, name: str) -> Tool:
+        """The tool under this name; an absent name is a KeyError (KeyNotFoundException)."""
         key = _fold(name)
 
         if key not in self._tools:
@@ -49,10 +52,13 @@ class InMemoryToolBroker(ToolBroker):
         return self._tools[key]
 
 
-# StringComparer.OrdinalIgnoreCase: characters compared by their simple uppercase mapping.
-# Python's str.upper() applies full mappings (U+00DF becomes "SS"), so each character is
-# uppercased on its own and kept as it is when its mapping expands.
 def _fold(value: str) -> str:
+    """Folds a name for comparison as StringComparer.OrdinalIgnoreCase does.
+
+    Each character is compared by its simple uppercase mapping. Python's str.upper() applies full
+    mappings (U+00DF becomes "SS"), so each character is uppercased on its own and kept as it is
+    when its mapping expands.
+    """
     folded: list[str] = []
 
     for character in value:

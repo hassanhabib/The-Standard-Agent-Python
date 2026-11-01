@@ -10,15 +10,19 @@ from typing import Callable, Mapping, MutableMapping
 from standard_agents.brokers.redactions.redaction_broker import RedactionBroker
 
 
-# The Custom mode of redaction (SPEC.md 4.8): the host's own tokenize/restore pair, for rules a
-# regex cannot express (an entity model, a domain dictionary, a data-residency policy). The
-# decorators apply it at the wire exactly as they apply the built-in rules, so "every model call
-# is redacted" stays true by construction whichever mode supplied the redactor.
 class FunctionRedactionBroker(RedactionBroker):
+    """The Custom mode of redaction (SPEC.md 4.8): the host's own tokenize/restore pair.
+
+    For rules a regex cannot express (an entity model, a domain dictionary, a data-residency
+    policy). The decorators apply it at the wire exactly as they apply the built-in rules, so
+    "every model call is redacted" stays true by construction whichever mode supplied the
+    redactor.
+    """
+
     def __init__(
-        self,
-        redact: Callable[[str, MutableMapping[str, str]], str],
-        rehydrate: Callable[[str, Mapping[str, str]], str]) -> None:
+            self,
+            redact: Callable[[str, MutableMapping[str, str]], str],
+            rehydrate: Callable[[str, Mapping[str, str]], str]) -> None:
 
         self._redact = redact
         self._rehydrate = rehydrate

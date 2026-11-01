@@ -14,8 +14,9 @@ from standard_agents.models.orchestrations.effects.authorization_decision import
 )
 
 
-# The Custom mode's substrate: a host-supplied function standing in for a broker.
 class FunctionPolicyBroker(PolicyBroker):
+    """The Custom mode's substrate: a host-supplied function standing in for a broker."""
+
     def __init__(
             self,
             authorize: Callable[[AgentEffect], Awaitable[AuthorizationDecision]]) -> None:

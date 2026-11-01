@@ -12,9 +12,9 @@ from standard_agents.brokers.classifiers.classifier_broker import ClassifierBrok
 
 class FunctionClassifierBroker(ClassifierBroker):
     def __init__(
-        self,
-        screen: Callable[[str, str], Awaitable[str]],
-        system_prompt: str) -> None:
+            self,
+            screen: Callable[[str, str], Awaitable[str]],
+            system_prompt: str) -> None:
 
         self._screen = screen
         self._system_prompt = system_prompt

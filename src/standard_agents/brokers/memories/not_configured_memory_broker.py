@@ -10,9 +10,13 @@ from typing import Sequence
 from standard_agents.brokers.memories.memory_broker import MemoryBroker
 
 
-# No memory at all: nothing to recall, nowhere to store. What an agent composed without memory
-# reads from, so the foundation keeps one shape rather than growing a nullable dependency.
 class NotConfiguredMemoryBroker(MemoryBroker):
+    """No memory at all: nothing to recall, nowhere to store.
+
+    What an agent composed without memory reads from, so the foundation keeps one shape rather
+    than growing a nullable dependency.
+    """
+
     async def select_memories(self) -> Sequence[str]:
         return []
 

@@ -3,6 +3,12 @@
 # Licensed under the The Standard Software License (TSSL)
 # ---------------------------------------------------------------
 
+"""The Python stand-in for RESTFulSense.Services.ValidationService (3.2.0).
+
+One exception type per status it knows, and nothing for a status it does not. The rules below
+were read off the real library by probing it, not from its documentation.
+"""
+
 from __future__ import annotations
 
 import codecs
@@ -49,10 +55,6 @@ from restfulsense.exceptions import (
     HttpResponseUpgradeRequiredException,
     HttpResponseUrlNotFoundException,
     HttpResponseVariantAlsoNegotiatesException)
-
-# The Python stand-in for RESTFulSense.Services.ValidationService (3.2.0): one exception type per
-# status it knows, and nothing for a status it does not. The rules below were read off the real
-# library by probing it, not from its documentation.
 
 DEFAULT_PROBLEM_TITLE = "One or more validation errors occurred."
 
@@ -106,9 +108,12 @@ _BYTE_ORDER_MARKS = (
 )
 
 
-# HttpContent.ReadAsStringAsync: a byte order mark decides first, then the charset of the
-# Content-Type, then UTF-8. Bytes that do not decode become U+FFFD, as .NET's decoders do.
 def read_as_string(body: bytes, content_type: str | None) -> str:
+    """Decode a response body as .NET's HttpContent.ReadAsStringAsync does.
+
+    A byte order mark decides first, then the charset of the Content-Type, then UTF-8. Bytes
+    that do not decode become U+FFFD, as .NET's decoders do.
+    """
     for byte_order_mark, encoding in _BYTE_ORDER_MARKS:
         if body.startswith(byte_order_mark):
             return body[len(byte_order_mark):].decode(encoding, errors="replace")
@@ -123,9 +128,12 @@ def read_as_string(body: bytes, content_type: str | None) -> str:
     return body.decode(encoding, errors="replace")
 
 
-# ValidateHttpResponseAsync. content_type is the response's Content-Type header, None when it
-# sent none; content is its body as read_as_string reads it.
 def validate_http_response(status_code: int, content_type: str | None, content: str) -> None:
+    """Raise the RESTFulSense exception for a failing status, as ValidateHttpResponseAsync does.
+
+    content_type is the response's Content-Type header, None when it sent none; content is its
+    body as read_as_string reads it.
+    """
     exception_type = _STATUS_EXCEPTIONS.get(status_code)
 
     if exception_type is None:
@@ -148,9 +156,12 @@ def validate_http_response(status_code: int, content_type: str | None, content: 
     raise exception_type(content, status_code, content)
 
 
-# RESTFulSense's test is textual: the body mentions both a "type": and a "title": member,
-# ignoring case and with no space before the colon. Anywhere in the body, nested included.
 def _is_problem_detail(content: str) -> bool:
+    """Whether the body reads as problem details, by RESTFulSense's textual test.
+
+    The body mentions both a "type": and a "title": member, ignoring case and with no space
+    before the colon. Anywhere in the body, nested included.
+    """
     lowered = content.lower()
 
     return '"type":' in lowered and '"title":' in lowered
@@ -160,10 +171,13 @@ class _Members(list):
     pass
 
 
-# Newtonsoft's ValidationProblemDetails read: members match ignoring case, the last title wins,
-# every errors object is merged in, a scalar keeps the text of its token, an errors member that
-# is not an object or an array is skipped, and a null error list is an empty one.
 def _map_to_problem_details(content: str) -> tuple[str, dict[str, list[str | None]]]:
+    """Read the title and errors as Newtonsoft reads ValidationProblemDetails.
+
+    Members match ignoring case, the last title wins, every errors object is merged in, a
+    scalar keeps the text of its token, an errors member that is not an object or an array is
+    skipped, and a null error list is an empty one.
+    """
     problem = json.loads(
         content,
         object_pairs_hook=_Members,

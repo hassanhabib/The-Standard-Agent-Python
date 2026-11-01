@@ -18,13 +18,17 @@ _token_usage = _meter.create_histogram("gen_ai.client.token.usage", unit="{token
 _operation_duration = _meter.create_histogram("gen_ai.client.operation.duration", unit="s")
 
 
-# The in-box telemetry broker: OpenTelemetry-compatible spans and metrics through the in-process
-# recorder in activities.py (C#: the BCL's ActivitySource and Meter), with no packages, no
-# exporter, no dependency. A process that adds a listener for the Standard.Agents source picks
-# everything up; a process that adds nothing pays nothing, because an unobserved source hands
-# back None instead of a span. Attribute and metric names follow the OpenTelemetry GenAI
-# semantic conventions, so a collector that already understands agents understands this one.
 class ActivityTelemetryBroker(TelemetryBroker):
+    """The in-box telemetry broker: OpenTelemetry-compatible spans and metrics.
+
+    Recorded through the in-process recorder in activities.py, which mirrors .NET's
+    ActivitySource and Meter, with no packages, no exporter, no dependency. A process that adds
+    a listener for the Standard.Agents source picks everything up; a process that adds nothing
+    pays nothing, because an unobserved source hands back None instead of a span. Attribute and
+    metric names follow the OpenTelemetry GenAI semantic conventions, so a collector that
+    already understands agents understands this one.
+    """
+
     SOURCE_NAME = SOURCE_NAME
 
     def __init__(self, agent_name: str = "standard-agent") -> None:
@@ -50,7 +54,12 @@ class ActivityTelemetryBroker(TelemetryBroker):
 
         return turn_activity
 
-    def record_turn_usage(self, prompt_tokens: int, completion_tokens: int, estimated: bool) -> None:
+    def record_turn_usage(
+            self,
+            prompt_tokens: int,
+            completion_tokens: int,
+            estimated: bool) -> None:
+
         # Only a span this source opened is annotated: the ambient current activity may belong
         # to the host when nothing is listening here, and another library's span is not ours to
         # write on.

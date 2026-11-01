@@ -3,6 +3,12 @@
 # Licensed under the The Standard Software License (TSSL)
 # ---------------------------------------------------------------
 
+"""The params of an MCP initialize request.
+
+Wire names follow JsonNamingPolicy.CamelCase; reads are case-insensitive and null values are
+omitted on write (WhenWritingNull), as the HttpMcpBroker's serializer options leave them.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -11,8 +17,6 @@ from typing import Any
 _MISSING = object()
 
 
-# Wire names follow JsonNamingPolicy.CamelCase; reads are case-insensitive and null values are
-# omitted on write (WhenWritingNull), as the HttpMcpBroker's serializer options leave them.
 @dataclass(frozen=True)
 class ClientInfo:
     name: str
@@ -32,15 +36,15 @@ class ClientInfo:
             raise ValueError("The JSON value could not be converted to ClientInfo.")
 
         return cls(
-            name=_as_string(_read(data, "name")),
-            version=_as_string(_read(data, "version")))
+            name=_as_string(_read_ignoring_case(data, "name")),
+            version=_as_string(_read_ignoring_case(data, "version")))
 
 
 @dataclass(frozen=True)
 class InitializeParams:
     protocol_version: str
 
-    # A JsonObject in C#: kept as the parsed JSON object it is.
+    # The parsed JSON object (a JsonObject: anything else fails to read).
     capabilities: dict
     client_info: ClientInfo
 
@@ -58,8 +62,8 @@ class InitializeParams:
         if not isinstance(data, dict):
             raise ValueError("The JSON value could not be converted to InitializeParams.")
 
-        capabilities = _read(data, "capabilities")
-        client_info = _read(data, "clientInfo")
+        capabilities = _read_ignoring_case(data, "capabilities")
+        client_info = _read_ignoring_case(data, "clientInfo")
 
         if capabilities is _MISSING or capabilities is None:
             capabilities = None
@@ -67,15 +71,18 @@ class InitializeParams:
             raise ValueError("The JSON value could not be converted to JsonObject.")
 
         return cls(
-            protocol_version=_as_string(_read(data, "protocolVersion")),
+            protocol_version=_as_string(_read_ignoring_case(data, "protocolVersion")),
             capabilities=capabilities,
             client_info=(
                 None if client_info is _MISSING or client_info is None
                 else ClientInfo.from_json_dict(client_info)))
 
 
-# PropertyNameCaseInsensitive: every key matching ignoring case is read, the last one wins.
-def _read(data: dict, name: str) -> Any:
+def _read_ignoring_case(data: dict, name: str) -> Any:
+    """Read a property the way PropertyNameCaseInsensitive does.
+
+    Every key that matches the name ignoring case is read, and the last one wins.
+    """
     found = _MISSING
 
     for key, value in data.items():
@@ -85,8 +92,11 @@ def _read(data: dict, name: str) -> Any:
     return found
 
 
-# An absent constructor parameter is default(string), which is null.
 def _as_string(value: Any) -> str | None:
+    """Read a JSON string, reading an absent or null value as None.
+
+    An absent constructor parameter is default(string), which is null.
+    """
     if value is _MISSING or value is None:
         return None
 

@@ -9,34 +9,44 @@ from abc import ABC, abstractmethod
 from typing import Protocol
 
 
-# C#'s Disposable: a scope closed by dispose(). Every scope this seam hands out is also a
-# context manager.
 class Disposable(Protocol):
+    """A scope closed by dispose().
+
+    Every scope this seam hands out is also a context manager.
+    """
+
     def dispose(self) -> None:
         ...
 
 
-# The telemetry seam: spans and metrics for the run the way LoggingBroker is prose and
-# AuditBroker is records. A utility broker: held by the loop, exempt from the dependency count,
-# and structurally unable to change what the agent decides or does.
 class TelemetryBroker(ABC):
-    # Opens the run scope. Dispose it to close the scope; a None return means nothing is
-    # listening and there is no scope to close.
+    """The telemetry seam: spans and metrics for the run.
+
+    Spans and metrics the way LoggingBroker is prose and AuditBroker is records. A utility
+    broker: held by the loop, exempt from the dependency count, and structurally unable to
+    change what the agent decides or does.
+    """
+
     @abstractmethod
     def start_run(self, session_id: str) -> Disposable | None:
-        ...
+        """Open the run scope.
 
-    # Opens one turn's scope inside the run scope.
+        Dispose it to close the scope; a None return means nothing is listening and there is no
+        scope to close.
+        """
+
     @abstractmethod
     def start_turn(self, turn: int) -> Disposable | None:
-        ...
+        """Open one turn's scope inside the run scope."""
 
-    # Records what one turn's model calls consumed, and whether it was counted or reported.
     @abstractmethod
-    def record_turn_usage(self, prompt_tokens: int, completion_tokens: int, estimated: bool) -> None:
-        ...
+    def record_turn_usage(
+            self,
+            prompt_tokens: int,
+            completion_tokens: int,
+            estimated: bool) -> None:
+        """Record what one turn's model calls consumed, and whether it was counted or reported."""
 
-    # Records how the run ended and what it consumed in total.
     @abstractmethod
     def record_run_outcome(self, status: str, prompt_tokens: int, completion_tokens: int) -> None:
-        ...
+        """Record how the run ended and what it consumed in total."""

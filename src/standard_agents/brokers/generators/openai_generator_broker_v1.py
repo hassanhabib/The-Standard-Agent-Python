@@ -35,24 +35,29 @@ _JSON_CONTENT_TYPE = "application/json; charset=utf-8"
 _MAX_DEPTH = 64
 
 
-# Native tool calling against an OpenAI-compatible endpoint: tools go out as `tools[]`, the
-# model's choice comes back as `tool_calls`, and usage comes back reported rather than guessed.
-#
-# The request is built as a JSON tree rather than through typed records, because the tool
-# schemas are already JSON the host wrote and re-modelling them would only give us a second
-# place for them to be wrong.
 class OpenAiGeneratorBrokerV1(GeneratorBrokerV1):
-    # handler is the host's handler under this broker's traffic (F-23). The handler is the
-    # host's: the opener around it holds nothing of its own.
+    """Native tool calling against an OpenAI-compatible endpoint.
+
+    Tools go out as ``tools[]``, the model's choice comes back as ``tool_calls``, and usage comes
+    back reported rather than guessed.
+
+    The request is built as a JSON tree rather than through typed records, because the tool
+    schemas are already JSON the host wrote and re-modelling them would only give us a second
+    place for them to be wrong.
+
+    ``handler`` is the host's handler under this broker's traffic (F-23): the opener around it
+    holds nothing of its own.
+    """
+
     def __init__(
-        self,
-        api_url: str,
-        api_key: str,
-        model: str,
-        temperature: float = 0.7,
-        max_tokens: int = 1024,
-        timeout_seconds: int = 120,
-        handler: urllib.request.BaseHandler | None = None) -> None:
+            self,
+            api_url: str,
+            api_key: str,
+            model: str,
+            temperature: float = 0.7,
+            max_tokens: int = 1024,
+            timeout_seconds: int = 120,
+            handler: urllib.request.BaseHandler | None = None) -> None:
 
         self._base_address = _to_base_address(api_url)
         self._timeout_seconds = _to_timeout(timeout_seconds)
@@ -62,9 +67,9 @@ class OpenAiGeneratorBrokerV1(GeneratorBrokerV1):
         self._temperature = temperature
         self._max_tokens = max_tokens
 
-    # This broker puts resolved inference options on the wire.
     @property
     def honors_request(self) -> bool:
+        """This broker puts resolved inference options on the wire."""
         return True
 
     async def generate(
@@ -96,10 +101,10 @@ class OpenAiGeneratorBrokerV1(GeneratorBrokerV1):
         return _read_result(body)
 
     def _build_request(
-        self,
-        messages: Sequence[ConversationMessage],
-        tools: Sequence[ToolDefinition],
-        inference: ResolvedInference | None) -> dict:
+            self,
+            messages: Sequence[ConversationMessage],
+            tools: Sequence[ToolDefinition],
+            inference: ResolvedInference | None) -> dict:
 
         request = {
             "model": self._model,
@@ -110,7 +115,7 @@ class OpenAiGeneratorBrokerV1(GeneratorBrokerV1):
 
         # Only advertise when there is something to advertise: an empty tools array is a
         # different request than no tools at all on some providers.
-        if len(tools) > 0:
+        if tools:
             request["tools"] = [_tool_to_json(tool) for tool in tools]
 
         _write_inference(request, inference)
@@ -118,23 +123,25 @@ class OpenAiGeneratorBrokerV1(GeneratorBrokerV1):
         return request
 
 
-# The resolved options, written as the wire knows them. The values arrive already
-# precedence-resolved at the boundary; this broker writes what it is given and decides nothing
-# (docs/per-request-inference.md 4.2).
 def _write_inference(request: dict, inference: ResolvedInference | None) -> None:
+    """Write the resolved options as the wire knows them.
+
+    The values arrive already precedence-resolved at the boundary; this broker writes what it is
+    given and decides nothing (docs/per-request-inference.md 4.2).
+    """
     if inference is None:
         return
 
     if inference.seed is not None:
         request["seed"] = inference.seed
 
-    if len(inference.stop) > 0:
-        request["stop"] = [stop for stop in inference.stop]
+    if inference.stop:
+        request["stop"] = list(inference.stop)
 
     # The schema that survived precedence seeds the wire, and the guardian already holds the
     # same schema, so an engine that quietly ignores response_format degrades to a guarantee
     # rather than to nothing (4.1).
-    if _is_null_or_white_space(inference.response_schema_json) is False:
+    if not _is_blank(inference.response_schema_json):
         schema = _try_parse(inference.response_schema_json)
 
         if schema is not None:
@@ -167,7 +174,7 @@ def _message_to_json(message: ConversationMessage) -> dict:
     if message.role is MessageRole.TOOL:
         json_message["tool_call_id"] = message.tool_call_id
 
-    if len(message.tool_calls) > 0:
+    if message.tool_calls:
         json_message["tool_calls"] = [
             {
                 "id": call.id,
@@ -193,13 +200,16 @@ def _tool_to_json(tool: ToolDefinition) -> dict:
     }
 
 
-# A tool's parameters are the host's JSON schema, and the wire validates that strictly: a hosted
-# provider rejects the WHOLE request when any tool's parameters is not a schema of type object.
-# One bad tool must never take down the turn, so anything that is not an object schema
-# degrades: a schema that forgot its type but has properties is salvaged, everything else
-# becomes the empty object schema (callable with no arguments).
 def _parse_parameters(parameters_json: str) -> dict:
-    if _is_null_or_white_space(parameters_json):
+    """A tool's parameters as an object schema the wire accepts.
+
+    A tool's parameters are the host's JSON schema, and the wire validates that strictly: a
+    hosted provider rejects the WHOLE request when any tool's parameters is not a schema of type
+    object. One bad tool must never take down the turn, so anything that is not an object schema
+    degrades: a schema that forgot its type but has properties is salvaged, everything else
+    becomes the empty object schema (callable with no arguments).
+    """
+    if _is_blank(parameters_json):
         return {"type": "object"}
 
     try:
@@ -222,9 +232,7 @@ def _parse_parameters(parameters_json: str) -> dict:
                 schema["type"] = "object"
 
                 return schema
-    except ValueError:
-        pass
-    except RuntimeError:
+    except (ValueError, RuntimeError):
         pass
 
     return {"type": "object"}
@@ -240,15 +248,13 @@ def _read_result(body: Any) -> GenerationResult:
 
     if isinstance(calls, list):
         for call in calls:
-            id = _or_default(_get_string(_member(call, "id")), "")
+            call_id = _or_default(_get_string(_member(call, "id")), "")
             function = _member(call, "function")
-
             name = _or_default(_get_string(_member(function, "name")), "")
-
             arguments = _or_default(_get_string(_member(function, "arguments")), "{}")
 
-            if _is_null_or_white_space(name) is False:
-                tool_calls.append(ModelToolCall(id=id, name=name, arguments_json=arguments))
+            if not _is_blank(name):
+                tool_calls.append(ModelToolCall(id=call_id, name=name, arguments_json=arguments))
 
     return GenerationResult(
         content=_or_default(_get_string(_member(message, "content")), ""),
@@ -257,10 +263,12 @@ def _read_result(body: Any) -> GenerationResult:
         completion_tokens=_or_default(_get_int(_member(usage, "completion_tokens")), 0))
 
 
-# JsonNode's indexers. A missing member and the JSON literal null both read as None; indexing a
-# node of the wrong kind is refused (InvalidOperationException, here RuntimeError), and an
-# index past the end is an IndexError.
 def _member(node: Any, name: str) -> Any:
+    """JsonNode's member indexer, node?[name].
+
+    A missing member and the JSON literal null both read as None; indexing a node of the wrong
+    kind is refused (InvalidOperationException, here RuntimeError).
+    """
     if node is None:
         return None
 
@@ -271,6 +279,10 @@ def _member(node: Any, name: str) -> Any:
 
 
 def _element(node: Any, index: int) -> Any:
+    """JsonNode's element indexer, node?[index].
+
+    As _member, and an index past the end is an IndexError.
+    """
     if node is None:
         return None
 
@@ -280,8 +292,8 @@ def _element(node: Any, index: int) -> Any:
     return node[index]
 
 
-# JsonNode.GetValue<string>(): only a JSON string reads as one.
 def _get_string(node: Any) -> str | None:
+    """JsonNode.GetValue<string>(): only a JSON string reads as one."""
     if node is None:
         return None
 
@@ -291,11 +303,12 @@ def _get_string(node: Any) -> str | None:
     return node
 
 
-# JsonNode.GetValue<int>(): only a JSON integer within Int32 reads as one.
 def _get_int(node: Any) -> int | None:
+    """JsonNode.GetValue<int>(): only a JSON integer within Int32 reads as one."""
     if node is None:
         return None
 
+    # A JSON true or false is not an integer: bool is an int to isinstance.
     if isinstance(node, bool) or not isinstance(node, int) or not -2**31 <= node < 2**31:
         raise RuntimeError("The node cannot be converted to 'System.Int32'.")
 
@@ -306,8 +319,8 @@ def _or_default(value: Any, default: Any) -> Any:
     return default if value is None else value
 
 
-# JsonNode.Parse: strict JSON, no NaN or Infinity, nesting no deeper than 64.
 def _parse_json(text: str) -> Any:
+    """JsonNode.Parse: strict JSON, no NaN or Infinity, nesting no deeper than 64."""
     try:
         node = json.loads(text, parse_constant=_reject_constant)
     except RecursionError:
@@ -335,20 +348,21 @@ def _ensure_depth(node: Any, depth: int) -> None:
             _ensure_depth(child, depth)
 
 
-# JsonObject.ToJsonString: compact; a NaN or Infinity is refused rather than written.
 def _to_json_string(node: Any) -> str:
+    """JsonObject.ToJsonString: compact; a NaN or Infinity is refused rather than written."""
     return json.dumps(node, separators=(",", ":"), allow_nan=False)
 
 
-# HttpClient.PostAsync (the body buffered inside the call), EnsureSuccessStatusCode, then
-# ReadAsStringAsync. A request that never got an answer is an HttpRequestException, as is a
-# status outside 2xx (carrying that status). A timeout is not: HttpClient cancels the request,
-# so it stays a TimeoutError rather than claiming a refusal.
 def _post(
-    opener: urllib.request.OpenerDirector,
-    http_request: urllib.request.Request,
-    timeout_seconds: float) -> str:
+        opener: urllib.request.OpenerDirector,
+        http_request: urllib.request.Request,
+        timeout_seconds: float) -> str:
+    """HttpClient.PostAsync, EnsureSuccessStatusCode, then ReadAsStringAsync.
 
+    The body is buffered inside the call. A request that never got an answer is an
+    HttpRequestException, as is a status outside 2xx (carrying that status). A timeout is not:
+    HttpClient cancels the request, so it stays a TimeoutError rather than claiming a refusal.
+    """
     try:
         with opener.open(http_request, timeout=timeout_seconds) as http_response:
             body = http_response.read()
@@ -374,9 +388,12 @@ def _post(
     return _decode(body, charset)
 
 
-# HttpContent.ReadAsStringAsync: the charset the response names, UTF-8 when it names none, a
-# UTF-8 byte-order mark skipped, and an undecodable byte replaced rather than refused.
 def _decode(body: bytes, charset: str | None) -> str:
+    """HttpContent.ReadAsStringAsync's decoding.
+
+    The charset the response names, UTF-8 when it names none, a UTF-8 byte-order mark skipped,
+    and an undecodable byte replaced rather than refused.
+    """
     encoding = codecs.lookup(charset or "utf-8").name
 
     if encoding == "utf-8":
@@ -385,8 +402,11 @@ def _decode(body: bytes, charset: str | None) -> str:
     return body.decode(encoding, errors="replace")
 
 
-# HttpClient sends no User-Agent of its own, so urllib's default one is dropped.
 def _build_opener(handler: urllib.request.BaseHandler | None) -> urllib.request.OpenerDirector:
+    """An opener over the host's handler, if any.
+
+    HttpClient sends no User-Agent of its own, so urllib's default one is dropped.
+    """
     opener = (
         urllib.request.build_opener() if handler is None
         else urllib.request.build_opener(handler))
@@ -396,16 +416,16 @@ def _build_opener(handler: urllib.request.BaseHandler | None) -> urllib.request.
     return opener
 
 
-# new Uri(apiUrl): an address that is not absolute is refused when the broker is built.
 def _to_base_address(api_url: str) -> str:
+    """new Uri(apiUrl): an address that is not absolute is refused when the broker is built."""
     if not urllib.parse.urlsplit(api_url).scheme:
         raise ValueError("Invalid URI: The format of the URI could not be determined.")
 
     return api_url
 
 
-# HttpClient.Timeout refuses a span that is not positive.
 def _to_timeout(timeout_seconds: int) -> float:
+    """HttpClient.Timeout refuses a span that is not positive."""
     if timeout_seconds <= 0:
         raise ValueError(
             "Specified argument was out of the range of valid values. (Parameter 'value')")
@@ -413,13 +433,16 @@ def _to_timeout(timeout_seconds: int) -> float:
     return float(timeout_seconds)
 
 
-# AuthenticationHeaderValue("Bearer", apiKey) writes the scheme alone when there is no key.
 def _to_bearer(api_key: str | None) -> str:
+    """AuthenticationHeaderValue("Bearer", apiKey) writes the scheme alone when there is no key."""
     return "Bearer" if not api_key else f"Bearer {api_key}"
 
 
-# string.IsNullOrWhiteSpace, with char.IsWhiteSpace's own set.
-def _is_null_or_white_space(text: str | None) -> bool:
+def _is_blank(text: str | None) -> bool:
+    """string.IsNullOrWhiteSpace, over char.IsWhiteSpace's own set.
+
+    Not str.isspace: .NET does not count U+001C..U+001F as white space.
+    """
     if text is None:
         return True
 

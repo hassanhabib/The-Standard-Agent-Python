@@ -41,9 +41,13 @@ class LocalFileBroker(FileBroker):
         return os.path.isfile(path)
 
     async def read_all_lines(self, path: str) -> Sequence[str]:
+        """The file's lines as File.ReadAllLines gives them.
+
+        Split at CR, LF or CRLF, with no empty line after a final line break.
+        """
         text = _read_all_text(path)
 
-        if text == "":
+        if not text:
             return []
 
         lines = _LINE_BREAK.split(text)
@@ -56,17 +60,23 @@ class LocalFileBroker(FileBroker):
     def create_directory(self, path: str) -> None:
         os.makedirs(path, exist_ok=True)
 
-    # File.AppendAllLines: each line followed by the platform's line ending, UTF-8 without a
-    # byte order mark, the file created when it does not exist.
     async def append_all_lines(self, path: str, lines: Iterable[str]) -> None:
+        """Appends as File.AppendAllLines does.
+
+        Each line is followed by the platform's line ending, written as UTF-8 without a byte
+        order mark, and the file is created when it does not exist.
+        """
         with open(path, "a", encoding="utf-8", newline="") as file:
             for line in lines:
                 file.write(line + os.linesep)
 
 
-# File.ReadAllText: the encoding a byte order mark names, UTF-8 when there is none, invalid
-# sequences replaced rather than raised, line endings kept as written.
 def _read_all_text(path: str) -> str:
+    """Reads a file as .NET's File.ReadAllText does.
+
+    The encoding a byte order mark names, UTF-8 when there is none, invalid sequences replaced
+    rather than raised, line endings kept as written.
+    """
     with open(path, "rb") as file:
         data = file.read()
 

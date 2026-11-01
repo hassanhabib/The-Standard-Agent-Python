@@ -11,11 +11,15 @@ from standard_agents.brokers.effects.effect_ledger_broker import EffectLedgerBro
 from standard_agents.models.brokers.effects.effect_record import EffectRecord
 
 
-# The built-in ledger: one process, one lifetime. Run-once holds within the instance; nothing
-# here survives it, which is what effect_ledger(path) and use_effect_ledger(...) are for.
 class InMemoryEffectLedgerBroker(EffectLedgerBroker):
+    """The built-in ledger: one process, one lifetime.
+
+    Run-once holds within the instance; nothing here survives it, which is what
+    effect_ledger(path) and use_effect_ledger(...) are for.
+    """
+
     def __init__(self) -> None:
-        # C#: a ConcurrentDictionary; the lock makes each operation atomic, as its operations are.
+        # The lock makes each operation atomic, as a ConcurrentDictionary's operations are.
         self._records_by_key: dict[str, EffectRecord] = {}
         self._records_lock = threading.Lock()
 
