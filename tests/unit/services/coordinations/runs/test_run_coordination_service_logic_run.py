@@ -4,6 +4,8 @@
 # ---------------------------------------------------------------
 
 import asyncio
+import copy
+import dataclasses
 from unittest.mock import call
 
 import pytest
@@ -45,6 +47,59 @@ class TestRunCoordinationServiceLogicRun(RunCoordinationServiceTests):
 
         assert self.decision_orchestration_service_mock.mock_calls == [
             call.think(recalled_context)
+        ]
+
+        assert self.direction_orchestration_service_mock.mock_calls == [
+            call.act(decided_context)
+        ]
+
+    # A turn the Judge sent back is spent revising: nothing is acted on, and the next turn starts
+    # from the revising context put back to work, carrying the reason it was rejected.
+    def test_should_run_revise_without_acting_and_then_respond(self) -> None:
+        # given
+        input_prompt = self.create_random_string()
+        initial_context = AgentContext(prompt=input_prompt)
+        first_recalled_context = self.create_random_context(input_prompt)
+        revising_context = self.create_random_context(input_prompt, AgentStatus.REVISING)
+
+        resumed_context = dataclasses.replace(
+            copy.deepcopy(revising_context),
+            status=AgentStatus.WORKING)
+
+        second_recalled_context = self.create_random_context(input_prompt)
+        decided_context = self.create_random_context(input_prompt)
+        acted_context = self.create_random_context(input_prompt, AgentStatus.RESPONDED)
+
+        expected_outcome = AgentOutcome(
+            result=acted_context.result,
+            status=AgentStatus.RESPONDED)
+
+        self.data_orchestration_service_mock.recall.side_effect = [
+            first_recalled_context,
+            second_recalled_context
+        ]
+
+        self.decision_orchestration_service_mock.think.side_effect = [
+            revising_context,
+            decided_context
+        ]
+
+        self.direction_orchestration_service_mock.act.return_value = acted_context
+
+        # when
+        actual_outcome = asyncio.run(self.run_coordination_service.run(input_prompt))
+
+        # then
+        assert actual_outcome == expected_outcome
+
+        assert self.data_orchestration_service_mock.mock_calls == [
+            call.recall(initial_context),
+            call.recall(resumed_context)
+        ]
+
+        assert self.decision_orchestration_service_mock.mock_calls == [
+            call.think(first_recalled_context),
+            call.think(second_recalled_context)
         ]
 
         assert self.direction_orchestration_service_mock.mock_calls == [
