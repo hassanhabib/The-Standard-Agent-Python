@@ -14,9 +14,11 @@ from standard_agents.brokers.sessions.session_broker import SessionBroker
 from standard_agents.models.brokers.sessions.agent_session import AgentSession
 from standard_agents.models.foundations.sessions.exceptions import (
     FailedSessionDependencyException,
+    FailedSessionServiceException,
     InvalidSessionException,
     SessionDependencyException,
     SessionDependencyValidationException,
+    SessionServiceException,
     SessionValidationException,
     StaleSessionException)
 from xeptions import Xeption
@@ -94,6 +96,13 @@ async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[N
             logging_broker, stale_session_exception)
     except OSError as os_error:
         raise await _create_and_log_dependency_exception(logging_broker, os_error)
+    except Exception as exception:
+        failed_session_service_exception = FailedSessionServiceException(
+            message="Failed session service error occurred, contact support.",
+            inner_exception=exception)
+
+        raise await _create_and_log_service_exception(
+            logging_broker, failed_session_service_exception)
 
 
 async def _create_and_log_validation_exception(
@@ -150,3 +159,16 @@ def _create_dependency_exception(exception: Exception) -> SessionDependencyExcep
     return SessionDependencyException(
         message="Session dependency error occurred, contact support.",
         inner_exception=failed_session_dependency_exception)
+
+
+async def _create_and_log_service_exception(
+        logging_broker: LoggingBroker,
+        exception: Xeption) -> SessionServiceException:
+
+    session_service_exception = SessionServiceException(
+        message="Session service error occurred, contact support.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(session_service_exception)
+
+    return session_service_exception
