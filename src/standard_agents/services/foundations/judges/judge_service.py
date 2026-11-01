@@ -9,7 +9,13 @@ from standard_agents.models.foundations.judges.judgement import Judgement
 from standard_agents.services.foundations.judges.ijudge_service import IJudgeService
 from standard_agents.services.foundations.judges.judge_service_exceptions import try_catch
 from standard_agents.services.foundations.judges.judge_service_validations import (
-    validate_evaluate)
+    validate_evaluate,
+    validate_score)
+
+
+SCORE_FIELD = "SCORE"
+REASON_FIELD = "REASON"
+SCORE_PREFIX = SCORE_FIELD + ":"
 
 
 class JudgeService(IJudgeService):
@@ -27,12 +33,28 @@ class JudgeService(IJudgeService):
             validate_evaluate(task, candidate)
             verdict = await self.verifier_broker.verify(judge_prompt, task, candidate)
 
-            return parse_judgement(verdict)
+            judgement = parse_judgement(verdict)
+            validate_score(judgement.score)
+
+            return judgement
 
         return await try_catch(self.logging_broker, returning_judgement_function)
 
 
+# A verdict written to the Judge's contract carries SCORE: and REASON: lines; a bare verdict is a
+# score optionally followed by a reason, which is what a deterministic Judge most often returns.
 def parse_judgement(verdict: str) -> Judgement:
+    lines = verdict.strip().split("\n")
+
+    if lines[0].strip().upper().startswith(SCORE_PREFIX):
+        fields = {}
+
+        for line in lines:
+            key, _, value = line.partition(":")
+            fields[key.strip().upper()] = value.strip()
+
+        return Judgement(score=float(fields[SCORE_FIELD]), reason=fields.get(REASON_FIELD, ""))
+
     score, _, reason = verdict.strip().partition(" ")
 
     return Judgement(score=float(score), reason=reason.strip())

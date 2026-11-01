@@ -18,6 +18,7 @@ from standard_agents.models.foundations.gates.exceptions import (
     GateValidationException)
 from standard_agents.models.foundations.judges.exceptions import (
     JudgeDependencyException,
+    JudgeDependencyValidationException,
     JudgeServiceException,
     JudgeValidationException)
 from standard_agents.models.orchestrations.decision.exceptions import (
@@ -42,7 +43,8 @@ async def try_catch(
     except (
         BrainValidationException,
         GateValidationException,
-        JudgeValidationException) as dependency_validation_exception:
+        JudgeValidationException,
+        JudgeDependencyValidationException) as dependency_validation_exception:
 
         raise await create_and_log_dependency_validation_exception(
             logging_broker,

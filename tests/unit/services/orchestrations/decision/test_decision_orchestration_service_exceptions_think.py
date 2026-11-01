@@ -18,6 +18,7 @@ from standard_agents.models.foundations.gates.exceptions import (
     GateValidationException)
 from standard_agents.models.foundations.judges.exceptions import (
     JudgeDependencyException,
+    JudgeDependencyValidationException,
     JudgeServiceException,
     JudgeValidationException)
 from standard_agents.models.orchestrations.decision.exceptions import (
@@ -33,7 +34,8 @@ class TestDecisionOrchestrationServiceExceptionsThink(DecisionOrchestrationServi
     @pytest.mark.parametrize("dependency_validation_exception_type", [
         BrainValidationException,
         GateValidationException,
-        JudgeValidationException
+        JudgeValidationException,
+        JudgeDependencyValidationException
     ])
     def test_should_raise_dependency_validation_exception_on_think_if_dependency_validation_error_occurs_and_log_it(
         self,
