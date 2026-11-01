@@ -75,6 +75,9 @@ class DirectionCoordinationService:
         if _is_terminal(context.direction_type):
             result = await self.execution_service.return_payload(context.payload)
 
+            await self.logging_broker.log_payload(
+                "Direction", f"{context.direction_type} returned", result, detail=False)
+
             return dataclasses.replace(
                 context,
                 result=result,
