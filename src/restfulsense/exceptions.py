@@ -59,6 +59,132 @@ class HttpResponseServiceUnavailableException(HttpResponseException):
     pass
 
 
+# The rest of the statuses RESTFulSense 3.2.0 gives a type of its own. A status in none of
+# these classes is not a failure to RESTFulSense: its ValidationService lets it through.
+class HttpResponsePaymentRequiredException(HttpResponseException):
+    pass
+
+
+class HttpResponseMethodNotAllowedException(HttpResponseException):
+    pass
+
+
+class HttpResponseNotAcceptableException(HttpResponseException):
+    pass
+
+
+class HttpResponseProxyAuthenticationRequiredException(HttpResponseException):
+    pass
+
+
+class HttpResponseRequestTimeoutException(HttpResponseException):
+    pass
+
+
+class HttpResponseGoneException(HttpResponseException):
+    pass
+
+
+class HttpResponseLengthRequiredException(HttpResponseException):
+    pass
+
+
+class HttpResponsePreconditionFailedException(HttpResponseException):
+    pass
+
+
+class HttpResponseRequestEntityTooLargeException(HttpResponseException):
+    pass
+
+
+class HttpResponseRequestUriTooLongException(HttpResponseException):
+    pass
+
+
+class HttpResponseUnsupportedMediaTypeException(HttpResponseException):
+    pass
+
+
+class HttpResponseRequestedRangeNotSatisfiableException(HttpResponseException):
+    pass
+
+
+class HttpResponseExpectationFailedException(HttpResponseException):
+    pass
+
+
+class HttpResponseMisdirectedRequestException(HttpResponseException):
+    pass
+
+
+class HttpResponseUnprocessableEntityException(HttpResponseException):
+    pass
+
+
+class HttpResponseLockedException(HttpResponseException):
+    pass
+
+
+class HttpResponseFailedDependencyException(HttpResponseException):
+    pass
+
+
+class HttpResponseUpgradeRequiredException(HttpResponseException):
+    pass
+
+
+class HttpResponsePreconditionRequiredException(HttpResponseException):
+    pass
+
+
+class HttpResponseTooManyRequestsException(HttpResponseException):
+    pass
+
+
+class HttpResponseRequestHeaderFieldsTooLargeException(HttpResponseException):
+    pass
+
+
+class HttpResponseUnavailableForLegalReasonsException(HttpResponseException):
+    pass
+
+
+class HttpResponseNotImplementedException(HttpResponseException):
+    pass
+
+
+class HttpResponseBadGatewayException(HttpResponseException):
+    pass
+
+
+class HttpResponseGatewayTimeoutException(HttpResponseException):
+    pass
+
+
+class HttpResponseHttpVersionNotSupportedException(HttpResponseException):
+    pass
+
+
+class HttpResponseVariantAlsoNegotiatesException(HttpResponseException):
+    pass
+
+
+class HttpResponseInsufficientStorageException(HttpResponseException):
+    pass
+
+
+class HttpResponseLoopDetectedException(HttpResponseException):
+    pass
+
+
+class HttpResponseNotExtendedException(HttpResponseException):
+    pass
+
+
+class HttpResponseNetworkAuthenticationRequiredException(HttpResponseException):
+    pass
+
+
 # .NET's HttpRequestException: the request never got an answer (refused, unresolved, timed out).
 # It is not a Xeption in .NET, so it is not one here.
 class HttpRequestException(Exception):

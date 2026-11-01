@@ -1,37 +1,63 @@
 # Porting conventions: C# to Python
 
-Every port follows these, so a Python file can be laid beside its C# original and read line for
-line. Where a convention and the C# disagree, the C# behaviour wins; the convention only decides
-spelling.
+**C# decides behaviour; Python decides how the code reads.** Every type, field, default, branch,
+message and wire format matches Standard.Agents. None of its accent does: this is Python a Python
+developer would have written, following PEP 8 and PEP 257, that happens to behave exactly like
+the C# framework.
 
-## Paths and names
+## Python style
+
+| C# accent | Python |
+|---|---|
+| `interface IMemoryBroker` | `class MemoryBroker(ABC)` in `memory_broker.py`: named for the role, no `I` |
+| `class GeneratorBroker : IGeneratorBroker` (concrete and interface share a name) | the ABC keeps the role name (`GeneratorBroker`); the concrete class says what it is (`OpenAiGeneratorBroker`) |
+| `IMemoryService` beside `MemoryService` (an interface that exists for DI and Moq) | no interface: `MemoryService` is the class, and tests autospec it directly. Brokers keep their ABCs, because a broker's interface is the seam an External provider implements |
+| Overloads: `GenerateAsync(s, u)` and `GenerateAsync(s, u, inference)` | one method with keyword-only options: `generate(system_prompt, user_prompt, *, inference=None)` |
+| `RecallMemoriesAsync` | `recall_memories` (coroutines carry no suffix) |
+| `static AgentEffect For(...)` | `AgentEffect.create(...)` (a classmethod with an ordinary name) |
+| `bool TryGetVerdict(prompt, out verdict)` | `get_verdict(prompt) -> str \| None` |
+| `static AgentUsage None` / `Default` | class constants: `AgentUsage.EMPTY`, `RedactionRules.DEFAULT` |
+| Get-only computed property | `@property` |
+| XML doc comments | docstrings; `#` comments only for an inline why |
+| `string.IsNullOrWhiteSpace(x)` | `not x or x.isspace()` |
+| `x is false`, `x == null` | `not x`, `x is None` |
+| Anonymous `{ Condition, Message }` rule objects | plain code, or `(condition, parameter, message)` tuples where rules accumulate |
+| Partial classes: `MemoryService.cs`, `.Validations.cs`, `.Exceptions.cs` | one module, `memory_service.py`: the class, then private `_validate_...` functions, then the exception mapping |
+| `TryCatch(async () => { ... })` | an async context manager: `async with _handling_exceptions(self.logging_broker):` around the body |
+| `CancellationToken` parameters | none: cancelling the task cancels the work, and `asyncio.CancelledError` propagates |
+| `IAsyncEnumerable<T>` | an async generator (`AsyncIterator[T]`) |
+| `AsyncLocal<T>` | `contextvars.ContextVar` |
+| `IReadOnlyList<T>` on a record | `tuple[T, ...]`, defaulting to `()` |
+| C#'s folder misspellings (`Memorys`, `Policys`) | English: `memories`, `policies` |
+
+Exception models keep their C# class names, because callers catch them by name, and live one
+module per entity: `models/foundations/memories/exceptions.py`.
+
+## Paths
 
 | C# | Python |
 |---|---|
-| `Standard.Agents/Models/Foundations/Memorys/Exceptions/*.cs` | `src/standard_agents/models/foundations/memorys/exceptions.py` (one module per Exceptions folder) |
 | `Standard.Agents/Models/Clients/Agents/AgentOutcome.cs` | `src/standard_agents/models/clients/agents/agent_outcome.py` |
-| `Standard.Agents/Services/Foundations/Memorys/MemoryService.cs` | `src/standard_agents/services/foundations/memorys/memory_service.py` |
-| `MemoryService.Validations.cs`, `MemoryService.Exceptions.cs` | `memory_service_validations.py`, `memory_service_exceptions.py` (functions the service imports) |
-| `IMemoryService` | `class IMemoryService(ABC)` in `imemory_service.py` |
-| `RecallMemoriesAsync` | `recall_memories` |
-| Folder spellings | kept as C# spells them, in snake_case: `Memorys` is `memorys`, `Policys` is `policys` |
+| `Standard.Agents/Services/Foundations/Memorys/MemoryService*.cs` | `src/standard_agents/services/foundations/memories/memory_service.py` |
+| `Standard.Agents/Brokers/Memorys/IMemoryBroker.cs` | `src/standard_agents/brokers/memories/memory_broker.py` |
 
 ## Tests
 
+pytest, written the way pytest is meant to be written:
+
 | C# | Python |
 |---|---|
-| `Standard.Agents.Tests.Unit/Services/Foundations/Memorys/MemoryServiceTests.cs` | `tests/unit/services/foundations/memorys/memory_service_tests.py`, class `MemoryServiceTests` (setup and helpers) |
-| `MemoryServiceTests.Logic.Remember.cs` | `test_memory_service_logic_remember.py`, class `TestMemoryServiceLogicRemember(MemoryServiceTests)` |
-| `ShouldRememberAsync` | `test_should_remember` (the name `tools/parity.py` matches) |
+| `MemoryServiceTests.cs` (constructor building mocks and the service) | `tests/unit/services/foundations/memories/conftest.py` with fixtures: `memory_broker`, `logging_broker`, `memory_service` |
+| `MemoryServiceTests.Logic.Remember.cs` | `test_memory_service_logic_remember.py`, module-level test functions taking those fixtures |
+| `[Fact] public async Task ShouldRememberAsync()` | `async def test_should_remember(memory_service, memory_broker):` (pytest-asyncio, auto mode); the name is what `tools/parity.py` matches |
 | `[Theory]` with `[InlineData]` / `[MemberData]` | `@pytest.mark.parametrize` |
-| `Mock<IMemoryBroker>` | `create_autospec(IMemoryBroker, instance=True)` |
-| `Setup(...).ReturnsAsync(x)` / `.ThrowsAsync(e)` | `mock.method.return_value = x` / `mock.method.side_effect = e` |
-| `Verify(..., Times.Once)` then `VerifyNoOtherCalls()` | `assert mock.mock_calls == [call.method(...)]` |
-| `It.Is(SameExceptionAs(expected))` | `expected.same_exception_as(actual)` |
-| `Should().BeEquivalentTo(expected)` | `assert actual == expected` (dataclass equality), or `same_exception_as` for exceptions |
+| `new Mock<IMemoryBroker>()` | `create_autospec(MemoryBroker, instance=True)` |
+| `.ReturnsAsync(x)` / `.ThrowsAsync(e)` | `.return_value = x` / `.side_effect = e` |
+| `Verify(..., Times.Once)` and `VerifyNoOtherCalls()` | `assert memory_broker.mock_calls == [call.insert_memory(memory)]` |
+| `Assert.ThrowsAsync<T>` | `with pytest.raises(T) as raised:` |
+| `It.Is(SameExceptionAs(expected))`, `BeEquivalentTo` | `assert raised.value.same_exception_as(expected)`; `==` for dataclasses |
 | `DeepClone()` | `copy.deepcopy` |
-| `Tynamix.ObjectFiller` random values | `uuid.uuid4().hex`, `random` |
-| `[Fact] async Task` | a plain test that runs the coroutine with `asyncio.run` |
+| Tynamix random values | small helpers in `conftest.py` over `uuid` and `random` |
 
 ## Native exceptions
 
@@ -42,25 +68,22 @@ A .NET exception a foundation catches maps to the Python one that the same failu
 | `FileNotFoundException` | `FileNotFoundError` |
 | `DirectoryNotFoundException` | `FileNotFoundError` raised for a missing directory, and `NotADirectoryError` |
 | `UnauthorizedAccessException` | `PermissionError` |
-| `IOException` | `OSError` (catch it after the more specific ones, as C# does) |
+| `IOException` | `OSError` (caught after the more specific ones, as C# does) |
 | `KeyNotFoundException` | `KeyError` |
 | `ArgumentException`, `FormatException` | `ValueError` |
+| `InvalidOperationException` | `RuntimeError` |
 | `JsonException` | `json.JSONDecodeError`, and `ValueError` where a value has the wrong shape |
-| `TaskCanceledException`, `OperationCanceledException` | `asyncio.CancelledError` |
-| `HttpRequestException` | `restfulsense.HttpRequestException`, which wraps `urllib.error.URLError` and `OSError` from the transport |
-| RESTFulSense `HttpResponse*Exception` | the same names in the `restfulsense` package |
+| `TaskCanceledException`, `OperationCanceledException` | `asyncio.CancelledError` (a timeout is `TimeoutError`) |
+| `HttpRequestException` | `restfulsense.HttpRequestException` |
+| RESTFulSense `HttpResponse*Exception` | the same names in `restfulsense` |
 
 ## Libraries beside the package
 
-The C# framework takes two libraries from NuGet. Each is ported as a package of its own in
-`src/`, outside `standard_agents`, so the framework depends on them the way C# does:
-
 - `xeptions`: `Xeption`, with `upsert_data_list`, `add_data`, `throw_if_contains_errors` and
   `same_exception_as`.
-- `restfulsense`: an HTTP client over `urllib`, raising one exception type per status code, so a
-  broker stays a single call and the status-code mapping lives in the library, as it does in C#.
+- `restfulsense`: `RESTFulApiFactoryClient` over `urllib` and one exception type per status code,
+  so a broker stays a single call and the status-code mapping lives in the library, as in C#.
 
 ## Text
 
-No em dashes (U+2014) in anything written: commas, colons, periods or parentheses instead. Text the
-C# framework ships as Data (rubrics, protocol text) is carried over with that one change.
+No em dashes (U+2014) in anything written: commas, colons, periods or parentheses instead.

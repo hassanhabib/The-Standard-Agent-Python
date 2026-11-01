@@ -1,0 +1,19 @@
+# ---------------------------------------------------------------
+# Copyright (c) Hassan Habib All rights reserved.
+# Licensed under the The Standard Software License (TSSL)
+# ---------------------------------------------------------------
+
+from __future__ import annotations
+
+from standard_agents.brokers.policies.ipolicy_broker import IPolicyBroker
+from standard_agents.models.orchestrations.effects.agent_effect import AgentEffect
+from standard_agents.models.orchestrations.effects.authorization_decision import (
+    AuthorizationDecision,
+)
+
+
+# The default. SPEC.md 4.9: absent every perimeter control, behavior is exactly as if the
+# section did not exist, so with no policy configured every registered tool is runnable.
+class NotConfiguredPolicyBroker(IPolicyBroker):
+    async def authorize(self, effect: AgentEffect) -> AuthorizationDecision:
+        return AuthorizationDecision.allow()
