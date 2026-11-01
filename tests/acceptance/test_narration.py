@@ -233,3 +233,45 @@ async def test_should_prefer_model_narration_over_tool_template_on_stream():
         stream_event.type is AgentStreamEventType.NARRATION
         and stream_event.content == "Got results from calculator."
         for stream_event in events)
+
+
+# Narration dies with its turn: it never enters the answer, the observations, or the session's
+# history; the next turn's brain input and the saved conversation carry none of it (SPEC.md
+# 4.11).
+async def test_should_keep_narration_out_of_the_session_and_the_next_brain_input():
+    # given
+    tool = _ScriptedTool("calculator", "4")
+    calls = 0
+    brain_inputs: list[str] = []
+    saved_sessions: list[AgentSession] = []
+
+    session_broker = create_autospec(SessionBroker, instance=True)
+    session_broker.select_session.return_value = None
+    session_broker.upsert_session.side_effect = saved_sessions.append
+
+    async def brain(system_prompt: str, user_message: str) -> str:
+        nonlocal calls
+        brain_inputs.append(user_message)
+        calls += 1
+
+        return (
+            "SAY: Checking the calculator...\nACTION: calculator: 2+2" if calls == 1
+            else "FINAL: 4")
+
+    agent = (_bare_agent(brain)
+        .tool(tool)
+        .use_sessions(session_broker))
+
+    request = PromptRequest(prompt="what is 2+2?", session_id="session-1")
+
+    # when
+    await _drain(agent, request)
+
+    # then
+    assert all("Checking the calculator" not in brain_input for brain_input in brain_inputs)
+
+    assert all(
+        "Checking the calculator" not in turn.prompt
+        and "Checking the calculator" not in turn.answer
+        for session in saved_sessions
+        for turn in session.history)
