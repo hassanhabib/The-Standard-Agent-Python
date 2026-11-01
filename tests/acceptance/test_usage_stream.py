@@ -110,3 +110,33 @@ async def test_should_say_what_the_run_has_spent_after_every_model_call():
         if stream_event.type is AgentStreamEventType.RESPONSE)
 
     assert answer == "4", "what a run spent is not part of what it answered"
+
+
+async def test_should_count_the_draft_that_was_sent_back():
+    # given
+    judged = 0
+
+    async def brain(system_prompt, user_prompt):
+        return "FINAL: forty two"
+
+    async def judge(judge_rubric, draft_answer):
+        nonlocal judged
+        judged += 1
+
+        return "0.0" if judged == 1 else "1.0"
+
+    agent = (StandardAgent()
+        .on_brain(brain)
+        .on_judge(judge)
+        .max_turns(4))
+
+    # when
+    events = await _drain(agent, "what is the answer")
+
+    # then
+    usage_count = sum(
+        1 for stream_event in events if stream_event.type is AgentStreamEventType.USAGE)
+
+    assert usage_count == 2, (
+        "a draft the Judge sent back was still written, and the tokens it took were spent "
+        "whether or not anybody reads it")
