@@ -105,3 +105,18 @@ async def test_should_stop_the_loop_when_cancelled():
     # then: stopped at the next turn boundary, and said so rather than answering
     assert "cancelled" in actual_result
     assert brain_calls == 1
+
+
+async def test_should_not_report_cancellation_as_an_answer():
+    # given
+    cancellation = asyncio.Event()
+    cancellation.set()
+
+    agent = _agent_that_loops(lambda turn: "FINAL: 42")
+
+    # when
+    actual_result = await agent.process_prompt("what is the answer?", cancellation=cancellation)
+
+    # then: a cancelled run's result is not an answer
+    assert actual_result != "42"
+    assert "cancelled" in actual_result
