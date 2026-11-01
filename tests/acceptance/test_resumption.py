@@ -235,3 +235,26 @@ async def test_should_forget_the_held_act_once_it_is_no_longer_waiting(tmp_path)
     # offer an authority an act the agent has already performed.
     assert after_approval.status == AgentStatus.RESPONDED
     assert after_approval.pending_effect is None
+
+
+async def test_should_start_a_fresh_run_after_the_session_delivered_an_answer(tmp_path):
+    # given: the first prompt answers, which completes the run
+    tool = _CountingTool()
+
+    await (_new_process(tmp_path, tool, "FINAL: nothing to do")
+        .process_prompt("anything pending?", session_id="invoice-93"))
+
+    session_broker = FileSessionBroker(str(tmp_path / "sessions"))
+    answered = await session_broker.select_session("invoice-93")
+
+    # when: the next prompt in the same conversation performs an act
+    paying_tool = _CountingTool()
+
+    await (_new_process(tmp_path, paying_tool, "ACTION: wire_transfer: 10000", "FINAL: paid")
+        .process_prompt("pay the invoice", session_id="invoice-93"))
+
+    after_payment = await session_broker.select_session("invoice-93")
+
+    # then: a completed conversation is not an interrupted run; the act is performed
+    assert paying_tool.execution_count == 1
+    assert after_payment.run_id != answered.run_id
