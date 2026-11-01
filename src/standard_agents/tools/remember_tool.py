@@ -21,6 +21,10 @@ _PARAMETERS = (
     '{"type":"object","properties":{"fact":{"type":"string",'
     + '"description":"the fact to remember"}},"required":["fact"]}')
 
+_DESCRIPTION = (
+    "Store a fact to remember across sessions. Use it when the user tells you "
+    + "something worth keeping — their name, where they are, their preferences.")
+
 
 class _RemembersMemories(Protocol):
     """What the obsolete form was handed: something with a remember routine, a memory service."""
@@ -54,7 +58,11 @@ class RememberTool(Tool):
 
     @property
     def name(self) -> str:
-        raise NotImplementedError
+        return "remember"
+
+    @property
+    def description(self) -> str:
+        return _DESCRIPTION
 
     @property
     def parameters(self) -> str:
