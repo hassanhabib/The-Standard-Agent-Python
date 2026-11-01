@@ -139,3 +139,30 @@ async def test_should_call_a_tool_with_its_arguments_and_read_every_kind_of_cont
     assert call["params"]["arguments"]["deep"]["n"] == 2
 
     assert actual_text == "student: Hassan[resource_link record: file:///1.json]"
+
+
+async def test_should_throw_http_request_exception_on_a_json_rpc_error_over_standard_input():
+    # given: a server that refuses the call with a protocol error
+    def respond(message):
+        method = message.get("method")
+
+        if method == "initialize":
+            return answer_initialize(message)
+
+        if method == "tools/call":
+            return answer(
+                message,
+                '{"jsonrpc":"2.0","id":{id},"error":{"code":-32602,"message":"unknown tool"}}')
+
+        return []
+
+    server = ScriptedStdioServer(respond)
+    broker = create_broker(server)
+
+    # when
+    with pytest.raises(HttpRequestException) as raised:
+        await broker.call("nope", "{}")
+
+    # then: the server's own words, as the same native exception the HTTP broker raises, so the
+    # foundation localizes both transports alike
+    assert raised.value.message == "unknown tool"
