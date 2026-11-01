@@ -92,6 +92,13 @@ class DirectionCoordinationService:
 
         effect = self._after_what_changed_it(context, effect)
 
+        # 1: authorize
+        decision = await self.perimeter_service.authorize(effect)
+
+        if not decision.permitted:
+            return _denied(context, decision.reason)
+
+        # 2: record the intent, and learn what the ledger knows about this act
         claim = await self.perimeter_service.claim(effect)
 
         if claim.verdict is EffectClaimVerdict.REPLAY:
@@ -212,6 +219,17 @@ def _replayed(tool_name: str, outcome: str) -> str:
         f"{outcome}\n\n[{tool_name} already ran in this run with the same arguments, and this "
         "is what it said then. Asking again returns this same answer. Use it and do something "
         "else.]")
+
+
+def _denied(context: AgentContext, reason: str) -> AgentContext:
+    """A denial is non-terminal: the agent is told and may choose a permitted path next turn.
+
+    Exactly as it recovers from a malformed call (SPEC.md 4.6, 4.9).
+    """
+    return dataclasses.replace(
+        context,
+        result=reason,
+        observations=(*context.observations, f"{context.direction_type}: {reason}"))
 
 
 def _with_exchange(
