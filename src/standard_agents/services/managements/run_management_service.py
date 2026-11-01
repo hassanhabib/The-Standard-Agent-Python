@@ -172,7 +172,9 @@ class RunManagementService:
 
         context = AgentContext(prompt=request.prompt)
 
-        for _ in range(self.max_turns):
+        for turn in range(self.max_turns):
+            await self.logging_broker.log_turn(turn)
+
             context = await self.data_coordination_service.recall(context)
             context = await self.decision_coordination_service.think(context)
 
