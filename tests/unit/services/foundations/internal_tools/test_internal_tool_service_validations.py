@@ -65,3 +65,22 @@ async def test_should_throw_validation_exception_on_run_if_name_is_invalid_and_l
         call.log_error(same_exception_as(expected_internal_tool_validation_exception))]
 
     assert tool_broker.mock_calls == []
+
+
+@pytest.mark.parametrize("empty_input", [None, "", " "])
+async def test_should_run_on_run_even_if_input_is_empty(
+        empty_input, internal_tool_service, tool_broker, logging_broker, create_random_string):
+
+    # given
+    input_name = create_random_string()
+    random_output = create_random_string()
+    expected_output = random_output
+    tool_broker.run.return_value = random_output
+
+    # when
+    actual_output = await internal_tool_service.run(input_name, empty_input)
+
+    # then
+    assert actual_output == expected_output
+    assert tool_broker.mock_calls == [call.run(input_name, empty_input)]
+    assert logging_broker.mock_calls == []
