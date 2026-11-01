@@ -15,8 +15,10 @@ from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.brokers.memories.memory_broker import MemoryBroker
 from standard_agents.models.foundations.memories.exceptions import (
     FailedMemoryDependencyException,
+    FailedMemoryServiceException,
     InvalidMemoryException,
     MemoryDependencyException,
+    MemoryServiceException,
     MemoryValidationException)
 
 
@@ -88,6 +90,13 @@ async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[N
             logging_broker, critical_error)
     except OSError as os_error:
         raise await _create_and_log_dependency_exception(logging_broker, os_error)
+    except Exception as exception:
+        failed_memory_service_exception = FailedMemoryServiceException(
+            message="Failed memory service error occurred, contact support.",
+            inner_exception=exception)
+
+        raise await _create_and_log_service_exception(
+            logging_broker, failed_memory_service_exception)
 
 
 async def _create_and_log_validation_exception(
@@ -131,3 +140,16 @@ def _create_dependency_exception(exception: Exception) -> MemoryDependencyExcept
     return MemoryDependencyException(
         message="Memory dependency error occurred, contact support.",
         inner_exception=failed_memory_dependency_exception)
+
+
+async def _create_and_log_service_exception(
+        logging_broker: LoggingBroker,
+        exception: Exception) -> MemoryServiceException:
+
+    memory_service_exception = MemoryServiceException(
+        message="Memory service error occurred, contact support.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(memory_service_exception)
+
+    return memory_service_exception
