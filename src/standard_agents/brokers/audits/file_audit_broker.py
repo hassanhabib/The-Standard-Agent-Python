@@ -12,7 +12,8 @@ import os
 import re
 import threading
 import unicodedata
-from typing import Any, Iterable
+from collections.abc import Iterable
+from typing import Any
 
 from standard_agents.brokers.audits.audit_broker import AuditBroker
 from standard_agents.models.brokers.audits.audit_record import AuditRecord

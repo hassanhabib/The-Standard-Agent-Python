@@ -7,35 +7,28 @@ from xeptions import Xeption
 
 
 class FailedGateDependencyException(Xeption):
-    def __init__(self, message: str, inner_exception: BaseException | None = None) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class FailedGateServiceException(Xeption):
-    def __init__(self, message: str, inner_exception: BaseException | None = None) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class GateDependencyException(Xeption):
-    def __init__(self, message: str, inner_exception: BaseException | None = None) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class GateDependencyValidationException(Xeption):
-    def __init__(self, message: str, inner_exception: BaseException | None = None) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class GateServiceException(Xeption):
-    def __init__(self, message: str, inner_exception: BaseException | None = None) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class GateValidationException(Xeption):
-    def __init__(self, message: str, inner_exception: BaseException | None = None) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class InvalidGateException(Xeption):
-    def __init__(self, message: str) -> None:
-        super().__init__(message)
+    pass

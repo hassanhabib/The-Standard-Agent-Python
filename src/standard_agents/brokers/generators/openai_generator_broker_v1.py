@@ -13,7 +13,8 @@ import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 from restfulsense.exceptions import HttpRequestException
 from standard_agents.brokers.generators.generator_broker_v1 import GeneratorBrokerV1

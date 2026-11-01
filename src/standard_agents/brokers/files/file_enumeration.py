@@ -14,7 +14,7 @@ from __future__ import annotations
 import os
 from collections import deque
 from functools import lru_cache
-from typing import Iterator
+from collections.abc import Iterator
 
 # The wildcards of a translated Win32 expression (FileSystemName.TranslateWin32Expression).
 _STAR = "*"

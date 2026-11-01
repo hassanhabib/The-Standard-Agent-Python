@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from typing import Sequence
+from collections.abc import Sequence
 
 from standard_agents.brokers.generators.generator_broker_v1 import GeneratorBrokerV1
 from standard_agents.brokers.resiliences.resilience_broker import ResilienceBroker

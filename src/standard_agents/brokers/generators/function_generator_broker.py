@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from typing import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 
 from standard_agents.models.brokers.generators.resolved_inference import ResolvedInference
 from standard_agents.brokers.generators.generator_broker import GeneratorBroker

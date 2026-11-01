@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import os
 import unicodedata
-from typing import Sequence
+from collections.abc import Sequence
 
 from standard_agents.brokers.files.file_enumeration import enumerate_files
 from standard_agents.brokers.skills.skill_broker import SkillBroker

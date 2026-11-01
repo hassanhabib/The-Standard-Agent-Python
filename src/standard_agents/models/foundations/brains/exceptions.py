@@ -7,38 +7,31 @@ from xeptions import Xeption
 
 
 class BrainDependencyException(Xeption):
-    def __init__(self, message: str, inner_exception: BaseException | None = None) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class BrainDependencyValidationException(Xeption):
-    def __init__(self, message: str, inner_exception: BaseException | None = None) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class BrainServiceException(Xeption):
-    def __init__(self, message: str, inner_exception: BaseException | None = None) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class BrainValidationException(Xeption):
-    def __init__(self, message: str, inner_exception: BaseException | None = None) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class FailedBrainDependencyException(Xeption):
-    def __init__(self, message: str, inner_exception: BaseException | None = None) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class FailedBrainServiceException(Xeption):
-    def __init__(self, message: str, inner_exception: BaseException | None = None) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class InvalidBrainException(Xeption):
-    def __init__(self, message: str) -> None:
-        super().__init__(message)
+    pass
 
 
 class UnreachableBrainException(Xeption):
@@ -49,6 +42,3 @@ class UnreachableBrainException(Xeption):
     support, so this is the sentence they are shown. The native fault is kept as the inner
     exception for whoever investigates.
     """
-
-    def __init__(self, message: str, inner_exception: BaseException | None = None) -> None:
-        super().__init__(message, inner_exception)

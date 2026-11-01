@@ -7,30 +7,24 @@ from xeptions import Xeption
 
 
 class FailedPolicyDependencyException(Xeption):
-    def __init__(self, message: str, inner_exception: BaseException | None = None) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class FailedPolicyServiceException(Xeption):
-    def __init__(self, message: str, inner_exception: BaseException | None = None) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class InvalidPolicyException(Xeption):
-    def __init__(self, message: str) -> None:
-        super().__init__(message)
+    pass
 
 
 class PolicyDependencyException(Xeption):
-    def __init__(self, message: str, inner_exception: BaseException | None = None) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class PolicyServiceException(Xeption):
-    def __init__(self, message: str, inner_exception: BaseException | None = None) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class PolicyValidationException(Xeption):
-    def __init__(self, message: str, inner_exception: BaseException | None = None) -> None:
-        super().__init__(message, inner_exception)
+    pass

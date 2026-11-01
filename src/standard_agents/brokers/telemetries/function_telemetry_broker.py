@@ -6,7 +6,8 @@
 from __future__ import annotations
 
 from types import MappingProxyType
-from typing import Any, Callable, Mapping
+from collections.abc import Callable, Mapping
+from typing import Any
 
 from standard_agents.brokers.telemetries.telemetry_broker import TelemetryScope, TelemetryBroker
 

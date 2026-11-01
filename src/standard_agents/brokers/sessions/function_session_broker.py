@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from typing import Awaitable, Callable
+from collections.abc import Awaitable, Callable
 
 from standard_agents.brokers.sessions.session_broker import SessionBroker
 from standard_agents.models.brokers.sessions.agent_session import AgentSession

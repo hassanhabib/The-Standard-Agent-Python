@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import dataclasses
-from typing import Mapping, MutableMapping, Sequence
+from collections.abc import Mapping, MutableMapping, Sequence
 
 from standard_agents.brokers.generators.generator_broker_v1 import GeneratorBrokerV1
 from standard_agents.brokers.redactions.redaction_broker import RedactionBroker

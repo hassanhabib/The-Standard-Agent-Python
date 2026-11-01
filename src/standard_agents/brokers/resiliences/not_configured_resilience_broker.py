@@ -5,7 +5,8 @@
 
 from __future__ import annotations
 
-from typing import Awaitable, Callable, TypeVar
+from collections.abc import Awaitable, Callable
+from typing import TypeVar
 
 from standard_agents.brokers.resiliences.resilience_broker import ResilienceBroker
 

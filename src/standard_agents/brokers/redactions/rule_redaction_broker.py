@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import re
-from typing import Iterable, Mapping, MutableMapping
+from collections.abc import Iterable, Mapping, MutableMapping
 
 from standard_agents.brokers.redactions.redaction_broker import RedactionBroker
 from standard_agents.models.foundations.brains.redaction_rule import RedactionRule

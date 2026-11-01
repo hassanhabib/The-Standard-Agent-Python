@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from typing import AsyncIterator, Mapping
+from collections.abc import AsyncIterator, Mapping
 
 from standard_agents.brokers.generators.generator_broker import GeneratorBroker
 from standard_agents.brokers.redactions.redaction_broker import RedactionBroker

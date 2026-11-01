@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from typing import Awaitable, Callable
+from collections.abc import Awaitable, Callable
 
 from standard_agents.brokers.effects.effect_ledger_broker import EffectLedgerBroker
 from standard_agents.models.brokers.effects.effect_record import EffectRecord

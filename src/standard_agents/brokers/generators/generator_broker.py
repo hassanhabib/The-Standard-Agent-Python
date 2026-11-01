@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import AsyncIterator
+from collections.abc import AsyncIterator
 
 from standard_agents.models.brokers.generators.resolved_inference import ResolvedInference
 

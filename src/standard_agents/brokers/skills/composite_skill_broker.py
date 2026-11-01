@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from typing import Iterable, Sequence
+from collections.abc import Iterable, Sequence
 
 from standard_agents.brokers.skills.skill_broker import SkillBroker
 from standard_agents.models.foundations.skills.skill import Skill

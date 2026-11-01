@@ -7,30 +7,24 @@ from xeptions import Xeption
 
 
 class ContractDependencyException(Xeption):
-    def __init__(self, message: str, inner_exception: BaseException | None = None) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class ContractServiceException(Xeption):
-    def __init__(self, message: str, inner_exception: BaseException | None = None) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class ContractValidationException(Xeption):
-    def __init__(self, message: str, inner_exception: BaseException | None = None) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class FailedContractDependencyException(Xeption):
-    def __init__(self, message: str, inner_exception: BaseException | None = None) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class FailedContractServiceException(Xeption):
-    def __init__(self, message: str, inner_exception: BaseException | None = None) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class InvalidContractException(Xeption):
-    def __init__(self, message: str) -> None:
-        super().__init__(message)
+    pass

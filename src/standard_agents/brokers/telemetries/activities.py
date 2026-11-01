@@ -18,7 +18,8 @@ from __future__ import annotations
 import contextvars
 import threading
 from datetime import datetime, timedelta, timezone
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 # The current span flows with the async context, as Activity.Current does in .NET.
 _current_activity: contextvars.ContextVar[Activity | None] = contextvars.ContextVar(

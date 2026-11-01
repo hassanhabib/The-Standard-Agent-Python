@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import os
 import unicodedata
-from typing import Awaitable, Callable
+from collections.abc import Awaitable, Callable
 
 from standard_agents.brokers.verifiers.verifier_broker import VerifierBroker
 

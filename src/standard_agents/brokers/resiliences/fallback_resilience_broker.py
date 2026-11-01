@@ -7,7 +7,8 @@ from __future__ import annotations
 
 import threading
 from datetime import datetime, timedelta, timezone
-from typing import Awaitable, Callable, TypeVar
+from collections.abc import Awaitable, Callable
+from typing import TypeVar
 
 from standard_agents.brokers.resiliences.resilience_broker import ResilienceBroker
 from standard_agents.models.brokers.generators.v1.conversation import GenerationResult

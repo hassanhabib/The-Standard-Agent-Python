@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Sequence
+from collections.abc import Sequence
 
 from standard_agents.models.brokers.generators.resolved_inference import ResolvedInference
 from standard_agents.models.brokers.generators.v1.conversation import (

@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import hashlib
-from typing import Callable
+from collections.abc import Callable
 
 from standard_agents.brokers.audits.audit_broker import AuditBroker
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker

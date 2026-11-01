@@ -8,7 +8,8 @@ from __future__ import annotations
 import asyncio
 import random
 from datetime import timedelta
-from typing import Awaitable, Callable, TypeVar
+from collections.abc import Awaitable, Callable
+from typing import TypeVar
 
 from restfulsense.exceptions import HttpRequestException
 from standard_agents.brokers.resiliences.resilience_broker import ResilienceBroker

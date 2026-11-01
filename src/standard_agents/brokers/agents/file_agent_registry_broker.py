@@ -7,7 +7,8 @@ from __future__ import annotations
 
 import os
 import unicodedata
-from typing import TYPE_CHECKING, Sequence
+from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 from standard_agents.brokers.agents.agent_registry_broker import AgentRegistryBroker
 from standard_agents.brokers.files.file_enumeration import enumerate_files

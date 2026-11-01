@@ -13,7 +13,8 @@ import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
-from typing import Any, AsyncIterator
+from collections.abc import AsyncIterator
+from typing import Any
 
 from restfulsense.client import RESTFulApiFactoryClient
 from restfulsense.exceptions import HttpRequestException

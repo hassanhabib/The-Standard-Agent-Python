@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from typing import Awaitable, Callable
+from collections.abc import Awaitable, Callable
 
 from standard_agents.brokers.classifiers.classifier_broker import ClassifierBroker
 

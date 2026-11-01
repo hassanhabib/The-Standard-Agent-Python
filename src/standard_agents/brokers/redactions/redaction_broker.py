@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Mapping, MutableMapping
+from collections.abc import Mapping, MutableMapping
 
 
 class RedactionBroker(ABC):

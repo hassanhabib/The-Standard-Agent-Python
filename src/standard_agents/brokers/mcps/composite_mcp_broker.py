@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Iterable
+from collections.abc import Iterable
 
 from standard_agents.brokers.mcps.mcp_broker import McpBroker
 from standard_agents.models.brokers.mcps.mcp_tool import McpTool

@@ -14,7 +14,8 @@ import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 from restfulsense.exceptions import HttpRequestException
 from standard_agents.models.brokers.generators.resolved_inference import ResolvedInference

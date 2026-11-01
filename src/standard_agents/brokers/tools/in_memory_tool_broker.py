@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from typing import Iterable
+from collections.abc import Iterable
 
 from standard_agents.brokers.tools.tool_broker import ToolBroker
 from standard_agents.tools.tool import Tool

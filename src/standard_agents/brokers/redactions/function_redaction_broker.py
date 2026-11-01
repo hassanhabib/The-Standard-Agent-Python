@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from typing import Callable, Mapping, MutableMapping
+from collections.abc import Callable, Mapping, MutableMapping
 
 from standard_agents.brokers.redactions.redaction_broker import RedactionBroker
 

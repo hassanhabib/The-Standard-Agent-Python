@@ -7,30 +7,24 @@ from xeptions import Xeption
 
 
 class FailedMemoryDependencyException(Xeption):
-    def __init__(self, message: str, inner_exception: BaseException | None = None) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class FailedMemoryServiceException(Xeption):
-    def __init__(self, message: str, inner_exception: BaseException | None = None) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class InvalidMemoryException(Xeption):
-    def __init__(self, message: str) -> None:
-        super().__init__(message)
+    pass
 
 
 class MemoryDependencyException(Xeption):
-    def __init__(self, message: str, inner_exception: BaseException | None = None) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class MemoryServiceException(Xeption):
-    def __init__(self, message: str, inner_exception: BaseException | None = None) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class MemoryValidationException(Xeption):
-    def __init__(self, message: str, inner_exception: BaseException | None = None) -> None:
-        super().__init__(message, inner_exception)
+    pass

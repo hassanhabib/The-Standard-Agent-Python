@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import os
 import re
-from typing import Iterable, Sequence
+from collections.abc import Iterable, Sequence
 
 from standard_agents.brokers.files.file_enumeration import enumerate_files
 from standard_agents.brokers.files.file_broker import FileBroker, SearchOption

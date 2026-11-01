@@ -15,7 +15,8 @@ import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from email.message import Message
-from typing import Any, Awaitable, Callable
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 from restfulsense.exceptions import HttpRequestException
 from restfulsense.validation_service import read_as_string, validate_http_response

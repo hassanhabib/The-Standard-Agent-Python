@@ -15,7 +15,8 @@ import re
 import signal
 import subprocess
 from collections import deque
-from typing import Any, Awaitable, Callable, Iterable, Mapping, Protocol
+from collections.abc import Awaitable, Callable, Iterable, Mapping
+from typing import Any, Protocol
 
 from restfulsense.exceptions import HttpRequestException
 from standard_agents.brokers.mcps import mcp_json

@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from typing import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable, Sequence
 
 from standard_agents.brokers.memories.memory_broker import MemoryBroker
 

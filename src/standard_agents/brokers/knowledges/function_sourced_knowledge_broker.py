@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from typing import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable, Sequence
 
 from standard_agents.brokers.knowledges.sourced_knowledge_broker import SourcedKnowledgeBroker
 from standard_agents.models.foundations.knowledges.knowledge_result import KnowledgeResult

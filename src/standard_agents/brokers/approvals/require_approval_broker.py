@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from typing import Iterable
+from collections.abc import Iterable
 
 from standard_agents.brokers.approvals.approval_broker import ApprovalDecision, ApprovalBroker
 from standard_agents.models.orchestrations.effects.agent_effect import AgentEffect

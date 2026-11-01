@@ -15,9 +15,6 @@ class InvalidAgentApiUrlException(Xeption):
     so the contradiction is refused at composition instead.
     """
 
-    def __init__(self, message: str) -> None:
-        super().__init__(message)
-
 
 class InvalidAgentBudgetException(Xeption):
     """A budget the agent cannot honestly enforce: a cost bound with no rate to price it.
@@ -27,13 +24,9 @@ class InvalidAgentBudgetException(Xeption):
     model costs, so it refuses the contradiction rather than composing it silently.
     """
 
-    def __init__(self, message: str) -> None:
-        super().__init__(message)
-
 
 class InvalidAgentCompositionException(Xeption):
-    def __init__(self, message: str) -> None:
-        super().__init__(message)
+    pass
 
 
 class InvalidAgentConfigurationException(Xeption):
@@ -43,6 +36,3 @@ class InvalidAgentConfigurationException(Xeption):
     always named: a typo'd key silently ignored is a control the caller believes is on and is
     not.
     """
-
-    def __init__(self, message: str, inner_exception: BaseException | None = None) -> None:
-        super().__init__(message, inner_exception)
