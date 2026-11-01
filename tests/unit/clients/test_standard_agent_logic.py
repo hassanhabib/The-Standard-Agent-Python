@@ -309,3 +309,34 @@ async def test_should_use_custom_gate_to_refuse_on_process_prompt(
 
     # then
     assert actual_result == "I'm not able to help with that."
+
+
+async def test_should_use_custom_judge_to_score_on_process_prompt(
+        create_skill_broker,
+        empty_memory_broker,
+        empty_knowledge_broker):
+
+    # given
+    judge_invocations = []
+
+    async def brain(system_prompt, user_prompt):
+        return "FINAL: 42"
+
+    async def judge(judge_rubric, draft_answer):
+        judge_invocations.append(draft_answer)
+
+        return "1.0"
+
+    agent = (StandardAgent()
+        .use_skills(create_skill_broker())
+        .use_memory(empty_memory_broker)
+        .use_knowledge(empty_knowledge_broker)
+        .on_brain(brain)
+        .on_judge(judge))
+
+    # when
+    actual_result = await agent.process_prompt(prompt="what is the answer?")
+
+    # then
+    assert actual_result == "42"
+    assert judge_invocations
