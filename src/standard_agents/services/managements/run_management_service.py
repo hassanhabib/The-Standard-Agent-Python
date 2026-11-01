@@ -238,6 +238,8 @@ class RunManagementService:
                     result=_RETRIES_EXHAUSTED_MESSAGE,
                     status=AgentStatus.REFUSED)
 
+            await self.logging_broker.log_outcome(f"done: {_status_name(context.status)}")
+
             if context.remember:
                 await self.data_coordination_service.remember(context.remember)
 
