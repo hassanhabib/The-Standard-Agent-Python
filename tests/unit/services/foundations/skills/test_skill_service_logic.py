@@ -24,3 +24,18 @@ async def test_should_retrieve_skills(
     assert actual_skills == expected_skills
     assert skill_broker.mock_calls == [call.select_skills()]
     assert logging_broker.mock_calls == []
+
+
+async def test_should_return_empty_when_broker_returns_no_skills(
+        skill_service, skill_broker, logging_broker):
+
+    # given
+    skill_broker.select_skills.return_value = []
+
+    # when
+    actual_skills = await skill_service.retrieve_skills()
+
+    # then
+    assert actual_skills == ""
+    assert skill_broker.mock_calls == [call.select_skills()]
+    assert logging_broker.mock_calls == []
