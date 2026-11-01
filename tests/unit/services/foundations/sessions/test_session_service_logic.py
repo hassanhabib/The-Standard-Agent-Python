@@ -47,3 +47,18 @@ async def test_should_retrieve_no_session_on_retrieve_session_if_none_exists(
     assert actual_session is None
     assert session_broker.mock_calls == [call.select_session(random_session_id)]
     assert logging_broker.mock_calls == []
+
+
+async def test_should_record_session(
+        session_service, session_broker, logging_broker, create_random_session):
+
+    # given
+    random_session = create_random_session()
+    input_session = random_session
+
+    # when
+    await session_service.record_session(input_session)
+
+    # then
+    assert session_broker.mock_calls == [call.upsert_session(input_session)]
+    assert logging_broker.mock_calls == []
