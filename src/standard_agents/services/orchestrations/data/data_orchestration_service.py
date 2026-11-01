@@ -18,8 +18,10 @@ from standard_agents.services.orchestrations.data.data_orchestration_service_val
 from standard_agents.services.orchestrations.data.idata_orchestration_service import (
     IDataOrchestrationService)
 
-# Where a skill asks for the tool catalog to be written in, exactly as in the C# framework.
+# Where a skill asks for the tool catalog, or the skill catalog, to be written in. Nothing is
+# advertised unbidden (SPEC.md 6.1).
 TOOLS_MARKER = "{{tools}}"
+SKILLS_MARKER = "{{skills}}"
 
 
 def with_new_observations(observations: tuple[str, ...], recalled: list[str]) -> tuple[str, ...]:
@@ -47,18 +49,25 @@ class DataOrchestrationService(IDataOrchestrationService):
         self.logging_broker = logging_broker
         self.tool_catalog = tool_catalog
 
-    # Recalled fresh every turn: memories and knowledge replace last turn's, while observations,
-    # which only Direction adds to, are carried through untouched.
+    # Recall refreshes what the agent has (SPEC.md 4.3): the system prompt from skills, with the
+    # catalogs written in where the skills ask for them, and memory and knowledge seeded into the
+    # observations once each.
     async def recall(self, context: AgentContext) -> AgentContext:
         async def returning_context_function() -> AgentContext:
             validate_context(context)
             skills = await self.skill_service.retrieve_skills("")
+            system_prompt = skills.replace(TOOLS_MARKER, self.tool_catalog)
+
+            if SKILLS_MARKER in system_prompt:
+                skill_catalog = await self.skill_service.retrieve_skill_catalog()
+                system_prompt = system_prompt.replace(SKILLS_MARKER, skill_catalog)
+
             memories = await self.memory_service.retrieve_all_memories()
             knowledge = await self.knowledge_service.retrieve_knowledge(context.prompt)
 
             return dataclasses.replace(
                 context,
-                system_prompt=skills.replace(TOOLS_MARKER, self.tool_catalog),
+                system_prompt=system_prompt,
                 observations=with_new_observations(context.observations, memories + knowledge))
 
         return await try_catch(self.logging_broker, returning_context_function)
