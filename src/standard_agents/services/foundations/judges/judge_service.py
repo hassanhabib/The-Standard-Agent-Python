@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -12,11 +13,19 @@ from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.brokers.verifiers.verifier_broker import VerifierBroker
 from standard_agents.models.foundations.judges.exceptions import (
     InvalidJudgeException,
+    InvalidJudgeScoreException,
     JudgeValidationException)
 from standard_agents.models.foundations.judges.judgement import Judgement
 
 _SCORE_LABEL = "SCORE:"
 _REASON_LABEL = "REASON:"
+
+# NumberStyles.Float under the invariant culture: ASCII white space around an optional sign, digits
+# with an optional decimal point and exponent, or NaN and Infinity in any case. .NET also ignores
+# trailing NUL characters.
+_INVARIANT_NUMBER = re.compile(
+    r"[\t\n\v\f\r ]*([+-]?(?:(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?|nan|infinity))[\t\n\v\f\r ]*\x00*",
+    re.ASCII | re.IGNORECASE)
 
 
 class JudgeService:
@@ -45,8 +54,8 @@ def _validate_evaluate(candidate: str | None) -> None:
             message="Invalid judge input. Please correct the error and try again.")
 
 
-def _parse_judgement(verdict: str) -> Judgement:
-    text = verdict.strip()
+def _parse_judgement(verdict: str | None) -> Judgement:
+    text = (verdict or "").strip()
     labeled_score = _extract_labeled(text, _SCORE_LABEL)
 
     if labeled_score is None:
@@ -54,10 +63,26 @@ def _parse_judgement(verdict: str) -> Judgement:
     else:
         score_text = next((part for part in labeled_score.split(" ") if part), labeled_score)
 
-    score = float(score_text)
+    score = _parse_number(score_text)
+
+    if score is None:
+        raise InvalidJudgeScoreException(
+            message="Invalid judge score. Score must be a number between 0.0 and 1.0.")
+
     reason = _extract_labeled(text, _REASON_LABEL) or ""
 
     return Judgement(score=score, reason=reason)
+
+
+def _parse_number(text: str) -> float | None:
+    """Reads a number the way .NET's invariant double.TryParse does, or returns None.
+
+    float() alone is looser: it takes underscores ("0_5"), "inf", and non-ASCII digits, all of
+    which the C# Judge rejects as not a number.
+    """
+    number_match = _INVARIANT_NUMBER.fullmatch(text)
+
+    return float(number_match.group(1)) if number_match else None
 
 
 def _extract_labeled(text: str, label: str) -> str | None:
@@ -74,7 +99,7 @@ def _extract_labeled(text: str, label: str) -> str | None:
 async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[None]:
     try:
         yield
-    except InvalidJudgeException as invalid_judge_exception:
+    except (InvalidJudgeException, InvalidJudgeScoreException) as invalid_judge_exception:
         raise await _create_and_log_validation_exception(
             logging_broker, invalid_judge_exception)
 
