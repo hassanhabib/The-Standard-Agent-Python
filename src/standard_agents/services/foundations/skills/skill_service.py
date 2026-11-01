@@ -71,5 +71,12 @@ class SkillService(ISkillService):
 
         return await try_catch(self.logging_broker, returning_string_function)
 
+    # The index a skills marker in Data expands into (SPEC.md 4.2), advertised the way tools are:
+    # only what carries a description.
     async def retrieve_skill_catalog(self) -> str:
-        raise NotImplementedError
+        skills = [read_frontmatter(skill) for skill in await self.skill_broker.select_skills()]
+        described_skills = [skill for skill in skills if skill.description.strip() != ""]
+
+        return "\n".join(
+            f"- {skill.name}: {skill.description}"
+            for skill in sorted(described_skills, key=lambda skill: skill.name))
