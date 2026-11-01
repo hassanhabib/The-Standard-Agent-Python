@@ -53,7 +53,15 @@ class KnowledgeService:
             return tuple(knowledge_result.text for knowledge_result in knowledge_results)
 
     async def retrieve_sourced_knowledge(self, query: str) -> Sequence[KnowledgeResult]:
-        return await self._select_sourced_knowledge(query)
+        """The same passages, in the same order, each with its score and its source.
+
+        A broker that cannot say where a passage came from yields passages with no source, which
+        are never cited (SPEC.md 3.7, 4.2).
+        """
+        async with _handling_exceptions(self.logging_broker):
+            _validate_query(query)
+
+            return await self._select_sourced_knowledge(query)
 
     async def _select_sourced_knowledge(self, query: str) -> Sequence[KnowledgeResult]:
         """One retrieval behind both doors.
