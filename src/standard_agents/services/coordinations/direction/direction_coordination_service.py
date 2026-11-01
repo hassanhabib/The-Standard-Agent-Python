@@ -9,6 +9,7 @@ import dataclasses
 
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.models.coordinations.directions.perimeter_policy import PerimeterPolicy
+from standard_agents.models.loggings.agent_run import AgentRun
 from standard_agents.models.orchestrations.agents.agent_context import AgentContext
 from standard_agents.models.orchestrations.agents.agent_status import AgentStatus
 from standard_agents.models.orchestrations.agents.tool_exchange import ToolExchange
@@ -90,12 +91,32 @@ class DirectionCoordinationService:
         if claim.verdict is EffectClaimVerdict.REPLAY:
             outcome = claim.outcome if claim.outcome is not None else ""
 
-            return _observed(context, _replayed(effect.tool_name, outcome), replayed=True)
+            return await self._replayed_observed(context, effect, outcome)
 
         output = await self.execution_service.run(context.direction_type, context.payload)
         await self.perimeter_service.record_outcome(effect, output)
 
         return _observed(context, output)
+
+    async def _replayed_observed(
+            self,
+            context: AgentContext,
+            effect: AgentEffect,
+            outcome: str) -> AgentContext:
+        """Once is a replay, with a note saying so.
+
+        From the third identical ask on it is the note alone: the bytes have been handed back
+        twice, and a third copy costs the person context and buys the model nothing it did not
+        already have (SPEC.md 4.9, v1.14). This implementation never trims a conversation, so
+        the answer the note points to is always still in view.
+        """
+        run = AgentRun.current()
+        replays = run.record_replay(effect.idempotency_key) if run is not None else 1
+
+        if replays < 2:
+            return _observed(context, _replayed(effect.tool_name, outcome), replayed=True)
+
+        return _observed(context, _replayed_again(effect.tool_name), replayed=True)
 
     async def compensate_run(self) -> tuple[CompensationOutcome, ...]:
         """Unwinds what this run performed, in reverse order (SPEC.md 4.9).
@@ -103,6 +124,13 @@ class DirectionCoordinationService:
         Reports every effect it could not undo rather than reporting the run cleanly unwound.
         """
         raise NotImplementedError
+
+
+def _replayed_again(tool_name: str) -> str:
+    return (
+        f"[{tool_name} was asked for a third time with the same arguments. Its answer is above, "
+        "from the first time, and is not repeated. Use it, ask for something different, or "
+        "answer.]")
 
 
 def _replayed(tool_name: str, outcome: str) -> str:
