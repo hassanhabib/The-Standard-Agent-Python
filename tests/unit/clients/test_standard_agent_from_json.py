@@ -359,3 +359,25 @@ def test_should_compose_multiple_integrations_from_json():
 
     # then
     assert agent is not None
+
+
+def test_should_accept_the_simple_forms_of_polymorphic_keys():
+    # given: the low-code-friendly short forms: a bare string or a bare true where the long form
+    # would be an object.
+    short_forms = """
+    {
+      "knowledge": "Knowledge",
+      "mcp": "https://mcp.example/",
+      "redact": true,
+      "telemetry": true,
+      "sessions": "sessions",
+      "logTo": "log.txt",
+      "resilience": 3
+    }
+    """
+
+    # when
+    agent = StandardAgent.from_json(short_forms)
+
+    # then
+    assert agent is not None
