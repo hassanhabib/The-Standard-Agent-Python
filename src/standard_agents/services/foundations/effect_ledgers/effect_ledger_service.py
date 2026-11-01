@@ -11,6 +11,7 @@ from standard_agents.brokers.effects.effect_ledger_broker import EffectLedgerBro
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.brokers.times.time_broker import TimeBroker
 from standard_agents.models.brokers.effects.effect_record import EffectRecord
+from standard_agents.models.brokers.effects.effect_state import EffectState
 from standard_agents.models.orchestrations.effects.agent_effect import AgentEffect
 
 
@@ -41,7 +42,19 @@ class EffectLedgerService:
         Reports the prior record when the key already has one, and None when this is the first
         time and the caller should proceed (SPEC.md 4.9).
         """
-        raise NotImplementedError
+        now = self.time_broker.get_current_date_time()
+
+        claim = EffectRecord(
+            idempotency_key=effect.idempotency_key,
+            tool_name=effect.tool_name,
+            state=EffectState.IN_FLIGHT,
+            owner=effect.run_id,
+            claimed_on=now,
+            lease_until=now + self.lease)
+
+        await self.effect_ledger_broker.insert_claim(claim)
+
+        return None
 
     async def record_outcome(self, effect: AgentEffect, outcome: str) -> None:
         """Records what the act produced, before the loop advances: the record is completed."""
