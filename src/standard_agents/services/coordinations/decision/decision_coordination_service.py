@@ -26,7 +26,9 @@ from standard_agents.services.orchestrations.decision.inferences.inference_orche
     import InferenceOrchestrationService
 
 # A guardian that emits one of these is trying to answer rather than classify.
+_FINAL_PREFIX = "FINAL:"
 _SAY_PREFIX = "SAY:"
+
 
 _REFUSE_VERDICT = "refuse"
 
@@ -177,7 +179,7 @@ class DecisionCoordinationService:
         """Everything else the Gate's verdict carries, handled once for both doors.
 
         A route label rides through as data. A verdict is only ever read as a classification,
-        so a Gate that emits SAY: falls through to the Brain and its text never becomes the
+        so a Gate that emits FINAL: falls through to the Brain and its text never becomes the
         answer, but the overreach is recorded (SPEC.md 7.6): a guardian trying to answer is
         exactly the event a security review needs to see.
         """
@@ -301,8 +303,8 @@ def _is_route(verdict: str) -> bool:
 
 
 def _is_guardian_overreach(verdict: str) -> bool:
-    """SAY: is an overreach: narration is a voice, and a guardian is never a voice."""
-    return _SAY_PREFIX in verdict
+    """SAY: belongs here too: narration is a voice, and a guardian is never a voice."""
+    return _FINAL_PREFIX in verdict or _SAY_PREFIX in verdict
 
 
 def _extract_route_label(verdict: str) -> str:
