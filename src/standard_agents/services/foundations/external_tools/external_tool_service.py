@@ -25,8 +25,10 @@ from standard_agents.models.brokers.mcps.mcp_tool import McpTool
 from standard_agents.models.foundations.external_tools.exceptions import (
     ExternalToolDependencyException,
     ExternalToolDependencyValidationException,
+    ExternalToolServiceException,
     ExternalToolValidationException,
     FailedExternalToolDependencyException,
+    FailedExternalToolServiceException,
     InvalidExternalToolException)
 
 # The one argument plain text travels as, for a tool that declared no schema of its own.
@@ -113,6 +115,13 @@ async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[N
             HttpResponseServiceUnavailableException) as dependency_exception:
 
         raise await _create_and_log_dependency_exception(logging_broker, dependency_exception)
+    except Exception as exception:
+        failed_external_tool_service_exception = FailedExternalToolServiceException(
+            message="Failed external tool service error occurred, contact support.",
+            inner_exception=exception)
+
+        raise await _create_and_log_service_exception(
+            logging_broker, failed_external_tool_service_exception)
 
 
 async def _create_and_log_validation_exception(
@@ -170,3 +179,16 @@ def _create_dependency_exception(exception: Exception) -> ExternalToolDependency
     return ExternalToolDependencyException(
         message="External tool dependency error occurred, contact support.",
         inner_exception=failed_external_tool_dependency_exception)
+
+
+async def _create_and_log_service_exception(
+        logging_broker: LoggingBroker,
+        exception: Exception) -> ExternalToolServiceException:
+
+    external_tool_service_exception = ExternalToolServiceException(
+        message="External tool service error occurred, contact support.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(external_tool_service_exception)
+
+    return external_tool_service_exception
