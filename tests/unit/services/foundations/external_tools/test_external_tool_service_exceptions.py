@@ -19,7 +19,9 @@ from restfulsense import (
 from standard_agents.models.foundations.external_tools.exceptions import (
     ExternalToolDependencyException,
     ExternalToolDependencyValidationException,
+    ExternalToolServiceException,
     FailedExternalToolDependencyException,
+    FailedExternalToolServiceException,
     InvalidExternalToolException)
 
 CRITICAL_DEPENDENCY_EXCEPTIONS = [
@@ -46,6 +48,16 @@ def _external_tool_dependency_exception(
     return ExternalToolDependencyException(
         message="External tool dependency error occurred, contact support.",
         inner_exception=failed_external_tool_dependency_exception)
+
+
+def _external_tool_service_exception(inner_exception: Exception) -> ExternalToolServiceException:
+    failed_external_tool_service_exception = FailedExternalToolServiceException(
+        message="Failed external tool service error occurred, contact support.",
+        inner_exception=inner_exception)
+
+    return ExternalToolServiceException(
+        message="External tool service error occurred, contact support.",
+        inner_exception=failed_external_tool_service_exception)
 
 
 async def test_should_throw_dependency_validation_exception_on_call_if_bad_request_error_occurs_and_log_it(
@@ -235,3 +247,32 @@ async def test_should_throw_dependency_exception_on_retrieve_tools_if_dependency
 
     assert logging_broker.mock_calls == [
         call.log_error(same_exception_as(expected_external_tool_dependency_exception))]
+
+
+async def test_should_throw_service_exception_on_call_if_service_error_occurs_and_log_it(
+        external_tool_service,
+        mcp_broker,
+        logging_broker,
+        same_exception_as,
+        create_random_string,
+        expected_arguments_json):
+
+    # given
+    random_name = create_random_string()
+    random_input = create_random_string()
+    service_exception = Exception()
+    expected_external_tool_service_exception = _external_tool_service_exception(service_exception)
+    mcp_broker.call.side_effect = service_exception
+
+    # when
+    with pytest.raises(ExternalToolServiceException) as raised:
+        await external_tool_service.call(random_name, random_input)
+
+    # then
+    assert raised.value.same_exception_as(expected_external_tool_service_exception)
+
+    assert mcp_broker.mock_calls == [
+        call.call(random_name, expected_arguments_json(random_input))]
+
+    assert logging_broker.mock_calls == [
+        call.log_error(same_exception_as(expected_external_tool_service_exception))]
