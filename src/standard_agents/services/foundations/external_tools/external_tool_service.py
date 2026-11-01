@@ -13,7 +13,9 @@ from restfulsense import (
     HttpRequestException,
     HttpResponseBadRequestException,
     HttpResponseForbiddenException,
+    HttpResponseInternalServerErrorException,
     HttpResponseNotFoundException,
+    HttpResponseServiceUnavailableException,
     HttpResponseUnauthorizedException,
     HttpResponseUrlNotFoundException)
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
@@ -106,6 +108,11 @@ async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[N
 
         raise await _create_and_log_critical_dependency_exception(
             logging_broker, critical_dependency_exception)
+    except (
+            HttpResponseInternalServerErrorException,
+            HttpResponseServiceUnavailableException) as dependency_exception:
+
+        raise await _create_and_log_dependency_exception(logging_broker, dependency_exception)
 
 
 async def _create_and_log_validation_exception(
@@ -141,6 +148,16 @@ async def _create_and_log_critical_dependency_exception(
 
     external_tool_dependency_exception = _create_dependency_exception(exception)
     await logging_broker.log_critical(external_tool_dependency_exception)
+
+    return external_tool_dependency_exception
+
+
+async def _create_and_log_dependency_exception(
+        logging_broker: LoggingBroker,
+        exception: Exception) -> ExternalToolDependencyException:
+
+    external_tool_dependency_exception = _create_dependency_exception(exception)
+    await logging_broker.log_error(external_tool_dependency_exception)
 
     return external_tool_dependency_exception
 
