@@ -74,3 +74,19 @@ def test_should_throw_invalid_agent_api_url_exception_on_gate_if_api_url_is_inva
     # then
     assert raised.value.same_exception_as(expected_invalid_agent_api_url_exception)
 
+
+
+@pytest.mark.parametrize("invalid_api_url", INVALID_API_URLS)
+def test_should_throw_invalid_agent_api_url_exception_on_judge_if_api_url_is_invalid(
+        invalid_api_url):
+
+    # given
+    expected_invalid_agent_api_url_exception = InvalidAgentApiUrlException(
+        message=INVALID_API_URL_MESSAGE)
+
+    # when
+    with pytest.raises(InvalidAgentApiUrlException) as raised:
+        StandardAgent().judge(api_url=invalid_api_url, api_key="key", model="model")
+
+    # then
+    assert raised.value.same_exception_as(expected_invalid_agent_api_url_exception)
