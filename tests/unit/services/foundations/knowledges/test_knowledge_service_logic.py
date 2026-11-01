@@ -195,3 +195,37 @@ async def test_should_retrieve_unsourced_knowledge_on_retrieve_sourced_knowledge
     assert knowledge_broker.mock_calls == [call.select_knowledge(input_query)]
     assert sourced_knowledge_broker.mock_calls == []
     assert logging_broker.mock_calls == []
+
+
+async def test_should_retrieve_the_texts_of_sourced_knowledge_on_retrieve_knowledge(
+        sourced_knowledge_service,
+        sourced_knowledge_broker,
+        knowledge_broker,
+        logging_broker,
+        create_random_string,
+        create_random_knowledge_results):
+    """The plain door over a sourced broker: the same passages, in the same order.
+
+    Nothing travels beside them, so a caller that never asked where a passage came from sees
+    what it always saw.
+    """
+    # given
+    input_query = create_random_string()
+    selected_knowledge_results = create_random_knowledge_results()
+
+    expected_documents = [
+        knowledge_result.text for knowledge_result in selected_knowledge_results]
+
+    sourced_knowledge_broker.select_sourced_knowledge.return_value = selected_knowledge_results
+
+    # when
+    actual_documents = await sourced_knowledge_service.retrieve_knowledge(input_query)
+
+    # then
+    assert list(actual_documents) == expected_documents
+
+    assert sourced_knowledge_broker.mock_calls == [
+        call.select_sourced_knowledge(input_query)]
+
+    assert knowledge_broker.mock_calls == []
+    assert logging_broker.mock_calls == []
