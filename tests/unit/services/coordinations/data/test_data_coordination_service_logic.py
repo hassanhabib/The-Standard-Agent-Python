@@ -188,3 +188,17 @@ async def test_should_carry_the_sources_of_recalled_knowledge_on_recall(
 
     assert knowledge_service.mock_calls == [
         call.retrieve_sourced_knowledge(input_context.prompt)]
+
+
+async def test_should_remember(
+        data_coordination_service,
+        memory_service,
+        create_random_string):
+    # given
+    random_memory = create_random_string()
+
+    # when
+    await data_coordination_service.remember(random_memory)
+
+    # then
+    assert memory_service.mock_calls == [call.remember(random_memory)]
