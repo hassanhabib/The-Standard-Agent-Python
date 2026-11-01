@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from collections.abc import AsyncIterator, Callable
 from datetime import timedelta
 
@@ -24,6 +25,7 @@ from standard_agents.brokers.generators.openai_generator_broker import OpenAiGen
 from standard_agents.brokers.knowledges.knowledge_broker import KnowledgeBroker
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.brokers.loggings.stdlib_logging_broker import StdlibLoggingBroker
+from standard_agents.brokers.mcps.http_mcp_broker import HttpMcpBroker
 from standard_agents.brokers.mcps.mcp_broker import McpBroker
 from standard_agents.brokers.mcps.not_configured_mcp_broker import NotConfiguredMcpBroker
 from standard_agents.brokers.memories.memory_broker import MemoryBroker
@@ -31,6 +33,7 @@ from standard_agents.brokers.policies.not_configured_policy_broker import (
     NotConfiguredPolicyBroker)
 from standard_agents.brokers.sessions.not_configured_session_broker import (
     NotConfiguredSessionBroker)
+from standard_agents.brokers.skills.file_skill_broker import FileSkillBroker
 from standard_agents.brokers.skills.skill_broker import SkillBroker
 from standard_agents.brokers.times.system_time_broker import SystemTimeBroker
 from standard_agents.brokers.tools.in_memory_tool_broker import InMemoryToolBroker
@@ -103,9 +106,37 @@ class StandardAgent(Agent):
         self._logging_broker: LoggingBroker | None = None
         self._usage_broker: UsageBroker = RatioUsageBroker()
         self._brain_settings: InferenceSettings | None = None
+        self._memory_path = "memory.txt"
+        self._knowledge_path = "Knowledge"
+        self._log_path = ""
 
         if api_url is not None or api_key is not None or model is not None:
             self.brain(api_url, api_key, model)
+
+    def skills(self, path: str) -> StandardAgent:
+        self._skill_sources.append(FileSkillBroker(os.path.join(os.getcwd(), path)))
+
+        return self
+
+    def memory(self, path: str) -> StandardAgent:
+        self._memory_path = path
+
+        return self
+
+    def knowledge(self, path: str) -> StandardAgent:
+        self._knowledge_path = path
+
+        return self
+
+    def mcp(self, endpoint_url: str) -> StandardAgent:
+        self._mcp_sources.append(lambda: HttpMcpBroker(endpoint_url, "", 30))
+
+        return self
+
+    def log_to(self, path: str) -> StandardAgent:
+        self._log_path = path
+
+        return self
 
     def brain(
             self,
