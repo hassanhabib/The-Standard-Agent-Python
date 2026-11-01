@@ -39,7 +39,7 @@ class BrainService:
             *,
             inference: ResolvedInference | None = None) -> str:
 
-        raise NotImplementedError
+        return await self.generator_broker.generate(system_prompt, user_prompt)
 
     def generate_stream(
             self,
