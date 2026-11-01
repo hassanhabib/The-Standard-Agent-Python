@@ -51,7 +51,7 @@ class DataCoordinationService:
             grounding_sources=_with_grounding_sources(context.grounding_sources, knowledge))
 
     async def remember(self, memory: str) -> None:
-        raise NotImplementedError
+        await self.recollection_service.remember(memory)
 
     async def recall_session(self, session_id: str) -> AgentSession | None:
         raise NotImplementedError
