@@ -7,11 +7,15 @@ from __future__ import annotations
 
 import asyncio
 import os
-from collections.abc import Sequence
+from collections.abc import AsyncIterator, Sequence
+from contextlib import asynccontextmanager
 
 from standard_agents.brokers.files.file_broker import FileBroker
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.brokers.memories.memory_broker import MemoryBroker
+from standard_agents.models.foundations.memories.exceptions import (
+    InvalidMemoryException,
+    MemoryValidationException)
 
 
 class MemoryService:
@@ -43,10 +47,13 @@ class MemoryService:
         return await self.memory_broker.select_memories()
 
     async def remember(self, memory: str) -> None:
-        if self.file_broker is not None:
-            await self._insert_memory_into_file(self.file_broker, memory)
-        else:
-            await self.memory_broker.insert_memory(memory)
+        async with _handling_exceptions(self.logging_broker):
+            _validate_memory(memory)
+
+            if self.file_broker is not None:
+                await self._insert_memory_into_file(self.file_broker, memory)
+            else:
+                await self.memory_broker.insert_memory(memory)
 
     async def _select_memories_from_file(self, file_broker: FileBroker) -> Sequence[str]:
         if not file_broker.file_exists(self.memory_path):
@@ -58,3 +65,31 @@ class MemoryService:
         async with self._memory_file_lock:
             file_broker.create_directory(os.path.dirname(self.memory_path))
             await file_broker.append_all_lines(self.memory_path, (memory,))
+
+
+def _validate_memory(memory: str | None) -> None:
+    if not memory or memory.isspace():
+        raise InvalidMemoryException(
+            message="Invalid memory. Please correct the error and try again.")
+
+
+@asynccontextmanager
+async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[None]:
+    try:
+        yield
+    except InvalidMemoryException as invalid_memory_exception:
+        raise await _create_and_log_validation_exception(
+            logging_broker, invalid_memory_exception)
+
+
+async def _create_and_log_validation_exception(
+        logging_broker: LoggingBroker,
+        exception: Exception) -> MemoryValidationException:
+
+    memory_validation_exception = MemoryValidationException(
+        message="Memory validation error occurred, fix the error and try again.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(memory_validation_exception)
+
+    return memory_validation_exception
