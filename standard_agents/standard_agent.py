@@ -20,6 +20,7 @@ from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.brokers.memories.imemory_broker import IMemoryBroker
 from standard_agents.brokers.memories.not_configured_memory_broker import (
     NotConfiguredMemoryBroker)
+from standard_agents.brokers.skills.file_skill_broker import FileSkillBroker
 from standard_agents.brokers.skills.function_skill_broker import FunctionSkillBroker
 from standard_agents.brokers.skills.iskill_broker import ISkillBroker
 from standard_agents.brokers.tools.tool_broker import ToolBroker
@@ -72,6 +73,17 @@ class StandardAgent:
 
     def on_brain(self, generate: Callable[[str, str], Awaitable[str]]) -> "StandardAgent":
         self.generator_broker = FunctionGeneratorBroker(generate)
+
+        return self
+
+    def skills(self, path: str) -> "StandardAgent":
+        self.skill_broker = FileSkillBroker(path)
+
+        return self
+
+    # Tools accumulate: a second tool adds to the first. Names match without regard to case.
+    def tool(self, tool: ITool) -> "StandardAgent":
+        self.agent_tools[tool.name.lower()] = tool
 
         return self
 
