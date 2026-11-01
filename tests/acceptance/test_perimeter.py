@@ -1,0 +1,77 @@
+# ---------------------------------------------------------------
+# Copyright (c) Hassan Habib All rights reserved.
+# Licensed under the The Standard Software License (TSSL)
+# ---------------------------------------------------------------
+
+"""The perimeter end to end (SPEC.md 4.9): authorize, record intent, approve, run at most once,
+record outcome. These pin the guarantees a bank actually asks about.
+"""
+
+from collections import deque
+from unittest.mock import create_autospec
+
+from standard_agents.brokers.knowledges.knowledge_broker import KnowledgeBroker
+from standard_agents.brokers.memories.memory_broker import MemoryBroker
+from standard_agents.brokers.skills.skill_broker import SkillBroker
+from standard_agents.standard_agent import StandardAgent
+from standard_agents.tools.tool import Tool
+
+
+class _CountingTool(Tool):
+    def __init__(self) -> None:
+        self.execution_count = 0
+
+    @property
+    def name(self) -> str:
+        return "wire_transfer"
+
+    @property
+    def description(self) -> str:
+        return "Moves money."
+
+    @property
+    def parameters(self) -> str:
+        return "{}"
+
+    async def execute(self, input: str) -> str:
+        self.execution_count += 1
+
+        return "transfer complete"
+
+
+def _agent_that_calls_the_tool(tool: _CountingTool, *replies: str) -> StandardAgent:
+    skill_broker = create_autospec(SkillBroker, instance=True)
+    skill_broker.select_skills.return_value = []
+
+    memory_broker = create_autospec(MemoryBroker, instance=True)
+    memory_broker.select_memories.return_value = []
+
+    knowledge_broker = create_autospec(KnowledgeBroker, instance=True)
+    knowledge_broker.select_knowledge.return_value = []
+
+    scripted_replies = deque(replies)
+
+    async def generate(system_prompt: str, user_prompt: str) -> str:
+        return scripted_replies.popleft() if scripted_replies else "FINAL: done"
+
+    return (StandardAgent()
+        .use_skills(skill_broker)
+        .use_memory(memory_broker)
+        .use_knowledge(knowledge_broker)
+        .tool(tool)
+        .on_brain(generate))
+
+
+async def test_should_not_run_an_irreversible_tool_without_approval():
+    # given
+    tool = _CountingTool()
+
+    agent = (_agent_that_calls_the_tool(tool, "ACTION: wire_transfer: 10000")
+        .require_approval("wire_transfer"))
+
+    # when
+    actual_result = await agent.process_prompt("pay the invoice")
+
+    # then: waiting is not consent
+    assert tool.execution_count == 0
+    assert "waiting for approval" in actual_result
