@@ -9,6 +9,10 @@ from collections.abc import Mapping, Sequence
 
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.models.brokers.mcps.mcp_tool import McpTool
+from standard_agents.models.foundations.external_tools.exceptions import (
+    ExternalToolDependencyException,
+    ExternalToolDependencyValidationException,
+    ExternalToolServiceException)
 from standard_agents.models.foundations.knowledges.knowledge_result import KnowledgeResult
 from standard_agents.services.foundations.external_tools.external_tool_service import (
     ExternalToolService)
@@ -54,10 +58,27 @@ class RetrievalOrchestrationService:
         raise NotImplementedError
 
     async def _render_tool_catalog(self) -> str:
-        remote_catalog = _render_remote_tool_catalog(
-            await self.external_tool_service.retrieve_tools())
+        remote_catalog = _render_remote_tool_catalog(await self._discover_remote_tools())
+
+        if not remote_catalog:
+            return self.tool_catalog
 
         return f"{self.tool_catalog}\n{remote_catalog}"
+
+    async def _discover_remote_tools(self) -> Sequence[McpTool]:
+        """Best effort: a server down at discovery hides only its own tools this turn.
+
+        The foundation has already localized and logged its failure at the severity it earned,
+        so this tier degrades to no remote tools rather than failing the run.
+        """
+        try:
+            return await self.external_tool_service.retrieve_tools()
+        except ExternalToolDependencyException:
+            return ()
+        except ExternalToolDependencyValidationException:
+            return ()
+        except ExternalToolServiceException:
+            return ()
 
 
 def _render_remote_tool_catalog(remote_tools: Sequence[McpTool]) -> str:
