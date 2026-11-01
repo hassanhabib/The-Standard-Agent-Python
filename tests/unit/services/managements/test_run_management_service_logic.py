@@ -9,6 +9,7 @@ from unittest.mock import ANY, Mock, call
 import pytest
 
 from standard_agents.models.orchestrations.agents.agent_status import AgentStatus
+from standard_agents.services.managements.run_management_service import RunManagementService
 
 
 async def test_should_process_prompt(
@@ -133,3 +134,34 @@ async def test_should_cap_turns_on_process_prompt_if_brain_never_terminates(
     assert "again" not in actual_result
     assert data_coordination_service.recall.mock_calls == [call(ANY)] * 7
     assert decision_coordination_service.think.mock_calls == [call(ANY)] * 7
+
+
+async def test_should_cap_turns_at_configured_maximum_on_process_prompt(
+        data_coordination_service,
+        decision_coordination_service,
+        direction_coordination_service,
+        logging_broker,
+        create_random_string,
+        setup_orchestrations_pass_through,
+        setup_direction_never_terminates):
+
+    # given
+    random_prompt = create_random_string()
+    configured_max_turns = 3
+
+    bounded_run_management_service = RunManagementService(
+        data_coordination_service=data_coordination_service,
+        decision_coordination_service=decision_coordination_service,
+        direction_coordination_service=direction_coordination_service,
+        logging_broker=logging_broker,
+        max_turns=configured_max_turns)
+
+    setup_orchestrations_pass_through()
+    setup_direction_never_terminates("again")
+
+    # when
+    actual_result = await bounded_run_management_service.process_prompt(random_prompt)
+
+    # then: capped at the configured bound, and no answer was delivered.
+    assert "out of turns" in actual_result
+    assert data_coordination_service.recall.mock_calls == [call(ANY)] * configured_max_turns
