@@ -17,7 +17,7 @@ class InternalToolService:
         self.logging_broker = logging_broker
 
     async def handles(self, name: str) -> bool:
-        raise NotImplementedError
+        return await self.tool_broker.has(name)
 
     async def run(self, name: str, input: str) -> str:
         raise NotImplementedError
