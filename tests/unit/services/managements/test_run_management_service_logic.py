@@ -165,3 +165,28 @@ async def test_should_cap_turns_at_configured_maximum_on_process_prompt(
     # then: capped at the configured bound, and no answer was delivered.
     assert "out of turns" in actual_result
     assert data_coordination_service.recall.mock_calls == [call(ANY)] * configured_max_turns
+
+
+async def test_should_refuse_gracefully_when_review_never_passes_on_process_prompt(
+        run_management_service,
+        data_coordination_service,
+        decision_coordination_service,
+        direction_coordination_service,
+        create_random_string):
+
+    # given
+    random_prompt = create_random_string()
+    expected_result = "I can't help with that at the moment."
+
+    data_coordination_service.recall.side_effect = lambda context: context
+
+    decision_coordination_service.think.side_effect = lambda context: dataclasses.replace(
+        context, status=AgentStatus.REVISING)
+
+    # when
+    actual_result = await run_management_service.process_prompt(random_prompt)
+
+    # then
+    assert actual_result == expected_result
+    assert decision_coordination_service.think.mock_calls == [call(ANY)] * 7
+    assert direction_coordination_service.act.mock_calls == []
