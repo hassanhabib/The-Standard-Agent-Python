@@ -60,3 +60,25 @@ async def test_should_narrate_gate_accept_verdict_on_think_stream(
         "Decision", containing("ACCEPT"), containing("safe"), detail=ANY)
 
     assert logging_broker.log_payload.mock_calls.count(expected_gate_accept_call) == 1
+
+
+async def test_should_narrate_gate_refusal_reason_on_think_stream(
+        decision_coordination_service,
+        gate_service,
+        logging_broker,
+        create_random_agent_context,
+        drain,
+        containing):
+
+    # given
+    input_context = create_random_agent_context()
+    gate_service.screen.return_value = "refuse: asks for personal information"
+
+    # when
+    await drain(decision_coordination_service.think_stream(input_context))
+
+    # then
+    expected_gate_refusal_call = call(
+        "Decision", containing("REFUSE"), containing("personal information"), detail=ANY)
+
+    assert logging_broker.log_payload.mock_calls.count(expected_gate_refusal_call) == 1
