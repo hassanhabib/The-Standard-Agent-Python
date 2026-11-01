@@ -226,3 +226,15 @@ async def test_should_carry_on_when_the_server_has_no_initialize_over_standard_i
     # then: its tools still reach the agent, and nothing announces a session that never opened
     assert [tool.name for tool in actual_tools] == ["lookup"]
     assert not any("notifications/initialized" in line for line in server.lines)
+
+
+async def test_should_throw_http_request_exception_when_the_server_ends_its_output():
+    # given: a server process that exits before it answers anything
+    server = ScriptedStdioServer(lambda message: [])
+    server.end()
+
+    broker = create_broker(server)
+
+    # when, then: a dependency that went away, raised as the HTTP broker raises one
+    with pytest.raises(HttpRequestException):
+        await broker.list_tools()
