@@ -126,3 +126,31 @@ async def test_should_throw_dependency_validation_exception_on_think_if_dependen
     # then
     assert raised.value.same_exception_as(expected_exception)
     assert logging_broker.mock_calls == [call.log_error(same_exception_as(expected_exception))]
+
+
+@pytest.mark.parametrize(
+    "foundation_exception", DEPENDENCY_EXCEPTIONS, ids=_exception_id)
+async def test_should_throw_dependency_exception_on_think_if_dependency_error_occurs_and_log_it(
+        foundation_exception,
+        decision_coordination_service,
+        gate_service,
+        logging_broker,
+        create_random_agent_context,
+        same_exception_as):
+
+    # given
+    input_context = create_random_agent_context()
+
+    expected_exception = AgentOrchestrationDependencyException(
+        message="Agent orchestration dependency error occurred, contact support.",
+        inner_exception=foundation_exception.inner_exception)
+
+    gate_service.screen.side_effect = foundation_exception
+
+    # when
+    with pytest.raises(AgentOrchestrationDependencyException) as raised:
+        await decision_coordination_service.think(input_context)
+
+    # then
+    assert raised.value.same_exception_as(expected_exception)
+    assert logging_broker.mock_calls == [call.log_error(same_exception_as(expected_exception))]
