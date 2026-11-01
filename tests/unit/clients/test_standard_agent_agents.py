@@ -100,3 +100,48 @@ async def test_should_advertise_registered_agents_to_the_brain(
     # then: the brain can only hand off to an agent it was told exists.
     assert "billing" in outer_saw[-1]
     assert "Handles refunds and invoices." in outer_saw[-1]
+
+
+# The third flavor of a handoff: TRANSFER. Where a sub-agent call brings the answer BACK for the
+# outer brain to synthesize, a transfer hands the whole run over: the specialist's answer IS the
+# answer, delivered as delivered, and the outer brain never rewrites it.
+async def test_should_transfer_the_run_to_a_registered_agent(
+        empty_memory_broker,
+        empty_knowledge_broker):
+
+    # given: a specialist that answers, and an outer brain that recognizes the whole prompt
+    # belongs to it.
+    inner_received = []
+
+    async def billing_brain(system_prompt, user_prompt):
+        inner_received.append(user_prompt)
+
+        return "FINAL: the refund is booked"
+
+    billing_agent = (StandardAgent()
+        .use_memory(empty_memory_broker)
+        .use_knowledge(empty_knowledge_broker)
+        .on_brain(billing_brain))
+
+    outer_turns = []
+
+    async def outer_brain(system_prompt, user_prompt):
+        outer_turns.append(user_prompt)
+
+        return "TRANSFER: billing"
+
+    outer_agent = (StandardAgent()
+        .use_memory(empty_memory_broker)
+        .use_knowledge(empty_knowledge_broker)
+        .on_agents(registry_of(
+            RegisteredAgent("billing", "Handles refunds and invoices.", billing_agent)))
+        .on_brain(outer_brain))
+
+    # when
+    answer = await outer_agent.process_prompt("please refund my last order, number 7741")
+
+    # then: the specialist's words, verbatim; one outer turn, no synthesis turn; and the
+    # specialist was grounded in the user's actual ask.
+    assert answer == "the refund is booked"
+    assert len(outer_turns) == 1
+    assert "please refund my last order, number 7741" in inner_received[-1]
