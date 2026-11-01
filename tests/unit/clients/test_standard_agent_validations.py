@@ -41,3 +41,19 @@ def test_should_throw_invalid_agent_api_url_exception_on_brain_if_api_url_is_inv
 
     # then
     assert raised.value.same_exception_as(expected_invalid_agent_api_url_exception)
+
+
+@pytest.mark.parametrize("invalid_api_url", INVALID_API_URLS)
+def test_should_throw_invalid_agent_api_url_exception_on_native_brain_if_api_url_is_invalid(
+        invalid_api_url):
+
+    # given
+    expected_invalid_agent_api_url_exception = InvalidAgentApiUrlException(
+        message=INVALID_API_URL_MESSAGE)
+
+    # when
+    with pytest.raises(InvalidAgentApiUrlException) as raised:
+        StandardAgent().native_brain(api_url=invalid_api_url, api_key="key", model="model")
+
+    # then
+    assert raised.value.same_exception_as(expected_invalid_agent_api_url_exception)
