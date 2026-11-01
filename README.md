@@ -30,9 +30,13 @@ The evidence is reproducible by anyone (SPEC.md 1.1): the vectors are public, in
 implementation's repository.
 
 ```bash
-git clone --depth 1 https://github.com/hassanhabib/The-Standard-Agent.git reference
+git clone --depth 1 --filter=blob:none --sparse https://github.com/hassanhabib/The-Standard-Agent.git reference
+git -C reference sparse-checkout set conformance
 python -m conformance reference/conformance/vectors --profile Core
 ```
+
+The sparse checkout takes only the vectors; a full clone of the reference repository fails on
+Windows, where some of its test file paths exceed the default path length.
 
 Today the runner can drive 13 of the 88 vectors and the rest are reported `UNSUPPORTED`, never
 run half-configured. Of the 13, ten pass: the six Core vectors, plus `gate-refusal-short-circuits`,
