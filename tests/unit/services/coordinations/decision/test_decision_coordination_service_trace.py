@@ -82,3 +82,33 @@ async def test_should_narrate_gate_refusal_reason_on_think_stream(
         "Decision", containing("REFUSE"), containing("personal information"), detail=ANY)
 
     assert logging_broker.log_payload.mock_calls.count(expected_gate_refusal_call) == 1
+
+
+async def test_should_narrate_gate_route_and_proceed_on_think_stream(
+        decision_coordination_service,
+        gate_service,
+        brain_service,
+        logging_broker,
+        create_random_agent_context,
+        setup_judge_approves,
+        to_async_stream,
+        drain,
+        containing):
+
+    # given
+    input_context = create_random_agent_context()
+    setup_judge_approves()
+    gate_service.screen.return_value = "route: arithmetic"
+    brain_service.generate_stream.return_value = to_async_stream("FINAL: 42")
+
+    # when
+    decision_stream = decision_coordination_service.think_stream(input_context)
+    await drain(decision_stream)
+
+    # then a route proceeds to the Brain (not refused) and is narrated as ROUTE
+    assert decision_stream.result.direction_type == "ReturnResponse"
+
+    expected_gate_route_call = call(
+        "Decision", containing("ROUTE"), containing("arithmetic"), detail=ANY)
+
+    assert logging_broker.log_payload.mock_calls.count(expected_gate_route_call) == 1
