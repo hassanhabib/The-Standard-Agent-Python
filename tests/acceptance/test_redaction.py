@@ -196,3 +196,49 @@ async def test_should_not_redact_when_redaction_is_not_configured():
 
     # then
     assert _SECRET_EMAIL in seen_by_brain
+
+
+async def test_should_redact_at_the_wire_with_custom_delegates():
+    """The 2026-08-23 sweep found Redaction was a capability with one mode: redact() hardcoded
+    the default rules, and there was no way to supply your own rules, broker, or delegates.
+    These pin the new modes BEHAVIOURALLY: a name-existence check passes without any wiring,
+    which is exactly how a seam gets a method and no plumbing."""
+    # given: the Custom mode: a codename scheme no regex ships with
+    seen_by_brain = ""
+
+    async def brain(system_prompt, user_prompt):
+        nonlocal seen_by_brain
+        seen_by_brain = user_prompt
+
+        return "FINAL: I paged {{ONCALL}} already."
+
+    def redact(text, vault):
+        if "Jane Doe" in text:
+            vault["{{ONCALL}}"] = "Jane Doe"
+
+            return text.replace("Jane Doe", "{{ONCALL}}")
+
+        return text
+
+    def rehydrate(text, vault):
+        name = vault.get("{{ONCALL}}")
+
+        return text if name is None else text.replace("{{ONCALL}}", name)
+
+    agent = _agent_bare(brain).on_redaction(redact=redact, rehydrate=rehydrate)
+
+    # when
+    actual_answer = await agent.process_prompt("page Jane Doe about the outage")
+
+    # then: the model never saw the name, and the caller got it back
+    assert "Jane Doe" not in seen_by_brain
+    assert "{{ONCALL}}" in seen_by_brain
+    assert actual_answer == "I paged Jane Doe already."
+
+
+def _agent_bare(brain) -> StandardAgent:
+    return (StandardAgent()
+        .on_skills(_select_no_skills)
+        .on_memory(_recall_nothing, _remember_nothing)
+        .on_knowledge(_retrieve_nothing)
+        .on_brain(brain))
