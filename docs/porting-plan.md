@@ -53,16 +53,6 @@ live in `src/xeptions` and `src/restfulsense`, and the wheel must not ship them 
 
 - `HttpMcpBroker` reads an event-stream data line as blank with `str.isspace`, which also counts
   U+001C to U+001F; .NET's `IsNullOrWhiteSpace` does not (Phase 4, MCP over HTTP).
-- Resolved with `RunManagementService` (Phase 1): cancellation. C# stops a run only at a turn
-  boundary, so no effect is left half-recorded, and the run then ends normally with the
-  `cancelled` failure code. The Python form is a cooperative stop signal: every door takes
-  `cancellation: asyncio.Event | None`, `AgentRun` carries it as `cancellation`, and the loop
-  checks `is_set()` where C# checks the token, with the same outcome. `task.cancel()` keeps its
-  ordinary Python meaning: `asyncio.CancelledError` propagates from every door and is never
-  mapped, so a dependency's own cancellation reaches the caller as a cancellation where C# maps
-  it to a service error on the batched door. The foundations do the same: C# turns a cancelled
-  brain stream or usage count into a dependency or service exception, while the Python lets
-  `asyncio.CancelledError` propagate.
 - `mcp_json.parse` has no depth limit. `JsonNode.Parse` refuses nesting deeper than 64, so the
   external tool service sends such input wrapped as `{"input": ...}` in C# and as given in
   Python (Phase 4).
@@ -96,6 +86,14 @@ Places where Python cannot or should not reproduce .NET, kept on purpose:
   a caller cannot hand in a deliberately case-sensitive mapping as C# allows with a comparer.
 - The decision coordination sorts conflict keys by code point where C# uses the culture's
   comparer, and formats the judge score with `.` where C#'s `F2` uses the current culture.
+- Cancellation is a cooperative stop signal, as C#'s token is: every door takes
+  `cancellation: asyncio.Event | None`, `AgentRun` carries it, and the loop checks `is_set()`
+  where C# checks the token, so a run stops only at a turn boundary, no effect is left
+  half-recorded, and the run ends with the `cancelled` failure code (pinned end to end by
+  tests/acceptance/test_resilience.py). `task.cancel()` keeps its ordinary Python meaning:
+  `asyncio.CancelledError` propagates from every door and every foundation and is never mapped,
+  where C# turns a dependency's own cancellation (a cancelled brain stream or usage count) into
+  a dependency or service exception.
 - A streamed run reads from a background task; a reader cancelled with `task.cancel()` stops the
   run at once, where C# lets it reach its next write. A set `cancellation` event is seen at the
   next turn boundary, never inside a brain stream.
