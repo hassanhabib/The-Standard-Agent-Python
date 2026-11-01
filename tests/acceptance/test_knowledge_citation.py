@@ -83,3 +83,14 @@ async def test_should_cite_the_sources_that_grounded_an_answer():
 
     # then
     assert actual_result == expected_result
+
+
+async def test_should_return_the_answer_unchanged_when_citation_was_never_asked_for():
+    # given
+    agent = _grounded_agent(_answering(_ANSWER))
+
+    # when
+    actual_result = await agent.process_prompt("what is the refund window?")
+
+    # then: byte for byte the answer an agent without citation always returned
+    assert actual_result == _ANSWER
