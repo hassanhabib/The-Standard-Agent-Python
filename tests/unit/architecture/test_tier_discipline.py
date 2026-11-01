@@ -15,6 +15,8 @@ all. Utility brokers are the documented exception, and the list of them is short
 conftest.py so that adding a fifth is a reviewed decision rather than an omission nobody sees.
 """
 
+import inspect
+
 
 def test_should_wrap_exactly_one_nature_broker_per_foundation(foundation_service, tier_map):
     # given
@@ -216,3 +218,41 @@ def test_should_check_every_service_tier_that_exists(tier_map):
         f"[{', '.join(sorted(actual_tiers - checked_tiers))}] is a tier absent from the checked "
         "list, and a tier absent from the checked list is a tier nobody is checking, which is "
         "how the loop's move to managements went unwatched")
+
+
+def test_should_keep_framework_tools_out_of_the_tier_stack(tier_map):
+    """The tool seam, found unscanned in the 2026-08-23 sweep.
+
+    Tools are host-space: Direction reaches them through the tool broker, underneath the
+    foundation tier, so a framework tool that KEEPS a service or a broker re-enters the tier
+    stack from below it. RememberTool held the memory service, making the live chain
+    InternalToolService, ToolBroker, RememberTool, MemoryService: a foundation transitively
+    calling a foundation through a broker, and no rule here could see it because nothing
+    scanned standard_agents.tools at all.
+
+    The rule is about what a tool HOLDS, which is why it reads fields rather than constructors.
+    The client seam (Agent, outside the tier packages) passes by construction: nesting a whole
+    agent is composition, not tier reach-through.
+    """
+    # given
+    framework_tools = tier_map.framework_tools()
+
+    # when
+    offenders = []
+
+    for tool in framework_tools:
+        held = sorted({
+            held_type.__name__
+            for field_type in tier_map.field_types_held_by(tool)
+            for held_type in tier_map.types_referenced_by(field_type)
+            if inspect.isclass(held_type)
+            and (".services." in held_type.__module__ or ".brokers." in held_type.__module__)})
+
+        if held:
+            offenders.append(f"{tool.__name__} holds [{', '.join(held)}]")
+
+    # then
+    assert offenders == [], (
+        "a tool is reached through a broker, underneath the foundations: a tool holding a "
+        "service or a broker re-enters the tier stack from below it, and no adjacency rule can "
+        "see the reach because it travels through data")

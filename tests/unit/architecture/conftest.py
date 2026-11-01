@@ -6,17 +6,22 @@
 """The package as The Standard's tier rules read it.
 
 The C# suite reflects over the Standard.Agents assembly. Here every module of standard_agents is
-imported and each class is read where it is defined: its module is its namespace, and
-typing.get_type_hints resolves each constructor parameter to the class it names, so a rule
-compares classes rather than spellings.
+imported and each class is read where it is defined: its module is its namespace, its abstract
+broker bases are the interfaces it implements, and typing.get_type_hints resolves each
+constructor parameter to the class it names, so a rule compares classes rather than spellings.
+A class's fields, which Python declares by assignment rather than in a signature, are read from
+its source with ast.
 """
 
+import ast
 import collections.abc
 import functools
 import importlib
 import inspect
 import pkgutil
 import re
+import sys
+import textwrap
 import types
 import typing
 
@@ -42,6 +47,7 @@ class TierMap:
     def __init__(self, package: types.ModuleType) -> None:
         modules = tuple(_modules_of(package))
         self.services_package = f"{package.__name__}.services"
+        self.tools_package = f"{package.__name__}.tools"
         self.module_names = tuple(module.__name__ for module in modules)
         self.classes = tuple(dict.fromkeys(
             value
@@ -73,6 +79,52 @@ class TierMap:
             module_name.removeprefix(f"{self.services_package}.").split(".")[0]
             for module_name in self.module_names
             if module_name.startswith(f"{self.services_package}.")))
+
+    def framework_tools(self) -> tuple[type, ...]:
+        """The concrete classes of the standard_agents.tools package itself."""
+        return tuple(
+            cls for cls in self.classes
+            if not inspect.isabstract(cls)
+            and sys.modules[cls.__module__].__package__ == self.tools_package)
+
+    def field_types_held_by(self, cls: type) -> tuple[object, ...]:
+        """The types of what an instance of the class holds.
+
+        Python declares a field by assigning it, so the class's source is read with ast: a
+        class-level annotation, a `self.x: T` annotation, or a `self.x = value`, where a value
+        that is a constructor parameter has that parameter's type and a value built by calling a
+        class has that class.
+        """
+        module_globals = vars(sys.modules[cls.__module__])
+
+        parameter_types = {
+            parameter.name: parameter.annotation
+            for constructor in self.constructors(cls)
+            for parameter in constructor}
+
+        held = list(typing.get_type_hints(cls).values())
+        class_node = ast.parse(textwrap.dedent(inspect.getsource(cls))).body[0]
+
+        for node in ast.walk(class_node):
+            if isinstance(node, ast.Assign):
+                targets = node.targets
+            elif isinstance(node, ast.AnnAssign):
+                targets = [node.target]
+            else:
+                continue
+
+            if not any(_is_self_attribute(target) for target in targets):
+                continue
+
+            if isinstance(node, ast.AnnAssign):
+                held.extend(_classes_named_in(node.annotation, module_globals))
+
+            if isinstance(node.value, ast.Name) and node.value.id in parameter_types:
+                held.append(parameter_types[node.value.id])
+            elif isinstance(node.value, ast.Call):
+                held.extend(_classes_named_in(node.value.func, module_globals))
+
+        return tuple(held)
 
     def brokers(self) -> tuple[type, ...]:
         return tuple(
@@ -160,6 +212,17 @@ class TierMap:
             for argument in _flattened(typing.get_args(unwrapped)))
 
     @staticmethod
+    def types_referenced_by(annotation: object) -> typing.Iterator[object]:
+        """Generic arguments count.
+
+        Sequence[MemoryService] holds the service as surely as the bare field does.
+        """
+        yield annotation
+
+        for argument in _flattened(typing.get_args(annotation)):
+            yield from TierMap.types_referenced_by(argument)
+
+    @staticmethod
     def role(broker_name: str) -> str:
         """One broker ROLE, which may be versioned.
 
@@ -196,6 +259,20 @@ def _flattened(arguments: tuple[object, ...]) -> typing.Iterator[object]:
             yield from argument
         else:
             yield argument
+
+
+def _is_self_attribute(target: ast.expr) -> bool:
+    return (
+        isinstance(target, ast.Attribute)
+        and isinstance(target.value, ast.Name)
+        and target.value.id == "self")
+
+
+def _classes_named_in(
+        node: ast.AST, module_globals: dict[str, object]) -> typing.Iterator[type]:
+    for name in ast.walk(node):
+        if isinstance(name, ast.Name) and inspect.isclass(module_globals.get(name.id)):
+            yield module_globals[name.id]
 
 
 def _is_broker_contract(annotation: object) -> bool:
