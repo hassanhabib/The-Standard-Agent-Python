@@ -11,6 +11,10 @@ from standard_agents.models.orchestrations.agents.agent_context import AgentCont
 from standard_agents.models.orchestrations.agents.agent_status import AgentStatus
 from standard_agents.services.coordinations.runs.irun_coordination_service import (
     IRunCoordinationService)
+from standard_agents.services.coordinations.runs.run_coordination_service_exceptions import (
+    try_catch)
+from standard_agents.services.coordinations.runs.run_coordination_service_validations import (
+    validate_prompt)
 from standard_agents.services.orchestrations.data.idata_orchestration_service import (
     IDataOrchestrationService)
 from standard_agents.services.orchestrations.decision.idecision_orchestration_service import (
@@ -40,6 +44,16 @@ class RunCoordinationService(IRunCoordinationService):
         self.max_turns = max_turns
 
     async def run(self, prompt: str) -> AgentOutcome:
+        async def returning_outcome_function() -> AgentOutcome:
+            validate_prompt(prompt)
+
+            return await self.turn_the_loop(prompt)
+
+        return await try_catch(self.logging_broker, returning_outcome_function)
+
+    # Each turn: Recall, Think, Act. A turn the Judge sent back is spent revising; any status
+    # other than WORKING ends the run with how it ended.
+    async def turn_the_loop(self, prompt: str) -> AgentOutcome:
         context = AgentContext(prompt=prompt)
 
         for turn in range(self.max_turns):
