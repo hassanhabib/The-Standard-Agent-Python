@@ -16,6 +16,16 @@ class InternalToolValidationException(Xeption):
         super().__init__(message, inner_exception)
 
 
+class FailedInternalToolDependencyException(Xeption):
+    def __init__(self, message: str, inner_exception: BaseException | None) -> None:
+        super().__init__(message, inner_exception)
+
+
+class InternalToolDependencyException(Xeption):
+    def __init__(self, message: str, inner_exception: Xeption | None) -> None:
+        super().__init__(message, inner_exception)
+
+
 class FailedInternalToolServiceException(Xeption):
     def __init__(self, message: str, inner_exception: BaseException | None) -> None:
         super().__init__(message, inner_exception)
