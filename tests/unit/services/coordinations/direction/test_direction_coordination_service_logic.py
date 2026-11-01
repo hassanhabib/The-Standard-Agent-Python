@@ -76,3 +76,28 @@ async def test_should_refuse_and_terminate_on_act_if_direction_type_is_refuse(
     assert actual_context.status is AgentStatus.REFUSED
     assert internal_tool_service.mock_calls == []
     assert external_tool_service.mock_calls == []
+
+
+async def test_should_run_internal_tool_and_append_observation_on_act(
+        direction_coordination_service,
+        internal_tool_service,
+        external_tool_service,
+        create_context_with_direction):
+
+    # given
+    input_context = create_context_with_direction("calculator", "1+1")
+    internal_tool_service.handles.return_value = True
+    internal_tool_service.run.return_value = "2"
+
+    # when
+    actual_context = await direction_coordination_service.act(input_context)
+
+    # then
+    assert actual_context.status is AgentStatus.WORKING
+    assert _count_containing(actual_context.observations, "2") == 1
+    assert external_tool_service.call.mock_calls == []
+
+
+def _count_containing(observations: tuple[str, ...], *texts: str) -> int:
+    """How many observations contain every text (ContainSingle with a Contains predicate)."""
+    return sum(1 for observation in observations if all(text in observation for text in texts))
