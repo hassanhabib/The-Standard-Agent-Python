@@ -15,6 +15,8 @@ from standard_agents.models.clients.agents.agent_stream_event_type import AgentS
 from standard_agents.models.foundations.gates.skill_conflict import SkillConflict
 from standard_agents.models.foundations.gates.skill_directive import SkillDirective
 from standard_agents.models.orchestrations.agents.agent_context import AgentContext
+from standard_agents.models.orchestrations.agents.agent_status import AgentStatus
+
 from standard_agents.services.coordinations.decision.decision_stream import DecisionStream
 from standard_agents.services.orchestrations.decision.guardians.guardian_orchestration_service \
     import GuardianOrchestrationService
@@ -30,6 +32,8 @@ _CONFLICT_PREFIX = "CONFLICT:"
 _CONFLICT_OPTION_SEPARATOR = "||"
 _CONFLICT_LABEL_SEPARATOR = "|"
 _PREFERENCE_PREFIX = "SKILL_PREFERENCE::"
+
+_MINIMUM_ACCEPTABLE_SCORE = 0.3
 
 
 class DecisionCoordinationService:
@@ -74,8 +78,22 @@ class DecisionCoordinationService:
             return resolved_context
 
         context = resolved_context
+        decided = await self.inference_service.decide(context)
 
-        return await self.inference_service.decide(context)
+        if decided.direction_type != _RETURN_RESPONSE_DIRECTION:
+            return decided
+
+        # An empty answer is nothing to judge: a judge would (rightly) reject blank input, which
+        # would crash the turn. Return it as it is; the brain simply had nothing to say.
+        if not decided.payload:
+            return decided
+
+        revising = await self._rejected_by_guardians(context, decided)
+
+        if revising is not None:
+            return revising
+
+        return decided
 
     def think_stream(self, context: AgentContext) -> DecisionStream:
         """The streamed door.
@@ -115,6 +133,23 @@ class DecisionCoordinationService:
                 yield segment
 
         set_result(decided)
+
+    async def _rejected_by_guardians(
+            self,
+            context: AgentContext,
+            decided: AgentContext) -> AgentContext | None:
+        """One verdict sequence for every final draft, whichever door it arrived through.
+
+        Returns the revising context, or None when the draft stands.
+        """
+        judgement = await self.guardian_service.evaluate(
+            task=context.prompt,
+            candidate=decided.payload)
+
+        if judgement.score < _MINIMUM_ACCEPTABLE_SCORE:
+            return dataclasses.replace(context, status=AgentStatus.REVISING)
+
+        return None
 
     async def _refused_by_gate(self, context: AgentContext, verdict: str) -> AgentContext | None:
         """The Gate's refusal, handled once for both doors, or None when the Gate did not refuse."""
