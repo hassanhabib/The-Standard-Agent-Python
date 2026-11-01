@@ -77,6 +77,13 @@ async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[N
 
         raise await _create_and_log_critical_dependency_exception(
             logging_broker, failed_skill_dependency_exception)
+    except OSError as os_error:
+        failed_skill_dependency_exception = FailedSkillDependencyException(
+            message="Failed skill dependency error occurred, contact support.",
+            inner_exception=os_error)
+
+        raise await _create_and_log_dependency_exception(
+            logging_broker, failed_skill_dependency_exception)
 
 
 async def _create_and_log_critical_dependency_exception(
@@ -88,5 +95,18 @@ async def _create_and_log_critical_dependency_exception(
         inner_exception=exception)
 
     await logging_broker.log_critical(skill_dependency_exception)
+
+    return skill_dependency_exception
+
+
+async def _create_and_log_dependency_exception(
+        logging_broker: LoggingBroker,
+        exception: Exception) -> SkillDependencyException:
+
+    skill_dependency_exception = SkillDependencyException(
+        message="Skill dependency error occurred, contact support.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(skill_dependency_exception)
 
     return skill_dependency_exception
