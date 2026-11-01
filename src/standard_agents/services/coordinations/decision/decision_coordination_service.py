@@ -20,7 +20,9 @@ from standard_agents.services.orchestrations.decision.inferences.inference_orche
     import InferenceOrchestrationService
 
 _REFUSE_VERDICT = "refuse"
+_ROUTE_VERDICT = "route"
 _REFUSE_DIRECTION = "Refuse"
+
 
 class DecisionCoordinationService:
     """The Decision nature: two regions, and the judgment between them.
@@ -50,6 +52,9 @@ class DecisionCoordinationService:
         raise NotImplementedError
 
     async def think(self, context: AgentContext) -> AgentContext:
+        verdict = await self.guardian_service.screen(context.prompt)
+        context = await self._routed_by_gate(context, verdict)
+
         return await self.inference_service.decide(context)
 
     def think_stream(self, context: AgentContext) -> DecisionStream:
@@ -97,6 +102,24 @@ class DecisionCoordinationService:
 
         return dataclasses.replace(context, direction_type=_REFUSE_DIRECTION)
 
+    async def _routed_by_gate(self, context: AgentContext, verdict: str) -> AgentContext:
+        """Everything else the Gate's verdict carries, handled once for both doors.
+
+        A route label rides through as data.
+        """
+        return (
+            dataclasses.replace(context, route=_extract_route_label(verdict))
+            if _is_route(verdict)
+            else context)
+
 
 def _is_refusal(verdict: str) -> bool:
     return verdict.startswith(_REFUSE_VERDICT)
+
+
+def _is_route(verdict: str) -> bool:
+    return verdict.startswith(_ROUTE_VERDICT)
+
+
+def _extract_route_label(verdict: str) -> str:
+    return verdict[len(_ROUTE_VERDICT):].lstrip(": ")
