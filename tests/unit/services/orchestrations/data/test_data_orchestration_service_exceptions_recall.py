@@ -9,8 +9,17 @@ import pytest
 
 from xeptions import Xeption
 from standard_agents.models.foundations.knowledges.exceptions import (
+    KnowledgeDependencyException,
+    KnowledgeServiceException,
     KnowledgeValidationException)
+from standard_agents.models.foundations.memories.exceptions import (
+    MemoryDependencyException,
+    MemoryServiceException)
+from standard_agents.models.foundations.skills.exceptions import (
+    SkillDependencyException,
+    SkillServiceException)
 from standard_agents.models.orchestrations.data.exceptions import (
+    DataOrchestrationDependencyException,
     DataOrchestrationDependencyValidationException)
 from tests.unit.services.orchestrations.data.data_orchestration_service_tests import (
     DataOrchestrationServiceTests)
@@ -52,3 +61,39 @@ class TestDataOrchestrationServiceExceptionsRecall(DataOrchestrationServiceTests
             actual_exception.value)
 
         self.assert_logged_once("log_error", expected_dependency_validation_exception)
+
+    @pytest.mark.parametrize("dependency_exception_type", [
+        SkillDependencyException,
+        SkillServiceException,
+        MemoryDependencyException,
+        MemoryServiceException,
+        KnowledgeDependencyException,
+        KnowledgeServiceException
+    ])
+    def test_should_raise_dependency_exception_on_recall_if_dependency_error_occurs_and_log_it(
+        self,
+        dependency_exception_type: type) -> None:
+
+        # given
+        input_context = self.create_random_context()
+        some_inner_exception = Xeption(message=self.create_random_string())
+
+        dependency_exception = dependency_exception_type(
+            message=self.create_random_string(),
+            inner_exception=some_inner_exception)
+
+        expected_dependency_exception = DataOrchestrationDependencyException(
+            message="Data orchestration dependency error occurred, contact support.",
+            inner_exception=some_inner_exception)
+
+        self.skill_service_mock.retrieve_all_skills.side_effect = dependency_exception
+
+        # when
+        with pytest.raises(DataOrchestrationDependencyException) as actual_exception:
+            asyncio.run(self.data_orchestration_service.recall(input_context))
+
+        # then
+        assert expected_dependency_exception.same_exception_as(actual_exception.value)
+        self.assert_logged_once("log_error", expected_dependency_exception)
+        assert self.memory_service_mock.mock_calls == []
+        assert self.knowledge_service_mock.mock_calls == []

@@ -19,3 +19,8 @@ class DataOrchestrationValidationException(Xeption):
 class DataOrchestrationDependencyValidationException(Xeption):
     def __init__(self, message: str, inner_exception: BaseException | None) -> None:
         super().__init__(message, inner_exception)
+
+
+class DataOrchestrationDependencyException(Xeption):
+    def __init__(self, message: str, inner_exception: BaseException | None) -> None:
+        super().__init__(message, inner_exception)
