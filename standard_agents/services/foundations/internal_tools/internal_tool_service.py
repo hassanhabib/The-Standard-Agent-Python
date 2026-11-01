@@ -29,3 +29,6 @@ class InternalToolService(IInternalToolService):
             return await self.tool_broker.has(name)
 
         return await try_catch_returning_boolean(self.logging_broker, returning_boolean_function)
+
+    async def run(self, name: str, input: str) -> str:
+        raise NotImplementedError
