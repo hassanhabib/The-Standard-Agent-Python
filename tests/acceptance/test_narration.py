@@ -176,3 +176,33 @@ async def test_should_withhold_refused_narration_and_record_it_on_stream():
     assert any(
         "Narration" in record.message and "WITHHELD" in record.message
         for record in trace)
+
+
+# The floor: a tool that declared its narration is voiced even when the model said nothing; the
+# run never goes silent just because the model was terse.
+async def test_should_voice_tool_narration_floor_when_model_says_nothing_on_stream():
+    # given
+    agent = (_bare_agent(_scripted_brain("ACTION: calculator: 2+2", "FINAL: 4"))
+        .tool(_NarratingTool()))
+
+    # when
+    events = await _drain(agent, "what is 2+2?")
+
+    # then: both slots voiced, interpolated, and in the story's order: the announcement, the
+    # observation, then the Tool event carrying the data
+    starting_index = _index_of(
+        events,
+        lambda stream_event: stream_event.type is AgentStreamEventType.NARRATION
+            and stream_event.content == "Searching with calculator for 2+2...")
+
+    observed_index = _index_of(
+        events,
+        lambda stream_event: stream_event.type is AgentStreamEventType.NARRATION
+            and stream_event.content == "Got results from calculator.")
+
+    tool_index = _index_of(
+        events, lambda stream_event: stream_event.type is AgentStreamEventType.TOOL)
+
+    assert starting_index > -1
+    assert observed_index > starting_index
+    assert tool_index > observed_index
