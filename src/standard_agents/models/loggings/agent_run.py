@@ -3,6 +3,7 @@
 # Licensed under the The Standard Software License (TSSL)
 # ---------------------------------------------------------------
 
+import asyncio
 import threading
 import uuid
 from contextvars import ContextVar, Token
@@ -52,15 +53,15 @@ class AgentRun:
         self._process_index_lock = threading.Lock()
 
         self._id = id
-        self._cancellation_token: object | None = None
+        self._cancellation: asyncio.Event | None = None
         self._replays_of_latest_ask = 0
 
         # When the run started, stamped by the trace so the run reads one clock. Until then it
         # is .NET's default(DateTimeOffset), 0001-01-01T00:00:00+00:00.
         self.started_on: datetime = datetime(1, 1, 1, tzinfo=timezone.utc)
 
-        # What the user originally asked this run, riding the run the way its token does, so a
-        # handoff can ground a sub-agent in the real goal ({prompt} in a handoff template).
+        # What the user originally asked this run, riding the run the way its stop signal does,
+        # so a handoff can ground a sub-agent in the real goal ({prompt} in a handoff template).
         # Empty outside a prompt.
         self.prompt: str = ""
 
@@ -87,20 +88,21 @@ class AgentRun:
         return self._id
 
     @property
-    def cancellation_token(self) -> object | None:
-        """The token that stops this run, or None when the caller supplied none.
+    def cancellation(self) -> asyncio.Event | None:
+        """The signal that asks this run to stop, or None when the caller supplied none.
 
-        It rides the run the way its identity does, so anything the run reaches (a nested
-        agent included) can observe the same stop the outer loop observes at its turn
-        boundaries (SPEC.md 4.10).
+        A request, not an interruption: the loop checks it at each turn boundary and the run
+        then ends normally, reporting that it was cancelled (SPEC.md 4.10). It rides the run the
+        way its identity does, so anything the run reaches (a nested agent included) can observe
+        the same stop the outer loop observes.
         """
-        return self._cancellation_token
+        return self._cancellation
 
     @classmethod
     def begin(
             cls,
             resumed_id: str | None = None,
-            cancellation_token: object | None = None) -> "AgentRunScope":
+            cancellation: asyncio.Event | None = None) -> "AgentRunScope":
         """Start a run on the calling flow and return the scope that ends it.
 
         Call it from the coordination loop, before anything the run should be credited with.
@@ -108,11 +110,11 @@ class AgentRun:
         resumed_id: the identity of a run this one continues, or None to start a new one. A
         resumed run keeps the interrupted run's identity so the effects it already performed
         are recognised as its own rather than proposed again (SPEC.md 4.9, 4.11).
-        cancellation_token: the token that stops this run, carried on the run so a nested agent
-        can observe the same stop the outer loop observes.
+        cancellation: the signal that asks this run to stop, carried on the run so a nested
+        agent can observe the same stop the outer loop observes.
         """
         run = cls(resumed_id or uuid.uuid4().hex)
-        run._cancellation_token = cancellation_token
+        run._cancellation = cancellation
         token = _current.set(run)
 
         return AgentRunScope(token)
