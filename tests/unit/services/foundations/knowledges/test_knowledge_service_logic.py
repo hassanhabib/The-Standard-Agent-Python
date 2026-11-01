@@ -7,6 +7,7 @@ import copy
 from unittest.mock import call
 
 from standard_agents.brokers.files.file_broker import SearchOption
+from standard_agents.models.foundations.knowledges.knowledge_result import KnowledgeResult
 from standard_agents.services.foundations.knowledges.knowledge_service import KnowledgeService
 
 
@@ -161,4 +162,36 @@ async def test_should_retrieve_sourced_knowledge(
         call.select_sourced_knowledge(input_query)]
 
     assert knowledge_broker.mock_calls == []
+    assert logging_broker.mock_calls == []
+
+
+async def test_should_retrieve_unsourced_knowledge_on_retrieve_sourced_knowledge_if_the_broker_cannot_say_where_it_came_from(
+        knowledge_service,
+        knowledge_broker,
+        sourced_knowledge_broker,
+        logging_broker,
+        create_random_string,
+        create_random_documents):
+    """A plain broker never said where a passage came from (SPEC.md 4.1).
+
+    Lifting it must not pretend it did: the passage arrives with no score and no source, which
+    is exactly what it always was, and a passage with no source is never cited.
+    """
+    # given
+    input_query = create_random_string()
+    selected_documents = create_random_documents()
+
+    expected_knowledge_results = [
+        KnowledgeResult(text=document, score=None, source="")
+        for document in selected_documents]
+
+    knowledge_broker.select_knowledge.return_value = selected_documents
+
+    # when
+    actual_knowledge_results = await knowledge_service.retrieve_sourced_knowledge(input_query)
+
+    # then
+    assert list(actual_knowledge_results) == expected_knowledge_results
+    assert knowledge_broker.mock_calls == [call.select_knowledge(input_query)]
+    assert sourced_knowledge_broker.mock_calls == []
     assert logging_broker.mock_calls == []
