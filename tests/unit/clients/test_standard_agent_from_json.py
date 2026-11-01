@@ -381,3 +381,53 @@ def test_should_accept_the_simple_forms_of_polymorphic_keys():
 
     # then
     assert agent is not None
+
+
+# Found in the 2026-09-04 principal review (F-24): a top-level typo was refused, but a document
+# could still look valid and be ineffective. A nested typo was ignored, a wrong-typed value
+# surfaced as a raw runtime exception or fell back to a default, a zero limit composed as if it
+# were set, a section given the wrong shape collapsed into defaults, and a control that listed
+# nothing read as on. Every one of those is now refused, by name, before an agent composes.
+def should_refuse(document: str, expected_message: str) -> None:
+    # given
+    expected_invalid_agent_configuration_exception = InvalidAgentConfigurationException(
+        message=expected_message)
+
+    # when
+    with pytest.raises(InvalidAgentConfigurationException) as raised:
+        StandardAgent.from_json(document)
+
+    # then
+    assert raised.value.same_exception_as(expected_invalid_agent_configuration_exception)
+
+
+@pytest.mark.parametrize(("document", "expected_message"), [
+    (
+        '{ "brain": { "apiUrl": "http://b.test/v1/", "model": "m", "temprature": 0.1 } }',
+        "'brain' does not accept 'temprature'. It accepts: apiUrl, apiKey, model, temperature, "
+        + "maxTokens, timeoutSeconds."),
+    (
+        '{ "knowledge": { "path": "Knowledge", "maxResult": 5 } }',
+        "'knowledge' does not accept 'maxResult'. It accepts: path, pattern, maxResults, "
+        + "minScore."),
+    (
+        '{ "sessions": { "path": "Sessions", "maxHistory": 5 } }',
+        "'sessions' does not accept 'maxHistory'. It accepts: path, maxHistoryTurns."),
+    (
+        '{ "budget": { "maxTokens": 100, "maxCost": 1 } }',
+        "'budget' does not accept 'maxCost'. It accepts: maxTokens, maxCostUsd, "
+        + "maxWallClockSeconds, costPerThousandTokens."),
+    (
+        '{ "mcp": { "endpointUrl": "http://mcp.test/", "token": "t" } }',
+        "'mcp' does not accept 'token'. It accepts: endpointUrl, relativeUrl, timeoutSeconds, "
+        + "bearerToken, apiKey, apiKeyHeader, command, arguments, args, environmentVariables, "
+        + "env, workingDirectory."),
+    (
+        r'{ "redact": { "rules": [ { "label": "SSN", "regex": "\\d+" } ] } }',
+        "'redact.rules' does not accept 'regex'. It accepts: label, pattern."),
+])
+def test_should_throw_invalid_agent_configuration_exception_on_from_json_if_a_nested_key_is_unknown(
+        document,
+        expected_message):
+
+    should_refuse(document, expected_message)
