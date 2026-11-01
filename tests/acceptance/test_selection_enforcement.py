@@ -158,3 +158,20 @@ async def test_should_keep_an_unoffered_tool_reachable_without_enforcement():
     # then: the unamended behavior: the named tool ran
     assert web_search.executions == 1
     assert result == "done"
+
+
+# Enforcement takes effect only when a selector recorded an offering: with no selector there is
+# nothing to enforce, and every described tool remains offered and callable.
+async def test_should_not_deny_anything_when_no_selector_is_configured():
+    # given: enforcement on, but no selection judgment supplied
+    web_search = _NamedTool("web_search")
+
+    agent = (_agent_with(_calls_then_answers("web_search", "done"), web_search)
+        .enforce_selection())
+
+    # when
+    result = await agent.process_prompt("look something up")
+
+    # then
+    assert web_search.executions == 1
+    assert result == "done"
