@@ -183,6 +183,23 @@ async def test_should_set_result_to_tool_output_on_act_even_if_non_terminal(
     assert actual_context.status is AgentStatus.WORKING
 
 
+async def test_should_name_tool_in_observation_on_act(
+        direction_coordination_service,
+        internal_tool_service,
+        create_context_with_direction):
+
+    # given
+    input_context = create_context_with_direction("calculator", "1+1")
+    internal_tool_service.handles.return_value = True
+    internal_tool_service.run.return_value = "2"
+
+    # when
+    actual_context = await direction_coordination_service.act(input_context)
+
+    # then
+    assert _count_containing(actual_context.observations, "calculator", "2") == 1
+
+
 def _count_containing(observations: tuple[str, ...], *texts: str) -> int:
     """How many observations contain every text (ContainSingle with a Contains predicate)."""
     return sum(1 for observation in observations if all(text in observation for text in texts))
