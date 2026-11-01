@@ -104,3 +104,32 @@ def test_should_expose_every_capability_local_external_and_custom(
     # given, when, then: SPEC.md 4.8 makes a capability with a missing mode incomplete
     assert expected_method_name in PUBLIC_METHOD_NAMES, (
         f"{capability_name} must be reachable {mode} through .{expected_method_name}(...)")
+
+
+# The "pending" waivers are retired: Skills, Memory and Knowledge all have callable forms now. What
+# remains is not debt but a documented impossibility: SPEC.md 4.8 permits a mode to be omitted
+# where it is genuinely meaningless, provided the reason is stated, and a Brain that runs
+# in-process cannot exist in a core that has no inference dependency.
+#
+# The distinction is the whole point: a waiver saying "not yet" is debt, and a waiver saying "not
+# possible, here is why" is a design decision. Only the second kind may survive a release, and
+# every omitted mode still has to say which it is.
+def test_should_only_waive_capability_modes_that_cannot_exist():
+    # given
+    expected_waived_capabilities = ["Brain", "NativeBrain"]
+
+    # when
+    actual_waived = [capability for capability in CAPABILITIES if capability.waiver is not None]
+
+    # then: the only permitted omission is one that cannot exist, and every other capability
+    # must answer Local, External and Custom
+    assert sorted(capability.name for capability in actual_waived) == sorted(
+        expected_waived_capabilities)
+
+    # A waiver reading 'pending' is debt, and a bare 'N/A' is a verdict without a reason: the
+    # reason is what makes waiving a reviewed decision.
+    assert all(
+        "N/A" in capability.waiver
+        and ":" in capability.waiver
+        and len(capability.waiver.split(":")[-1].strip()) > 10
+        for capability in actual_waived)
