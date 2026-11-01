@@ -112,3 +112,31 @@ async def test_should_narrate_gate_route_and_proceed_on_think_stream(
         "Decision", containing("ROUTE"), containing("arithmetic"), detail=ANY)
 
     assert logging_broker.log_payload.mock_calls.count(expected_gate_route_call) == 1
+
+
+async def test_should_narrate_processes_to_logging_broker_on_think_stream(
+        decision_coordination_service,
+        brain_service,
+        logging_broker,
+        create_random_agent_context,
+        setup_gate_allows,
+        setup_judge_approves,
+        to_async_stream,
+        drain,
+        containing):
+
+    # given
+    input_context = create_random_agent_context()
+    setup_gate_allows()
+    setup_judge_approves()
+    brain_service.generate_stream.return_value = to_async_stream("FINAL: 42")
+
+    # when
+    await drain(decision_coordination_service.think_stream(input_context))
+
+    # then
+    expected_gate_call = call("Decision", containing("Gate"), ANY, detail=ANY)
+    expected_judge_call = call("Decision", containing("Judge"))
+
+    assert logging_broker.log_payload.mock_calls.count(expected_gate_call) == 1
+    assert logging_broker.log_process.mock_calls.count(expected_judge_call) == 1
