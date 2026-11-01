@@ -546,3 +546,26 @@ async def test_should_capture_gate_route_label_as_data_on_think(
 
     # then: the label rides through as data on this door too
     assert actual_context.route == "arithmetic"
+
+
+async def test_should_capture_gate_route_label_as_data_on_think_stream(
+        decision_coordination_service,
+        gate_service,
+        brain_service,
+        create_random_agent_context,
+        setup_judge_approves,
+        to_async_stream,
+        drain):
+
+    # given
+    input_context = create_random_agent_context()
+    setup_judge_approves()
+    gate_service.screen.return_value = "route: arithmetic"
+    brain_service.generate_stream.return_value = to_async_stream("FINAL: 42")
+
+    # when
+    decision_stream = decision_coordination_service.think_stream(input_context)
+    await drain(decision_stream)
+
+    # then: the label rode through as data on the resulting context
+    assert decision_stream.result.route == "arithmetic"
