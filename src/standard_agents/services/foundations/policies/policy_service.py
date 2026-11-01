@@ -27,4 +27,6 @@ class PolicyService:
 
     async def authorize_effect(self, effect: AgentEffect) -> AuthorizationDecision:
         """May this act happen, and if not, why not (SPEC.md 4.9)?"""
-        raise NotImplementedError
+        # The broker's decision, unchanged. A foundation that softened a denial would be
+        # deciding policy, which is not its job.
+        return await self.policy_broker.authorize(effect)
