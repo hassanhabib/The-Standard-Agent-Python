@@ -190,3 +190,28 @@ async def test_should_screen_prompt_and_judge_draft_on_think(
     # then
     assert gate_service.screen.mock_calls.count(call(input_context.prompt)) == 1
     assert judge_service.evaluate.mock_calls.count(call(ANY, "the draft")) == 1
+
+
+async def test_should_feed_judge_reason_back_as_revision_feedback_on_think(
+        decision_coordination_service,
+        brain_service,
+        judge_service,
+        create_random_agent_context,
+        setup_gate_allows):
+
+    # given
+    input_context = create_random_agent_context()
+    setup_gate_allows()
+    brain_service.generate.return_value = "FINAL: a poor answer"
+
+    judge_service.evaluate.return_value = Judgement(
+        score=0.1,
+        reason="it never states the year")
+
+    # when
+    actual_context = await decision_coordination_service.think(input_context)
+
+    # then
+    assert actual_context.status is AgentStatus.REVISING
+    assert len(actual_context.observations) == 1
+    assert "it never states the year" in actual_context.observations[0]
