@@ -262,3 +262,24 @@ async def test_should_still_permit_what_was_explicitly_named_under_deny():
 
     # then: the mode speaks only for what the explicit permissions did not mention
     assert tool.writes == 1
+
+
+# Gap 6, found in the 2026-08-23 sweep. ASK promises "held, not failed, exactly as
+# require_approval does", and require_approval with no approver holds, because waiting is not
+# consent. But ASK alone routed to NotConfiguredApprovalBroker, which answered APPROVED
+# unconditionally: the perimeter asked, heard yes from nobody, and ran the act.
+async def test_should_hold_an_unpermitted_act_when_ask_has_no_authority():
+    # given: ASK, and nobody wired to answer
+    tool = _WriteFileTool()
+
+    agent = (_agent_acting(tool, "ACTION: write_file: /project/a.txt hello", "FINAL: done")
+        .permissions(PermissionMode.ASK))
+
+    # when
+    actual_answer = await agent.process_prompt("write it")
+
+    # then: held, not performed: an authority that does not exist cannot have said yes. ASK with
+    # no approval authority must hold the act; waiting is not consent, and an absent authority
+    # is nothing but waiting.
+    assert tool.writes == 0
+    assert "waiting for approval" in actual_answer
