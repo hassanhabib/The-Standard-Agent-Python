@@ -229,6 +229,36 @@ async def test_should_tell_the_brain_a_replay_already_ran_on_act(
         assert internal_tool_service.run.mock_calls == [call("calculator", "2 + 2")]
 
 
+async def test_should_mark_an_exchange_the_ledger_answered_as_replayed_on_act(
+        direction_coordination_service,
+        internal_tool_service,
+        create_context_with_direction):
+    """A loop that counts a run's repeated asks has to tell a replay from a call that ran.
+
+    A read after an edit is the same ask and is not a repeat (SPEC.md 3.2, v1.14).
+    """
+    with AgentRun.begin():
+        # given
+        internal_tool_service.handles.return_value = True
+        internal_tool_service.run.return_value = "4"
+
+        first = await direction_coordination_service.act(
+            dataclasses.replace(
+                create_context_with_direction("calculator", "2 + 2"),
+                tool_call_id="call_1"))
+
+        # when
+        second = await direction_coordination_service.act(
+            dataclasses.replace(
+                first,
+                direction_type="calculator",
+                payload="2 + 2",
+                tool_call_id="call_2"))
+
+        # then
+        assert [exchange.replayed for exchange in second.tool_exchanges] == [False, True]
+
+
 def _count_containing(observations: tuple[str, ...], *texts: str) -> int:
     """How many observations contain every text (ContainSingle with a Contains predicate)."""
     return sum(1 for observation in observations if all(text in observation for text in texts))
