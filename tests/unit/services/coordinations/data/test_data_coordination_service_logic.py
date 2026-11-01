@@ -113,3 +113,35 @@ async def test_should_expand_tools_marker_in_system_prompt_on_recall(
     # then
     assert tool_catalog in actual_context.system_prompt
     assert "{{tools}}" not in actual_context.system_prompt
+
+
+async def test_should_seed_knowledge_into_observations_on_recall(
+        data_coordination_service,
+        skill_service,
+        memory_service,
+        knowledge_service,
+        create_random_agent_context,
+        create_random_knowledge_result,
+        create_random_string):
+    # given
+    input_context = create_random_agent_context()
+
+    random_knowledge_results = [
+        create_random_knowledge_result(create_random_string()),
+        create_random_knowledge_result("")]
+
+    expected_observations = tuple(
+        knowledge_result.text for knowledge_result in random_knowledge_results)
+
+    skill_service.retrieve_skills.return_value = create_random_string()
+    memory_service.recall_memories.return_value = []
+    knowledge_service.retrieve_sourced_knowledge.return_value = random_knowledge_results
+
+    # when
+    actual_context = await data_coordination_service.recall(input_context)
+
+    # then: the passages alone, exactly as an unsourced broker's would read
+    assert actual_context.observations == expected_observations
+
+    assert knowledge_service.mock_calls == [
+        call.retrieve_sourced_knowledge(input_context.prompt)]
