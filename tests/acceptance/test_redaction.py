@@ -262,3 +262,79 @@ async def test_should_redact_by_the_hosts_own_rules():
     # then
     assert "INC-004512" not in seen_by_brain
     assert "{{TICKET_0}}" in seen_by_brain
+
+
+class _SendEmailTool(Tool):
+    def __init__(self) -> None:
+        self.received_input = ""
+
+    @property
+    def name(self) -> str:
+        return "send_email"
+
+    @property
+    def description(self) -> str:
+        return "Sends an email."
+
+    async def execute(self, input: str) -> str:
+        self.received_input = input
+
+        return "sent"
+
+
+async def test_should_hide_the_value_from_the_native_brain_on_replayed_tool_call_arguments():
+    """Found in the 2026-09-04 principal review (F-02): the native decorator redacted each
+    message's content and rehydrated the tool-call arguments coming BACK, but never redacted the
+    arguments going OUT. A value the model echoed into an argument on turn one was rehydrated
+    for the tool, recorded in the exchange, and replayed to the model in the clear on turn two.
+    4.6 says every model call, and a replayed tool call is part of a model call."""
+    # given
+    tool = _SendEmailTool()
+    seen_by_brain_on_second_call = []
+    brain_calls = 0
+
+    async def brain(messages, tools):
+        nonlocal brain_calls, seen_by_brain_on_second_call
+        brain_calls += 1
+
+        if brain_calls == 1:
+            return GenerationResult(tool_calls=(
+                ModelToolCall(
+                    id="call_1",
+                    name="send_email",
+                    arguments_json='{"to":"{{EMAIL_0}}","subject":"report"}'),))
+
+        seen_by_brain_on_second_call = [
+            *(message.content for message in messages),
+            *(tool_call.arguments_json
+                for message in messages
+                for tool_call in message.tool_calls)]
+
+        return GenerationResult(content="Sent the report to {{EMAIL_0}}.")
+
+    agent = _agent_bare_native(tool, brain).redact()
+
+    # when
+    actual_answer = await agent.process_prompt(f"please email {_SECRET_EMAIL} the report")
+
+    # then: the tool got the real address, the model never did, the caller got it back
+    assert _SECRET_EMAIL in tool.received_input
+    assert seen_by_brain_on_second_call != []
+
+    assert not any(
+        _SECRET_EMAIL in model_input for model_input in seen_by_brain_on_second_call)
+
+    assert any(
+        "{{EMAIL_0}}" in model_input and '"to"' in model_input
+        for model_input in seen_by_brain_on_second_call)
+
+    assert actual_answer == f"Sent the report to {_SECRET_EMAIL}."
+
+
+def _agent_bare_native(tool: Tool, brain) -> StandardAgent:
+    return (StandardAgent()
+        .on_skills(_select_no_skills)
+        .on_memory(_recall_nothing, _remember_nothing)
+        .on_knowledge(_retrieve_nothing)
+        .tool(tool)
+        .on_native_brain(brain))
