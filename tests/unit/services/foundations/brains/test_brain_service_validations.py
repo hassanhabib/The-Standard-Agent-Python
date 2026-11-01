@@ -68,3 +68,36 @@ async def test_should_generate_on_generate_even_if_system_prompt_is_empty(
         call.generate(empty_system_prompt, random_user_prompt)]
 
     assert logging_broker.mock_calls == []
+
+
+@pytest.mark.parametrize("invalid_user_prompt", [None, "", " "])
+async def test_should_throw_validation_exception_on_generate_stream_if_prompt_is_invalid_and_log_it(
+        invalid_user_prompt,
+        brain_service,
+        generator_broker,
+        logging_broker,
+        same_exception_as,
+        create_random_string,
+        drain):
+
+    # given
+    random_system_prompt = create_random_string()
+
+    invalid_brain_exception = InvalidBrainException(
+        message="Invalid brain input. Please correct the error and try again.")
+
+    expected_brain_validation_exception = BrainValidationException(
+        message="Brain validation error occurred, fix the error and try again.",
+        inner_exception=invalid_brain_exception)
+
+    # when
+    with pytest.raises(BrainValidationException) as raised:
+        await drain(brain_service.generate_stream(random_system_prompt, invalid_user_prompt))
+
+    # then
+    assert raised.value.same_exception_as(expected_brain_validation_exception)
+
+    assert logging_broker.mock_calls == [
+        call.log_error(same_exception_as(expected_brain_validation_exception))]
+
+    assert generator_broker.mock_calls == []
