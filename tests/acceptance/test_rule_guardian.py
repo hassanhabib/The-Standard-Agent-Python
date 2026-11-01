@@ -71,3 +71,15 @@ async def test_should_refuse_deterministically_when_rule_gate_matches():
 
     # then: the brain is never reached; the gate stopped it deterministically
     assert generator_broker.generate_stream.mock_calls == []
+
+
+async def test_should_allow_through_when_rule_gate_does_not_match():
+    # given
+    generator_broker = _streaming_generator("FINAL: Paris")
+    agent = _build_agent(generator_broker)
+
+    # when: a benign prompt
+    await _drain(agent, "capital of France?")
+
+    # then: the brain is reached; the gate let it through
+    assert generator_broker.generate_stream.call_count >= 1
