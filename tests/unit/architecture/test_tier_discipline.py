@@ -62,3 +62,43 @@ def test_should_hold_two_or_three_dependencies(service_above_foundations, tier_m
         f"{service_name} holds [{', '.join(map(str, counts))}] dependencies. Two or three is "
         "the rule at every tier: more and the service is doing too much, fewer and it composes "
         "nothing and is a layer for its own sake.")
+
+
+TIER_BELOW = {
+    "managements": "coordinations",
+    "coordinations": "orchestrations",
+    "orchestrations": "foundations",
+}
+
+
+def test_should_depend_only_on_the_tier_directly_below_it(service_above_foundations, tier_map):
+    """The other half of the same rule: two or three of the tier DIRECTLY below.
+
+    Reaching further down is not a lesser version of the same mistake, it is a different one.
+    A count can be satisfied by anything; adjacency is what keeps a nature's foundations
+    reachable only through that nature. DirectionCoordinationService held Decision's Gate for
+    screen_tool_output and satisfied every other rule here while doing it (three dependencies,
+    no broker), which is why this one had to be written down separately.
+    """
+    # given
+    service_name = service_above_foundations.__name__
+
+    [tier] = [
+        name for name in TIER_BELOW
+        if f".services.{name}" in service_above_foundations.__module__]
+
+    permitted = f".services.{TIER_BELOW[tier]}"
+
+    # when
+    reached_past_it = sorted({
+        dependency.__name__
+        for constructor in tier_map.constructors(service_above_foundations)
+        for dependency in tier_map.dependencies_in(constructor)
+        if permitted not in dependency.__module__})
+
+    # then
+    assert reached_past_it == [], (
+        f"{service_name} is a {tier[:-1]} service, so it composes {TIER_BELOW[tier]} and "
+        f"nothing else: it takes [{', '.join(reached_past_it)}]. A service that reaches past the "
+        "tier below it borrows another nature's internals, and no test of counts or brokers "
+        "will ever see it.")
