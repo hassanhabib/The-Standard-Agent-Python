@@ -42,6 +42,7 @@ class UsageService:
         """
         async with _handling_exceptions(self.logging_broker):
             _validate_text(prompt, "prompt")
+            _validate_text(completion, "completion")
 
             prompt_tokens = await self.usage_broker.count_tokens(prompt)
             completion_tokens = await self.usage_broker.count_tokens(completion)
