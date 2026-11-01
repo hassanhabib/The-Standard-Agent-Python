@@ -9,8 +9,10 @@ from xeptions import Xeption
 from standard_agents.brokers.loggings.ilogging_broker import ILoggingBroker
 from standard_agents.models.foundations.knowledges.exceptions import (
     FailedKnowledgeDependencyException,
+    FailedKnowledgeServiceException,
     InvalidKnowledgeException,
     KnowledgeDependencyException,
+    KnowledgeServiceException,
     KnowledgeValidationException)
 
 
@@ -33,6 +35,27 @@ async def try_catch(
         raise await create_and_log_dependency_exception(
             logging_broker,
             failed_knowledge_dependency_exception)
+    except Exception as exception:
+        failed_knowledge_service_exception = FailedKnowledgeServiceException(
+            message="Failed knowledge service error occurred, contact support.",
+            inner_exception=exception)
+
+        raise await create_and_log_service_exception(
+            logging_broker,
+            failed_knowledge_service_exception)
+
+
+async def create_and_log_service_exception(
+    logging_broker: ILoggingBroker,
+    exception: Xeption) -> KnowledgeServiceException:
+
+    knowledge_service_exception = KnowledgeServiceException(
+        message="Knowledge service error occurred, contact support.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(knowledge_service_exception)
+
+    return knowledge_service_exception
 
 
 async def create_and_log_dependency_exception(
