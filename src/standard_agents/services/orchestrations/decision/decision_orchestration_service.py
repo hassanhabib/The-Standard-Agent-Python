@@ -7,7 +7,6 @@ import dataclasses
 
 from standard_agents.brokers.loggings.ilogging_broker import ILoggingBroker
 from standard_agents.models.orchestrations.agents.agent_context import AgentContext
-from standard_agents.models.orchestrations.agents.agent_status import AgentStatus
 from standard_agents.services.foundations.brains.ibrain_service import IBrainService
 from standard_agents.services.foundations.gates.igate_service import IGateService
 from standard_agents.services.foundations.judges.ijudge_service import IJudgeService
@@ -77,8 +76,9 @@ class DecisionOrchestrationService(IDecisionOrchestrationService):
         if judgement.score >= MINIMUM_ACCEPTABLE_SCORE:
             return decided
 
-        # A rejected draft is never delivered. The brain sees why on its next turn, and the loop
-        # spends a turn revising rather than acting.
+        # A rejected draft is never delivered. This turn decides nothing, so Direction has nothing
+        # to act on; the brain sees why on the next turn, and the revision spends a turn of the
+        # loop's budget (SPEC.md 4.2).
         await self.logging_broker.log_process(
             "Decision", f"Judge scored {judgement.score:.2f}: rejected, revising")
 
@@ -86,4 +86,6 @@ class DecisionOrchestrationService(IDecisionOrchestrationService):
             context,
             observations=context.observations + (
                 revision_feedback(judgement, decided.payload),),
-            status=AgentStatus.REVISING)
+            direction_type="",
+            payload="",
+            raw_reply=decided.raw_reply)
