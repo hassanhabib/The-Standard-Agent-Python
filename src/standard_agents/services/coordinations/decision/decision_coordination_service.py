@@ -42,7 +42,7 @@ class DecisionCoordinationService:
         raise NotImplementedError
 
     async def think(self, context: AgentContext) -> AgentContext:
-        raise NotImplementedError
+        return await self.inference_service.decide(context)
 
     def think_stream(self, context: AgentContext) -> DecisionStream:
         raise NotImplementedError
