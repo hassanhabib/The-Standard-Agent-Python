@@ -256,3 +256,43 @@ class NamedTool(ITool):
 
     async def execute(self, input: str) -> str:
         return input
+
+
+class UndescribedTool(ITool):
+    @property
+    def name(self) -> str:
+        return "hidden"
+
+    async def execute(self, input: str) -> str:
+        return "still runs"
+
+
+class TestStandardAgentToolAdvertisement:
+    # SPEC.md 6.1: a description is the opt-in. A tool without one is callable but never
+    # advertised: absent from the catalog the brain reads, yet still run if the brain names it.
+    def test_should_advertise_only_described_tools_and_still_run_the_rest(self) -> None:
+        # given
+        brain_calls = []
+
+        async def skills() -> list[Skill]:
+            return [Skill(name="skill.md", content="{{tools}}")]
+
+        async def brain(system_prompt: str, user_prompt: str) -> str:
+            brain_calls.append((system_prompt, user_prompt))
+
+            if len(brain_calls) == 1:
+                return "ACTION: hidden: x"
+
+            return "FINAL: done"
+
+        agent = (StandardAgent()
+            .on_skills(skills)
+            .tools([NamedTool("shown"), UndescribedTool()])
+            .on_brain(brain))
+
+        # when
+        asyncio.run(agent.run(create_random_string()))
+
+        # then
+        assert brain_calls[0][0] == "- shown: the shown tool"
+        assert "hidden returned: still runs" in brain_calls[1][1]
