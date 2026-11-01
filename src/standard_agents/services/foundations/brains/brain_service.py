@@ -8,14 +8,21 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from restfulsense.exceptions import HttpResponseBadRequestException
+from restfulsense.exceptions import (
+    HttpResponseBadRequestException,
+    HttpResponseForbiddenException,
+    HttpResponseNotFoundException,
+    HttpResponseUnauthorizedException,
+    HttpResponseUrlNotFoundException)
 from standard_agents.brokers.generators.generator_broker import GeneratorBroker
 from standard_agents.brokers.generators.generator_broker_v1 import GeneratorBrokerV1
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.models.brokers.generators.resolved_inference import ResolvedInference
 from standard_agents.models.foundations.brains.exceptions import (
+    BrainDependencyException,
     BrainDependencyValidationException,
     BrainValidationException,
+    FailedBrainDependencyException,
     InvalidBrainException)
 
 
@@ -86,6 +93,14 @@ async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[N
 
         raise await _create_and_log_dependency_validation_exception(
             logging_broker, invalid_brain_exception)
+    except (
+            HttpResponseUnauthorizedException,
+            HttpResponseForbiddenException,
+            HttpResponseNotFoundException,
+            HttpResponseUrlNotFoundException) as critical_dependency_exception:
+
+        raise await _create_and_log_critical_dependency_exception(
+            logging_broker, critical_dependency_exception)
 
 
 @asynccontextmanager
@@ -121,3 +136,20 @@ async def _create_and_log_dependency_validation_exception(
     await logging_broker.log_error(brain_dependency_validation_exception)
 
     return brain_dependency_validation_exception
+
+
+async def _create_and_log_critical_dependency_exception(
+        logging_broker: LoggingBroker,
+        exception: Exception) -> BrainDependencyException:
+
+    failed_brain_dependency_exception = FailedBrainDependencyException(
+        message="Failed brain dependency error occurred, contact support.",
+        inner_exception=exception)
+
+    brain_dependency_exception = BrainDependencyException(
+        message="Brain dependency error occurred, contact support.",
+        inner_exception=failed_brain_dependency_exception)
+
+    await logging_broker.log_critical(brain_dependency_exception)
+
+    return brain_dependency_exception
