@@ -14,4 +14,4 @@ class ReturnService(IReturnService):
         self.logging_broker = logging_broker
 
     async def return_payload(self, payload: str) -> str:
-        raise NotImplementedError
+        return payload
