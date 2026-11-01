@@ -452,3 +452,38 @@ def test_should_throw_invalid_agent_configuration_exception_on_from_json_if_a_nu
         expected_message):
 
     should_refuse(document, expected_message)
+
+
+@pytest.mark.parametrize(("document", "expected_message"), [
+    ('{ "maxTurns": 0 }', "'maxTurns' must be a positive number."),
+    ('{ "resilience": -1 }', "'resilience' must be zero or a positive number."),
+    (
+        '{ "brain": { "apiUrl": "http://b.test/v1/", "model": "m", "timeoutSeconds": 0 } }',
+        "'brain.timeoutSeconds' must be a positive number."),
+    (
+        '{ "brain": { "apiUrl": "http://b.test/v1/", "model": "m", "maxTokens": -5 } }',
+        "'brain.maxTokens' must be a positive number."),
+    (
+        '{ "knowledge": { "path": "Knowledge", "maxResults": 0 } }',
+        "'knowledge.maxResults' must be a positive number."),
+    (
+        '{ "sessions": { "path": "Sessions", "maxHistoryTurns": 0 } }',
+        "'sessions.maxHistoryTurns' must be a positive number."),
+    (
+        '{ "usage": { "charactersPerToken": 0 } }',
+        "'usage.charactersPerToken' must be a positive number."),
+    ('{ "budget": { "maxTokens": 0 } }', "'budget.maxTokens' must be a positive number."),
+    (
+        '{ "budget": { "maxWallClockSeconds": -1 } }',
+        "'budget.maxWallClockSeconds' must be a positive number."),
+    (
+        '{ "mcp": { "endpointUrl": "http://mcp.test/", "timeoutSeconds": 0 } }',
+        "'mcp.timeoutSeconds' must be a positive number."),
+    ('{ "effectLeaseSeconds": 0 }', "'effectLeaseSeconds' must be a positive number."),
+    ('{ "identicalCallLimit": 0 }', "'identicalCallLimit' must be a positive number."),
+])
+def test_should_throw_invalid_agent_configuration_exception_on_from_json_if_a_limit_is_not_positive(
+        document,
+        expected_message):
+
+    should_refuse(document, expected_message)
