@@ -6,6 +6,8 @@
 from __future__ import annotations
 
 import dataclasses
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import timedelta
 
 from standard_agents.brokers.effects.effect_ledger_broker import EffectLedgerBroker
@@ -13,6 +15,9 @@ from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.brokers.times.time_broker import TimeBroker
 from standard_agents.models.brokers.effects.effect_record import EffectRecord
 from standard_agents.models.brokers.effects.effect_state import EffectState
+from standard_agents.models.foundations.effect_ledgers.exceptions import (
+    EffectLedgerDependencyException,
+    FailedEffectLedgerDependencyException)
 from standard_agents.models.orchestrations.effects.agent_effect import AgentEffect
 
 
@@ -64,13 +69,14 @@ class EffectLedgerService:
 
     async def record_outcome(self, effect: AgentEffect, outcome: str) -> None:
         """Records what the act produced, before the loop advances: the record is completed."""
-        await self._update(
-            effect.idempotency_key,
-            effect.tool_name,
-            effect.run_id,
-            EffectState.COMPLETED,
-            outcome=outcome,
-            detail=None)
+        async with _handling_exceptions(self.logging_broker):
+            await self._update(
+                effect.idempotency_key,
+                effect.tool_name,
+                effect.run_id,
+                EffectState.COMPLETED,
+                outcome=outcome,
+                detail=None)
 
     async def record_failure(self, effect: AgentEffect, detail: str) -> None:
         """Records that the tool threw.
@@ -124,9 +130,20 @@ class EffectLedgerService:
             *,
             outcome: str | None,
             detail: str | None) -> None:
+        """Completes the record in place when the claim is there, and writes it whole when not.
 
+        A ledger that lost the claim still gets the outcome, which is the fact that matters.
+        """
         now = self.time_broker.get_current_date_time()
         record = await self.effect_ledger_broker.select_record(idempotency_key)
+
+        if record is None:
+            record = EffectRecord(
+                idempotency_key=idempotency_key,
+                tool_name=tool_name,
+                owner=owner,
+                claimed_on=now,
+                lease_until=now)
 
         await self.effect_ledger_broker.update_record(dataclasses.replace(
             record,
@@ -134,3 +151,31 @@ class EffectLedgerService:
             outcome=outcome,
             detail=detail,
             recorded_on=now))
+
+
+@asynccontextmanager
+async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[None]:
+    try:
+        yield
+    except OSError as os_error:
+        raise await _create_and_log_dependency_exception(logging_broker, os_error)
+
+
+async def _create_and_log_dependency_exception(
+        logging_broker: LoggingBroker,
+        exception: Exception) -> EffectLedgerDependencyException:
+
+    effect_ledger_dependency_exception = _create_dependency_exception(exception)
+    await logging_broker.log_error(effect_ledger_dependency_exception)
+
+    return effect_ledger_dependency_exception
+
+
+def _create_dependency_exception(exception: Exception) -> EffectLedgerDependencyException:
+    failed_effect_ledger_dependency_exception = FailedEffectLedgerDependencyException(
+        message="Failed effect ledger dependency error occurred, contact support.",
+        inner_exception=exception)
+
+    return EffectLedgerDependencyException(
+        message="Effect ledger dependency error occurred, contact support.",
+        inner_exception=failed_effect_ledger_dependency_exception)
