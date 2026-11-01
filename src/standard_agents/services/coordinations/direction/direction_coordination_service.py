@@ -18,6 +18,8 @@ from standard_agents.services.orchestrations.direction.executions.execution_orch
 from standard_agents.services.orchestrations.direction.perimeters.perimeter_orchestration_service \
     import PerimeterOrchestrationService
 
+_AWAIT_INPUT_DIRECTION = "AwaitInput"
+
 
 class DirectionCoordinationService:
     """The Direction nature: two regions, and the order between them.
@@ -63,7 +65,10 @@ class DirectionCoordinationService:
     async def act(self, context: AgentContext) -> AgentContext:
         result = await self.execution_service.return_payload(context.payload)
 
-        return dataclasses.replace(context, result=result, status=AgentStatus.RESPONDED)
+        return dataclasses.replace(
+            context,
+            result=result,
+            status=_to_terminal_status(context.direction_type))
 
     async def compensate_run(self) -> tuple[CompensationOutcome, ...]:
         """Unwinds what this run performed, in reverse order (SPEC.md 4.9).
@@ -71,3 +76,10 @@ class DirectionCoordinationService:
         Reports every effect it could not undo rather than reporting the run cleanly unwound.
         """
         raise NotImplementedError
+
+
+def _to_terminal_status(direction_type: str) -> AgentStatus:
+    if direction_type == _AWAIT_INPUT_DIRECTION:
+        return AgentStatus.AWAITING_INPUT
+
+    return AgentStatus.RESPONDED
