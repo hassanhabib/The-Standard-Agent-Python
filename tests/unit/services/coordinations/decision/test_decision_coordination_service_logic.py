@@ -431,3 +431,34 @@ async def test_should_stream_final_draft_as_thinking_on_think_stream(
         stream_event.type is AgentStreamEventType.RESPONSE for stream_event in actual_events)
 
     assert decision_stream.result.payload == "The answer is 42."
+
+
+async def test_should_swallow_say_line_from_thinking_stream_on_think_stream(
+        decision_coordination_service,
+        brain_service,
+        create_random_agent_context,
+        setup_gate_allows,
+        to_async_stream,
+        drain):
+
+    # given
+    input_context = create_random_agent_context()
+    setup_gate_allows()
+
+    # "SAY: Chec" is nine characters, exactly the length at which the classifier commits a
+    # channel today, so the narration line must be recognized before that commit.
+    brain_service.generate_stream.return_value = to_async_stream(
+        "SAY: Chec", "king...\nACTION: calculator: 2+2")
+
+    # when
+    decision_stream = decision_coordination_service.think_stream(input_context)
+    actual_events = await drain(decision_stream)
+
+    # then
+    assert not any(
+        "Checking" in stream_event.content or "SAY:" in stream_event.content
+        for stream_event in actual_events)
+
+    assert decision_stream.result.direction_type == "calculator"
+    assert decision_stream.result.payload == "2+2"
+    assert decision_stream.result.narration == "Checking..."
