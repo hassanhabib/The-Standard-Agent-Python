@@ -10,7 +10,9 @@ import pytest
 from standard_agents.models.coordinations.agents.exceptions import (
     AgentCoordinationDependencyException,
     AgentCoordinationValidationException,
-    InvalidAgentException)
+    FailedRunManagementServiceException,
+    InvalidAgentException,
+    RunManagementServiceException)
 from standard_agents.models.orchestrations.agents.exceptions import (
     AgentOrchestrationDependencyException,
     AgentOrchestrationServiceException)
@@ -72,6 +74,36 @@ async def test_should_throw_dependency_exception_on_process_prompt_if_dependency
 
     # when
     with pytest.raises(AgentCoordinationDependencyException) as raised:
+        await run_management_service.process_prompt(random_prompt)
+
+    # then
+    assert raised.value.same_exception_as(expected_exception)
+    assert logging_broker.log_error.mock_calls == [call(same_exception_as(expected_exception))]
+
+
+async def test_should_throw_service_exception_on_process_prompt_if_service_error_occurs_and_log_it(
+        run_management_service,
+        data_coordination_service,
+        logging_broker,
+        create_random_string,
+        same_exception_as):
+
+    # given
+    random_prompt = create_random_string()
+    service_exception = Exception()
+
+    failed_run_management_service_exception = FailedRunManagementServiceException(
+        message="Failed agent coordination service error occurred, contact support.",
+        inner_exception=service_exception)
+
+    expected_exception = RunManagementServiceException(
+        message="Agent coordination service error occurred, contact support.",
+        inner_exception=failed_run_management_service_exception)
+
+    data_coordination_service.recall.side_effect = service_exception
+
+    # when
+    with pytest.raises(RunManagementServiceException) as raised:
         await run_management_service.process_prompt(random_prompt)
 
     # then
