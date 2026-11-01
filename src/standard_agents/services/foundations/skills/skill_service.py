@@ -8,6 +8,8 @@ from __future__ import annotations
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.brokers.skills.skill_broker import SkillBroker
 
+_SKILL_SEPARATOR = "\n\n"
+
 
 class SkillService:
     """The skills the agent reads, composed into one text in name order."""
@@ -17,4 +19,6 @@ class SkillService:
         self.logging_broker = logging_broker
 
     async def retrieve_skills(self, route: str = "") -> str:
-        raise NotImplementedError
+        skills = await self.skill_broker.select_skills()
+
+        return _SKILL_SEPARATOR.join(skill.content for skill in skills)
