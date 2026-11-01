@@ -23,7 +23,9 @@ from standard_agents.models.foundations.judges.exceptions import (
 from standard_agents.models.orchestrations.decision.exceptions import (
     DecisionOrchestrationDependencyException,
     DecisionOrchestrationDependencyValidationException,
+    DecisionOrchestrationServiceException,
     DecisionOrchestrationValidationException,
+    FailedDecisionOrchestrationServiceException,
     NullAgentContextException)
 
 
@@ -56,6 +58,25 @@ async def try_catch(
         raise await create_and_log_dependency_exception(
             logging_broker,
             dependency_exception.inner_exception)
+    except Exception as exception:
+        failed_service_exception = FailedDecisionOrchestrationServiceException(
+            message="Failed decision orchestration service error occurred, contact support.",
+            inner_exception=exception)
+
+        raise await create_and_log_service_exception(logging_broker, failed_service_exception)
+
+
+async def create_and_log_service_exception(
+    logging_broker: ILoggingBroker,
+    exception: Xeption) -> DecisionOrchestrationServiceException:
+
+    decision_orchestration_service_exception = DecisionOrchestrationServiceException(
+        message="Decision orchestration service error occurred, contact support.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(decision_orchestration_service_exception)
+
+    return decision_orchestration_service_exception
 
 
 async def create_and_log_dependency_exception(
