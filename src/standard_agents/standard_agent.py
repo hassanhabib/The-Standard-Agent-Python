@@ -254,7 +254,8 @@ class StandardAgent(Agent):
             model,
             temperature,
             max_tokens,
-            timeout_seconds=120)
+            timeout_seconds=120,
+            handler=self._create_http_handler())
 
         return self
 
@@ -480,7 +481,11 @@ class StandardAgent(Agent):
 
     def _compose(self) -> RunManagementService:
         _validate_composition(
-            has_brain=self._generator_broker is not None or self._brain_settings is not None)
+            has_brain=(
+                self._generator_broker is not None
+                or self._brain_settings is not None
+                or self._generator_broker_v1 is not None
+                or self._native_brain_source is not None))
 
         brain = self._brain_settings
         file = LocalFileBroker()
@@ -504,9 +509,17 @@ class StandardAgent(Agent):
                 AuditPolicy(payloads=False),
                 self._current_principal_id))
 
-        generator = (
-            self._generator_broker if self._generator_broker is not None
-            else OpenAiGeneratorBroker(
+        # With only a native brain configured there is no text-protocol generator to build, and
+        # none is needed: a native brain routes every call to the V1 seam. The placeholder exists
+        # so the Brain foundation keeps one shape rather than growing an optional dependency.
+        if self._generator_broker is not None:
+            generator: GeneratorBroker = self._generator_broker
+        elif brain is None:
+            generator = FunctionGeneratorBroker(_native_brain_only)
+        else:
+            # The legacy-path values, resolved configured to framework default at composition.
+            # A per-request value arrives on the request and never through here.
+            generator = OpenAiGeneratorBroker(
                 brain.api_url,
                 brain.api_key,
                 brain.model,
@@ -515,7 +528,12 @@ class StandardAgent(Agent):
                 (brain.max_tokens if brain.max_tokens is not None
                     else ResolvedInference.DEFAULT_MAX_TOKENS),
                 brain.timeout_seconds,
-                handler=self._create_http_handler()))
+                handler=self._create_http_handler())
+
+        native_brain = (
+            self._generator_broker_v1 if self._generator_broker_v1 is not None
+            else self._native_brain_source() if self._native_brain_source is not None
+            else None)
 
         memory_service = MemoryService(memory_broker=self._memory_broker, logging_broker=logging)
         all_tools = [*self._tools, RememberTool(memory_service.remember)]
@@ -600,7 +618,8 @@ class StandardAgent(Agent):
             inference_service=InferenceOrchestrationService(
                 brain_service=BrainService(
                     generator_broker=generator,
-                    logging_broker=logging),
+                    logging_broker=logging,
+                    generator_broker_v1=native_brain),
                 usage_service=UsageService(usage_broker=self._usage_broker, logging_broker=logging),
                 logging_broker=logging),
             guardian_service=GuardianOrchestrationService(
@@ -726,3 +745,7 @@ def _as_principal(principal: AgentPrincipal | str | None) -> AgentPrincipal | No
     # A host that has only a user id passes the id; the agent wraps it, as the C# string form of
     # Principal does.
     return AgentPrincipal(id=principal) if isinstance(principal, str) else principal
+
+
+async def _native_brain_only(system_prompt: str, user_prompt: str) -> str:
+    raise RuntimeError("This agent has a native brain; the text protocol is not in use.")
