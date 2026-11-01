@@ -13,8 +13,7 @@ class Xeption(Exception):
     def __init__(
         self,
         message: str = "",
-        inner_exception: BaseException | None = None,
-        data: dict[str, list[str]] | None = None) -> None:
+        inner_exception: BaseException | None = None) -> None:
 
         super().__init__(message)
         self.message = message
@@ -34,5 +33,28 @@ class Xeption(Exception):
         if self.data:
             raise self
 
+    # Equivalence, not identity: the same type, message and data, all the way down the chain of
+    # inner exceptions. A native inner exception carries no data, so its type and arguments are
+    # what make it the same.
     def same_exception_as(self, other: BaseException | None) -> bool:
-        raise NotImplementedError
+        if type(other) is not type(self):
+            return False
+
+        if other.message != self.message or other.data != self.data:
+            return False
+
+        return same_inner_exception(self.inner_exception, other.inner_exception)
+
+
+def same_inner_exception(
+    expected_exception: BaseException | None,
+    actual_exception: BaseException | None) -> bool:
+
+    if isinstance(expected_exception, Xeption):
+        return expected_exception.same_exception_as(actual_exception)
+
+    if expected_exception is None or actual_exception is None:
+        return expected_exception is actual_exception
+
+    return (type(expected_exception) is type(actual_exception)
+        and expected_exception.args == actual_exception.args)
