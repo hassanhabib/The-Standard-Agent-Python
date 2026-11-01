@@ -269,3 +269,29 @@ async def test_should_peel_narration_before_interpreting_on_think(
     assert actual_context.direction_type == "calculator"
     assert actual_context.payload == "2+2"
     assert actual_context.narration == "Checking the numbers..."
+
+
+async def test_should_peel_only_the_first_say_line_on_think(
+        decision_coordination_service,
+        brain_service,
+        create_random_agent_context,
+        setup_gate_allows,
+        setup_judge_approves):
+    """At most one SAY per turn (SPEC.md 6.0): only the first leading line is narration.
+
+    A second one is not: it is part of the reply, exactly as a non-supporting implementation
+    would have read it.
+    """
+    # given
+    input_context = create_random_agent_context()
+    setup_gate_allows()
+    setup_judge_approves()
+    brain_service.generate.return_value = "SAY: one\nSAY: two\nACTION: calculator: 2+2"
+
+    # when
+    actual_context = await decision_coordination_service.think(input_context)
+
+    # then
+    assert actual_context.narration == "one"
+    assert actual_context.direction_type == "ReturnResponse"
+    assert "SAY: two" in actual_context.payload
