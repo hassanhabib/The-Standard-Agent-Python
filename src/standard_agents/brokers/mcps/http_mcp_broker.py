@@ -10,6 +10,7 @@ import http.client
 import importlib.metadata
 import os
 import re
+import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -464,12 +465,23 @@ def _to_field_value(line: str) -> str:
 
 
 def _is_response(event_data: str) -> bool:
-    if not event_data or event_data.isspace():
+    if _is_blank(event_data):
         return False
 
     message = mcp_json.parse(event_data)
 
     return isinstance(message, dict) and ("result" in message or "error" in message)
+
+
+def _is_blank(text: str) -> bool:
+    """string.IsNullOrWhiteSpace, over char.IsWhiteSpace's own set.
+
+    Not str.isspace: .NET does not count U+001C..U+001F as white space.
+    """
+    return all(
+        character in "\t\n\v\f\r\x85"
+        or unicodedata.category(character) in ("Zs", "Zl", "Zp")
+        for character in text)
 
 
 def _text(value: str | None) -> str:
