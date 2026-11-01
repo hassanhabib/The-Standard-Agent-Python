@@ -55,9 +55,19 @@ def interpret(context: AgentContext, reply: str) -> AgentContext:
                 narration=narration,
                 raw_reply=reply)
 
+    answer = choice
+
+    if choice.upper().startswith(FINAL_PREFIX):
+        answer = choice[len(FINAL_PREFIX):].strip()
+
     return dataclasses.replace(
         context,
         direction_type=RETURN_RESPONSE_DIRECTION,
-        payload=choice,
+        payload=answer,
         narration=narration,
         raw_reply=reply)
+
+
+def is_final_answer(context: AgentContext) -> bool:
+    return (context.direction_type == RETURN_RESPONSE_DIRECTION
+        and context.payload.strip() != "")
