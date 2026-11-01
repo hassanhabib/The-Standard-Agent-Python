@@ -74,6 +74,7 @@ from standard_agents.models.clients.agents.inference_settings import InferenceSe
 from standard_agents.models.clients.agents.prompt_request import PromptRequest
 from standard_agents.models.coordinations.agents.agent_budget import AgentBudget
 from standard_agents.models.loggings.trace_verbosity import TraceVerbosity
+from standard_agents.models.orchestrations.effects.agent_principal import AgentPrincipal
 from standard_agents.prompts.guardian_prompts import (
     gate_contract,
     gate_policy,
@@ -142,6 +143,7 @@ class StandardAgent(Agent):
         self._judge_settings: InferenceSettings | None = None
         self._budget: AgentBudget | None = None
         self._audit_broker: AuditBroker | None = None
+        self._identity_resolver: Callable[[], AgentPrincipal | None] | None = None
         self._generator_broker_v1: GeneratorBrokerV1 | None = None
         self._native_brain_source: Callable[[], GeneratorBrokerV1] | None = None
         self._local_gate_screen: Callable[[str, str], Awaitable[str]] | None = None
@@ -289,6 +291,14 @@ class StandardAgent(Agent):
 
         return self
 
+    def principal(
+            self,
+            principal: Callable[[], AgentPrincipal | str | None]) -> StandardAgent:
+
+        self._identity_resolver = lambda: _as_principal(principal())
+
+        return self
+
     def use_skills(self, broker: SkillBroker) -> StandardAgent:
         self._skill_sources.append(broker)
 
@@ -400,6 +410,14 @@ class StandardAgent(Agent):
         async for stream_event in self._compose().run_stream(request, cancellation=cancellation):
             yield stream_event
 
+    def _current_principal_id(self) -> str | None:
+        if self._identity_resolver is None:
+            return None
+
+        principal = self._identity_resolver()
+
+        return None if principal is None else principal.id
+
     def _compose(self) -> RunManagementService:
         _validate_composition(
             has_brain=self._generator_broker is not None or self._brain_settings is not None)
@@ -423,7 +441,8 @@ class StandardAgent(Agent):
                 audit,
                 SystemTimeBroker(),
                 NotConfiguredRedactionBroker(),
-                AuditPolicy(payloads=False)))
+                AuditPolicy(payloads=False),
+                self._current_principal_id))
 
         generator = (
             self._generator_broker if self._generator_broker is not None
@@ -624,3 +643,9 @@ def _validate_budget(max_cost_usd: Decimal | None, cost_per_thousand_tokens: Dec
                 + "costPerThousandTokens. Cost is the token count times that rate, so at "
                 + "zero the bound can never trip. Pass your model's rate, or bound by "
                 + "maxTokens instead."))
+
+
+def _as_principal(principal: AgentPrincipal | str | None) -> AgentPrincipal | None:
+    # A host that has only a user id passes the id; the agent wraps it, as the C# string form of
+    # Principal does.
+    return AgentPrincipal(id=principal) if isinstance(principal, str) else principal
