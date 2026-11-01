@@ -26,6 +26,7 @@ from standard_agents.brokers.classifiers.not_configured_classifier_broker import
 from standard_agents.brokers.contracts.rule_contract_broker import RuleContractBroker
 from standard_agents.brokers.effects.in_memory_effect_ledger_broker import (
     InMemoryEffectLedgerBroker)
+from standard_agents.brokers.files.file_broker import FileBroker
 from standard_agents.brokers.files.local_file_broker import LocalFileBroker
 from standard_agents.brokers.generators.function_generator_broker import FunctionGeneratorBroker
 from standard_agents.brokers.generators.generator_broker import GeneratorBroker
@@ -127,6 +128,7 @@ class StandardAgent(Agent):
         self._memory_path = "memory.txt"
         self._knowledge_path = "Knowledge"
         self._log_path = ""
+        self._constitution_path = ""
         self._trace_verbosity = TraceVerbosity.FULL
 
         if api_url is not None or api_key is not None or model is not None:
@@ -200,6 +202,11 @@ class StandardAgent(Agent):
         _warn_renamed("local_judge", "on_judge")
 
         return self.on_judge(evaluate)
+
+    def constitution(self, path: str) -> StandardAgent:
+        self._constitution_path = path
+
+        return self
 
     def on_gate(self, screen: Callable[[str, str], Awaitable[str]]) -> StandardAgent:
         self._local_gate_screen = screen
@@ -305,7 +312,8 @@ class StandardAgent(Agent):
         memory_service = MemoryService(memory_broker=self._memory_broker, logging_broker=logging)
         all_tools = [*self._tools, RememberTool(memory_service.remember)]
 
-        gate_rubric = compose_guardian_rubric("", gate_policy(), gate_contract())
+        constitution = _read_optional_file(file, self._constitution_path)
+        gate_rubric = compose_guardian_rubric(constitution, gate_policy(), gate_contract())
 
         if self._classifier_broker is not None:
             classifier = self._classifier_broker
@@ -314,7 +322,7 @@ class StandardAgent(Agent):
         else:
             classifier = NotConfiguredClassifierBroker()
 
-        judge_rubric = compose_guardian_rubric("", judge_policy(), judge_contract())
+        judge_rubric = compose_guardian_rubric(constitution, judge_policy(), judge_contract())
 
         if self._verifier_broker is not None:
             verifier = self._verifier_broker
@@ -437,3 +445,17 @@ def _warn_renamed(obsolete_name: str, new_name: str) -> None:
         + "Local means a provider that runs on your own machine. This alias keeps working.",
         DeprecationWarning,
         stacklevel=3)
+
+
+def _read_optional_file(file: FileBroker, path: str) -> str:
+    """An optional prompt file (constitution, consumption), or empty when there is none.
+
+    A missing file yields empty rather than an error, so a stale path degrades to the built-in
+    guardian policy instead of bricking composition.
+    """
+    if not path or path.isspace():
+        return ""
+
+    full_path = os.path.join(os.getcwd(), path)
+
+    return file.read_file_sync(full_path) if file.file_exists(full_path) else ""
