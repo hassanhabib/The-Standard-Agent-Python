@@ -24,3 +24,5 @@ jobs:
       run: python -m pip install -e ".[test]"
     - name: Running Tests
       run: python -m pytest -q
+    - name: Running Example Agent
+      run: python -m examples.calculator_agent
