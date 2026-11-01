@@ -56,7 +56,7 @@ from standard_agents.services.orchestrations.decision.decision_orchestration_ser
     DecisionOrchestrationService)
 from standard_agents.services.orchestrations.direction.direction_orchestration_service import (
     DirectionOrchestrationService)
-from standard_agents.standard_agent_validations import validate_brain
+from standard_agents.standard_agent_validations import validate_brain, validate_turns
 from standard_agents.tools.itool import ITool
 
 
@@ -164,6 +164,13 @@ class StandardAgent:
     def tools(self, tools: Iterable[ITool]) -> "StandardAgent":
         for tool in tools:
             self.tool(tool)
+
+        return self
+
+    # A bound on how many Recall, Think, Act turns one prompt may take.
+    def max_turns(self, turns: int) -> "StandardAgent":
+        validate_turns(turns)
+        self.turn_limit = turns
 
         return self
 

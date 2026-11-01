@@ -17,6 +17,15 @@ def validate_brain(generator_broker: IGeneratorBroker | None) -> None:
         "brain"))
 
 
+def validate_turns(turns: int) -> None:
+    validate((
+        {
+            "condition": turns < 1,
+            "message": "Value must be at least 1"
+        },
+        "max_turns"))
+
+
 def validate(*validations: tuple[dict, str]) -> None:
     invalid_agent_configuration_exception = InvalidAgentConfigurationException(
         message="Invalid agent configuration. Please correct the errors and try again.")
