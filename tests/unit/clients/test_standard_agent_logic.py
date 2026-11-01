@@ -427,3 +427,50 @@ async def test_should_prepend_constitution_to_guardian_rubrics_on_process_prompt
     # then
     assert constitution_text in captured_rubrics["gate"]
     assert constitution_text in captured_rubrics["judge"]
+
+
+async def test_should_replace_guardian_policy_with_consumption_on_process_prompt(
+        create_skill_broker,
+        empty_memory_broker,
+        empty_knowledge_broker,
+        tmp_path):
+
+    # given
+    consumption_text = "CONSUMPTION: screen and score by these house rules only."
+    consumption_path = tmp_path / f"consumption-{uuid.uuid4().hex}.md"
+    consumption_path.write_text(consumption_text, encoding="utf-8")
+    captured_rubrics = {}
+
+    async def brain(system_prompt, user_prompt):
+        return "FINAL: 42"
+
+    async def gate(gate_rubric, prompt):
+        captured_rubrics["gate"] = gate_rubric
+
+        return "allow"
+
+    async def judge(judge_rubric, draft_answer):
+        captured_rubrics["judge"] = judge_rubric
+
+        return "1.0"
+
+    agent = (StandardAgent()
+        .use_skills(create_skill_broker())
+        .use_memory(empty_memory_broker)
+        .use_knowledge(empty_knowledge_broker)
+        .on_brain(brain)
+        .consumption(str(consumption_path))
+        .on_gate(gate)
+        .on_judge(judge))
+
+    # when
+    await agent.process_prompt(prompt="what is the answer?")
+
+    # then
+    assert consumption_text in captured_rubrics["gate"]
+    assert "refuse" in captured_rubrics["gate"]
+    assert "conscience that screens" not in captured_rubrics["gate"]
+
+    assert consumption_text in captured_rubrics["judge"]
+    assert "decimal number" in captured_rubrics["judge"]
+    assert "reviews the Brain" not in captured_rubrics["judge"]
