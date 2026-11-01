@@ -14,3 +14,13 @@ class InvalidInternalToolException(Xeption):
 class InternalToolValidationException(Xeption):
     def __init__(self, message: str, inner_exception: Xeption | None) -> None:
         super().__init__(message, inner_exception)
+
+
+class FailedInternalToolServiceException(Xeption):
+    def __init__(self, message: str, inner_exception: BaseException | None) -> None:
+        super().__init__(message, inner_exception)
+
+
+class InternalToolServiceException(Xeption):
+    def __init__(self, message: str, inner_exception: Xeption | None) -> None:
+        super().__init__(message, inner_exception)
