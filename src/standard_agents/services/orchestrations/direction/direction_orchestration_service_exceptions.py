@@ -8,6 +8,8 @@ from collections.abc import Awaitable, Callable
 from xeptions import Xeption
 from standard_agents.brokers.loggings.ilogging_broker import ILoggingBroker
 from standard_agents.models.orchestrations.agents.agent_context import AgentContext
+from standard_agents.models.foundations.external_tools.exceptions import (
+    ExternalToolValidationException)
 from standard_agents.models.foundations.internal_tools.exceptions import (
     InternalToolDependencyException,
     InternalToolServiceException,
@@ -34,6 +36,7 @@ async def try_catch(
             null_agent_context_exception)
     except (
         InternalToolValidationException,
+        ExternalToolValidationException,
         ReturnValidationException) as dependency_validation_exception:
 
         raise await create_and_log_dependency_validation_exception(
