@@ -85,9 +85,16 @@ class TestDecisionOrchestrationServiceLogicThink(DecisionOrchestrationServiceTes
             call.evaluate(input_context.prompt, random_answer)
         ]
 
-    def test_should_think_and_revise_when_judge_rejects(self) -> None:
+    # A rejected draft is never delivered, and Decision does not write the status (SPEC.md 3.2:
+    # status is Direction's). The turn ends with no decision at all, the stale choice of the last
+    # turn cleared, and the Judge's reason in the observations the next attempt reads (4.3).
+    def test_should_think_and_decide_nothing_when_judge_rejects(self) -> None:
         # given
-        input_context = self.create_random_context()
+        input_context = dataclasses.replace(
+            self.create_random_context(),
+            direction_type=self.create_random_string(),
+            payload=self.create_random_string())
+
         random_answer = self.create_random_string()
         random_reason = self.create_random_string()
         returned_reply = f"FINAL: {random_answer}"
@@ -100,7 +107,10 @@ class TestDecisionOrchestrationServiceLogicThink(DecisionOrchestrationServiceTes
         expected_context = dataclasses.replace(
             copy.deepcopy(input_context),
             observations=input_context.observations + (expected_feedback,),
-            status=AgentStatus.REVISING)
+            direction_type="",
+            payload="",
+            raw_reply=returned_reply,
+            status=AgentStatus.WORKING)
 
         self.gate_service_mock.screen.return_value = "allow"
         self.brain_service_mock.generate.return_value = returned_reply
