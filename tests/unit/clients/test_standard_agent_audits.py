@@ -12,6 +12,7 @@ from unittest.mock import create_autospec
 import pytest
 
 from standard_agents.brokers.audits.audit_broker import AuditBroker
+from standard_agents.models.brokers.audits.audit_kind import AuditKind
 from standard_agents.standard_agent import StandardAgent
 
 
@@ -37,3 +38,23 @@ async def test_should_write_to_external_audit_broker_on_process_prompt(answering
 
     # then
     assert audit_broker.write.await_count >= 1
+
+
+async def test_should_write_to_custom_audit_delegate_on_process_prompt(answering_agent):
+    # given
+    captured_records = []
+
+    async def write(record):
+        captured_records.append(record)
+
+    agent = answering_agent.on_audit(write)
+
+    # when
+    await agent.process_prompt(prompt="what is the answer?")
+
+    # then
+    sequences = [record.sequence for record in captured_records]
+
+    assert captured_records
+    assert any(record.kind is AuditKind.RUN for record in captured_records)
+    assert sequences == sorted(sequences)
