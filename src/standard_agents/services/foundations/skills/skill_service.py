@@ -70,3 +70,6 @@ class SkillService(ISkillService):
             return SKILL_SEPARATOR.join(skill.content for skill in ordered_skills)
 
         return await try_catch(self.logging_broker, returning_string_function)
+
+    async def retrieve_skill_catalog(self) -> str:
+        raise NotImplementedError
