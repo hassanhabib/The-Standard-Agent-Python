@@ -21,7 +21,9 @@ from standard_agents.models.foundations.skills.exceptions import (
 from standard_agents.models.orchestrations.data.exceptions import (
     DataOrchestrationDependencyException,
     DataOrchestrationDependencyValidationException,
+    DataOrchestrationServiceException,
     DataOrchestrationValidationException,
+    FailedDataOrchestrationServiceException,
     NullAgentContextException)
 
 
@@ -52,6 +54,27 @@ async def try_catch(
         raise await create_and_log_dependency_exception(
             logging_broker,
             dependency_exception.inner_exception)
+    except Exception as exception:
+        failed_data_orchestration_service_exception = FailedDataOrchestrationServiceException(
+            message="Failed data orchestration service error occurred, contact support.",
+            inner_exception=exception)
+
+        raise await create_and_log_service_exception(
+            logging_broker,
+            failed_data_orchestration_service_exception)
+
+
+async def create_and_log_service_exception(
+    logging_broker: ILoggingBroker,
+    exception: Xeption) -> DataOrchestrationServiceException:
+
+    data_orchestration_service_exception = DataOrchestrationServiceException(
+        message="Data orchestration service error occurred, contact support.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(data_orchestration_service_exception)
+
+    return data_orchestration_service_exception
 
 
 async def create_and_log_dependency_exception(
