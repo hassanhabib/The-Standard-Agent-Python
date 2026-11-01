@@ -5,9 +5,12 @@
 
 from __future__ import annotations
 
+import dataclasses
+
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.models.coordinations.directions.perimeter_policy import PerimeterPolicy
 from standard_agents.models.orchestrations.agents.agent_context import AgentContext
+from standard_agents.models.orchestrations.agents.agent_status import AgentStatus
 from standard_agents.models.orchestrations.effects.compensation_outcome import (
     CompensationOutcome)
 from standard_agents.services.orchestrations.direction.executions.execution_orchestration_service \
@@ -58,7 +61,9 @@ class DirectionCoordinationService:
         self.advertised_tool_names = frozenset(standing_orders.advertised_tools)
 
     async def act(self, context: AgentContext) -> AgentContext:
-        raise NotImplementedError
+        result = await self.execution_service.return_payload(context.payload)
+
+        return dataclasses.replace(context, result=result, status=AgentStatus.RESPONDED)
 
     async def compensate_run(self) -> tuple[CompensationOutcome, ...]:
         """Unwinds what this run performed, in reverse order (SPEC.md 4.9).
