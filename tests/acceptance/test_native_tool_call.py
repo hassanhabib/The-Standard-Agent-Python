@@ -141,3 +141,53 @@ async def test_should_round_trip_a_native_tool_call_when_streamed():
     # then: the same tools, the same perimeter, the same answer at the end
     assert len(tool.received_inputs) == 1
     assert "".join(responses) == "4183"
+
+
+# The id is the whole point of native tool calling. A model that asked for call_7 expects the
+# answer back as a tool message naming call_7: that is what it was trained on, and it is the one
+# thing the text protocol cannot express (SPEC.md 6). Replaying the result as narrated prose
+# leaves the model matching answers to questions by reading, which is exactly the guessing native
+# calls exist to remove.
+async def test_should_return_a_tool_result_tied_to_the_call_that_asked_for_it():
+    # given
+    tool = _CalculatorTool()
+    second_turn: list[Sequence[ConversationMessage]] = [[]]
+
+    def asks_call_7(tools: Sequence[ToolDefinition], turn: int) -> GenerationResult:
+        if turn == 0:
+            return GenerationResult(tool_calls=(
+                ModelToolCall("call_7", "calculator", '{"expression":"47*89"}'),))
+
+        return GenerationResult(content="4183")
+
+    async def native_brain(messages, tools) -> GenerationResult:
+        if any(message.role is MessageRole.TOOL for message in messages):
+            second_turn[0] = messages
+
+            return GenerationResult(content="4183")
+
+        return GenerationResult(tool_calls=(
+            ModelToolCall("call_7", "calculator", '{"expression":"47*89"}'),))
+
+    agent = _agent_with(tool, asks_call_7).on_native_brain(native_brain)
+
+    # when
+    await agent.process_prompt("what is 47 times 89?")
+
+    # then: the assistant's request and the tool's answer are both present, and the answer names
+    # the call it answers
+    request = next(
+        (message for message in second_turn[0]
+            if message.role is MessageRole.ASSISTANT and len(message.tool_calls) > 0),
+        None)
+
+    answer = next(
+        (message for message in second_turn[0] if message.role is MessageRole.TOOL),
+        None)
+
+    assert request is not None
+    assert request.tool_calls[0].id == "call_7"
+
+    assert answer is not None
+    assert answer.tool_call_id == "call_7"
+    assert answer.content == "4183"
