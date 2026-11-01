@@ -20,6 +20,9 @@ _HTML_SENSITIVE = "&'+<>`"
 _SHORT_ESCAPES = {"\\": "\\\\", "\b": "\\b", "\t": "\\t", "\n": "\\n", "\f": "\\f", "\r": "\\r"}
 _DECODER = json.JSONDecoder()
 
+# JsonDocumentOptions.MaxDepth's default, which JsonNode.Parse enforces.
+_MAX_DEPTH = 64
+
 
 class JsonInteger(int):
     """A JSON integer that keeps its token: an int to every reader, its own text to the writer."""
@@ -55,13 +58,21 @@ def parse(text: str) -> Any:
     """Parse as JsonNode.Parse does.
 
     Objects are dicts, arrays lists, numbers keep their tokens, and a JSON null is None. NaN and
-    Infinity are not JSON to System.Text.Json, so they are not JSON here.
+    Infinity are not JSON to System.Text.Json, so they are not JSON here, and neither is nesting
+    deeper than 64 levels.
     """
-    return json.loads(
-        text,
-        parse_int=JsonInteger,
-        parse_float=JsonFloat,
-        parse_constant=_reject_constant)
+    try:
+        node = json.loads(
+            text,
+            parse_int=JsonInteger,
+            parse_float=JsonFloat,
+            parse_constant=_reject_constant)
+    except RecursionError:
+        raise _depth_exceeded(text) from None
+
+    _ensure_depth(node, text, depth=0)
+
+    return node
 
 
 def to_json_string(value: Any) -> str:
@@ -199,6 +210,24 @@ def _skip_whitespace(text: str, index: int) -> int:
         index += 1
 
     return index
+
+
+def _ensure_depth(node: Any, text: str, depth: int) -> None:
+    if isinstance(node, (dict, list)):
+        depth += 1
+
+        if depth > _MAX_DEPTH:
+            raise _depth_exceeded(text)
+
+        for child in node.values() if isinstance(node, dict) else node:
+            _ensure_depth(child, text, depth)
+
+
+def _depth_exceeded(text: str) -> json.JSONDecodeError:
+    return json.JSONDecodeError(
+        f"The maximum configured depth of {_MAX_DEPTH} has been exceeded.",
+        text,
+        0)
 
 
 def _reject_constant(constant: str) -> Any:

@@ -83,6 +83,34 @@ async def test_should_call_with_the_arguments_as_given_on_call_if_input_is_a_jso
     assert logging_broker.mock_calls == []
 
 
+async def test_should_call_with_the_input_as_its_one_argument_if_input_nests_deeper_than_64(
+        external_tool_service,
+        mcp_broker,
+        logging_broker,
+        create_random_string,
+        expected_arguments_json):
+    """No C# twin: JsonNode.Parse refuses nesting deeper than 64 levels.
+
+    So an object nested 65 deep is not a JSON object to the C# service, and it travels as the
+    one input argument, as plain text does.
+    """
+    # given
+    input_name = create_random_string()
+    random_output = create_random_string()
+    deep_input = '{"a":' * 65 + "1" + "}" * 65
+    expected_output = random_output
+    mcp_broker.call.return_value = random_output
+
+    # when
+    actual_output = await external_tool_service.call(input_name, deep_input)
+
+    # then
+    assert actual_output == expected_output
+    assert mcp_broker.mock_calls == [call.call(input_name, expected_arguments_json(deep_input))]
+    assert logging_broker.mock_calls == []
+
+
+
 async def test_should_retrieve_tools(
         external_tool_service, mcp_broker, logging_broker, create_random_string):
     """Discovery is a foundation routine like any other.
