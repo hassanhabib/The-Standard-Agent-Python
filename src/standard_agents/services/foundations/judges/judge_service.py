@@ -23,4 +23,6 @@ class JudgeService:
         self.logging_broker = logging_broker
 
     async def evaluate(self, task: str, candidate: str) -> Judgement:
-        raise NotImplementedError
+        verdict = await self.verifier_broker.verify(task, candidate)
+
+        return Judgement(score=float(verdict))
