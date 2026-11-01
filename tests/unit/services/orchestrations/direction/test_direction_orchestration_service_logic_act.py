@@ -77,3 +77,32 @@ class TestDirectionOrchestrationServiceLogicAct(DirectionOrchestrationServiceTes
         ]
 
         assert self.return_service_mock.mock_calls == []
+
+    # A brain that names a tool the agent does not have is told so, and the run goes on: the next
+    # turn can pick a real tool or answer. Acting on a name nobody registered never happens.
+    def test_should_act_by_observing_that_an_unknown_tool_is_not_available(self) -> None:
+        # given
+        random_tool_name = self.create_random_string()
+        input_context = self.create_random_context(random_tool_name)
+
+        expected_context = dataclasses.replace(
+            copy.deepcopy(input_context),
+            observations=input_context.observations + (
+                f"There is no tool named '{random_tool_name}'. "
+                + "Use a tool from the catalog, or give a FINAL answer.",),
+            result="",
+            status=AgentStatus.WORKING)
+
+        self.internal_tool_service_mock.handles.return_value = False
+
+        # when
+        actual_context = asyncio.run(self.direction_orchestration_service.act(input_context))
+
+        # then
+        assert actual_context == expected_context
+
+        assert self.internal_tool_service_mock.mock_calls == [
+            call.handles(random_tool_name)
+        ]
+
+        assert self.return_service_mock.mock_calls == []
