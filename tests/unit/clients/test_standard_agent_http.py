@@ -109,3 +109,29 @@ async def test_should_route_the_native_brain_through_the_supplied_http_handler(b
     assert len(handler.requests) == 1
     assert handler.requests[0].full_url == "http://brain.test/v1/chat/completions"
     assert header_of(handler.requests[0], "Authorization") == "Bearer key-1"
+
+
+async def test_should_route_mcp_discovery_through_the_supplied_http_handler(bare_shell):
+    # given: an MCP server registered before the handler, discovered on the run
+    handler = RecordingHandler(EMPTY_TOOL_LIST)
+
+    async def brain(system_prompt, user_prompt):
+        return "FINAL: done"
+
+    agent = (bare_shell
+        .on_brain(brain)
+        .mcp("http://mcp.test/", api_key="mcp-key")
+        .http(lambda: handler))
+
+    # when
+    await agent.process_prompt("anything")
+
+    # then: the handshake and discovery went out through the host's handler, credentials intact
+    assert handler.requests
+
+    for request in handler.requests:
+        assert request.full_url == "http://mcp.test/"
+        assert header_of(request, "X-Api-Key") == "mcp-key"
+
+    assert '"initialize"' in handler.bodies[0]
+    assert "tools/list" in handler.bodies[-1]
