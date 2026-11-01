@@ -29,7 +29,16 @@ class MemoryService:
         self.logging_broker = logging_broker
 
     async def recall_memories(self) -> Sequence[str]:
+        if self.file_broker is not None:
+            return await self._select_memories_from_file(self.file_broker)
+
         return await self.memory_broker.select_memories()
 
     async def remember(self, memory: str) -> None:
+        raise NotImplementedError
+
+    async def _select_memories_from_file(self, file_broker: FileBroker) -> Sequence[str]:
+        if not file_broker.file_exists(self.memory_path):
+            return ()
+
         raise NotImplementedError
