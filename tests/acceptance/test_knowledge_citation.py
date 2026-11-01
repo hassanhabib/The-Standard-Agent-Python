@@ -129,3 +129,17 @@ async def test_should_not_repeat_a_source_the_answer_already_credits():
 
     # then
     assert actual_result == expected_result
+
+
+async def test_should_cite_with_the_configured_prefix():
+    # given
+    agent = _grounded_agent(_answering(_ANSWER)).cite_knowledge(prefix="Reference: ")
+
+    expected_result = (
+        f"{_ANSWER}\n\nReference: {_REFUNDS_SOURCE}\nReference: {_SHIPPING_SOURCE}")
+
+    # when
+    actual_result = await agent.process_prompt("what is the refund window?")
+
+    # then
+    assert actual_result == expected_result
