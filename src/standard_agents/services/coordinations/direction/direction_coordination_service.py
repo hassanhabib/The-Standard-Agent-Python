@@ -124,7 +124,100 @@ class DirectionCoordinationService:
                     result=result,
                     status=_to_terminal_status(context.direction_type))
 
+            # A call naming a caller tool is not an act: it is a terminal answer addressed to
+            # the caller (docs/per-request-inference.md 6.2). Classified before the perimeter,
+            # because there is nothing for the perimeter to judge: the agent performs nothing.
+            if _is_addressed_to_caller(context):
+                return await self._await_caller(context)
+
             return await self._act_on_effect(context)
+
+    async def compensate_run(self) -> tuple[CompensationOutcome, ...]:
+        """Unwinds what this run performed, in reverse order (SPEC.md 4.9, Invariant 7).
+
+        Reports every effect it could not undo rather than reporting the run cleanly unwound.
+        Run-once makes an effect safe to propose twice; compensation is for the effects that
+        cannot be made idempotent at all (a payment sent, a message delivered), where the only
+        way back is a second, opposite act. It unwinds in reverse because a later effect may
+        depend on an earlier one: undoing the booking before the payment it paid for would leave
+        the payment attached to nothing.
+        """
+        run = AgentRun.current()
+
+        if run is None:
+            return ()
+
+        outcomes: list[CompensationOutcome] = []
+
+        for effect in reversed(run.performed_effects):
+            outcome = await self._compensate_effect(effect)
+
+            await self.logging_broker.log_payload(
+                "Direction",
+                f"Compensate '{effect.tool_name}' {'UNDONE' if outcome.undone else 'STANDS'}",
+                outcome.detail,
+                detail=False)
+
+            outcomes.append(outcome)
+
+        return tuple(outcomes)
+
+    async def _compensate_effect(self, effect: PerformedEffect) -> CompensationOutcome:
+        """Best effort per effect.
+
+        A reversal is itself an act against the world, and acts fail; abandoning the rest
+        because this one refused would leave more standing, not less.
+        """
+        stands = f"'{effect.tool_name}' could not be undone; the effect stands."
+
+        try:
+            # The intent goes on the record before the reversal is attempted (F-08): a process
+            # that dies between the two leaves a ledger that says compensation was owed, which
+            # is reconcilable, rather than one that says the act simply stands.
+            await self.perimeter_service.record_compensation_intent(effect.idempotency_key)
+
+            reversal = await self.execution_service.compensate(
+                effect.tool_name, effect.arguments, effect.outcome)
+
+            if not reversal:
+                return CompensationOutcome(effect.tool_name, undone=False, detail=stands)
+
+            await self.perimeter_service.record_compensation(effect.idempotency_key, reversal)
+
+            return CompensationOutcome(effect.tool_name, undone=True, detail=reversal)
+        except Exception:
+            return CompensationOutcome(effect.tool_name, undone=False, detail=stands)
+
+    async def _await_caller(self, context: AgentContext) -> AgentContext:
+        """The run pauses; the caller must act and report back.
+
+        The framework already models this seam, built for human approval and structurally
+        identical here. The authority over this pending effect is the caller: it executes,
+        posts the result on the session, and the run resumes. Same seam, different authority.
+        """
+        effect = dataclasses.replace(
+            AgentEffect.create(
+                run_id=_current_run_id(),
+                tool_name=context.direction_type,
+                arguments=context.payload,
+                principal=self._resolve_identity()),
+
+            # The id the model minted, preserved so the caller's result can answer it.
+            call_id=context.tool_call_id)
+
+        await self.logging_broker.log_process(
+            "Direction",
+            f"Caller tool '{context.direction_type}' → returned to the caller as a pending "
+            "effect")
+
+        return dataclasses.replace(
+            context,
+            result=f"'{context.direction_type}' is addressed to the caller; awaiting its result.",
+
+            # The call travels with the pause, so whoever resumes can be shown the act itself
+            # rather than only the news that something is waiting (SPEC.md 4.11).
+            pending_effect=effect,
+            status=AgentStatus.AWAITING_INPUT)
 
     async def _act_on_effect(self, context: AgentContext) -> AgentContext:
         """The perimeter (SPEC.md 4.9): enforcement at the boundary Direction already owned.
@@ -458,12 +551,18 @@ class DirectionCoordinationService:
             and _equals_ignoring_case(remote_tool.name, tool_name)
             for remote_tool in run.remote_tools)
 
-    async def compensate_run(self) -> tuple[CompensationOutcome, ...]:
-        """Unwinds what this run performed, in reverse order (SPEC.md 4.9).
 
-        Reports every effect it could not undo rather than reporting the run cleanly unwound.
-        """
-        raise NotImplementedError
+def _is_addressed_to_caller(context: AgentContext) -> bool:
+    """The boundary already dropped any caller tool sharing a configured name.
+
+    So a name found here has exactly one meaning: the caller's.
+    """
+    if context.inference is None:
+        return False
+
+    return any(
+        _equals_ignoring_case(caller_tool.name, context.direction_type)
+        for caller_tool in context.inference.caller_tools)
 
 
 def _replayed_again(tool_name: str) -> str:
