@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Awaitable, Callable
 
 from standard_agents.tools.tool import Tool
@@ -19,6 +20,19 @@ class RememberTool(Tool):
         raise NotImplementedError
 
     async def execute(self, input: str) -> str:
-        await self._remember(input)
+        fact = _extract_fact(input)
+        await self._remember(fact)
 
-        return f"Remembered: {input}"
+        return f"Remembered: {fact}"
+
+
+def _extract_fact(input: str) -> str:
+    try:
+        arguments = json.loads(input)
+    except json.JSONDecodeError:
+        return input
+
+    if isinstance(arguments, dict) and isinstance(arguments.get("fact"), str):
+        return arguments["fact"]
+
+    return input
