@@ -77,3 +77,19 @@ async def test_should_stream_data_frames_until_the_done_sentinel():
     body = json.loads(server.bodies[0])
     assert body["stream"] is True
     assert streamed == ["FIN", "AL: ", "12"]
+
+
+async def test_should_end_the_stream_when_the_connection_ends_without_a_sentinel():
+    # given: a provider that drops the connection mid-stream
+    server = ScriptedServerHandler.answering(
+        'data: {"choices":[{"delta":{"content":"FINAL: 1"}}]}\n\n'
+        + 'data: {"choices":[{"delta":{"content":"2"}}]}\n\n',
+        media_type="text/event-stream")
+
+    broker = create_broker(server)
+
+    # when
+    streamed = [chunk async for chunk in broker.generate_stream("be brief", "what is owed?")]
+
+    # then: what arrived is delivered; the enumeration completes rather than hangs
+    assert streamed == ["FINAL: 1", "2"]
