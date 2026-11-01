@@ -4,6 +4,8 @@
 # ---------------------------------------------------------------
 
 import copy
+import os
+import tempfile
 from unittest.mock import call
 
 from standard_agents.brokers.files.file_broker import SearchOption
@@ -228,4 +230,62 @@ async def test_should_retrieve_the_texts_of_sourced_knowledge_on_retrieve_knowle
         call.select_sourced_knowledge(input_query)]
 
     assert knowledge_broker.mock_calls == []
+    assert logging_broker.mock_calls == []
+
+
+async def test_should_retrieve_sourced_knowledge_from_files_with_their_paths_and_scores(
+        file_broker,
+        knowledge_broker,
+        sourced_knowledge_broker,
+        logging_broker,
+        create_random_string):
+    """The knowledge an agent is given with nothing installed is citable out of the box.
+
+    Each passage names the document it was cut from (SPEC.md 4.2), relative to the knowledge
+    folder and with forward slashes whatever the platform, so a citation reads the same on every
+    machine.
+    """
+    # given
+    knowledge_path = os.path.join(tempfile.gettempdir(), create_random_string())
+    search_pattern = "*.md"
+    max_results = 3
+    query = "refund"
+    refunds_path = os.path.join(knowledge_path, "policies", "refunds.md")
+    shipping_path = os.path.join(knowledge_path, "shipping.md")
+    document_paths = [shipping_path, refunds_path]
+    refunds_document = "Enterprise customers may request a refund within 90 days."
+    shipping_document = "Orders ship within two business days."
+
+    documents_by_path = {
+        refunds_path: refunds_document,
+        shipping_path: shipping_document}
+
+    file_knowledge_service = KnowledgeService(
+        file_broker=file_broker,
+        knowledge_path=knowledge_path,
+        search_pattern=search_pattern,
+        max_results=max_results,
+        logging_broker=logging_broker)
+
+    file_broker.directory_exists.return_value = True
+    file_broker.select_files.return_value = document_paths
+    file_broker.read_file.side_effect = lambda path: documents_by_path[path]
+
+    # when
+    actual_knowledge_results = await file_knowledge_service.retrieve_sourced_knowledge(query)
+
+    # then: only the passage carrying the query term, credited to its document, scored
+    assert len(actual_knowledge_results) == 1
+    assert actual_knowledge_results[0].text == refunds_document
+    assert actual_knowledge_results[0].source == "policies/refunds.md"
+    assert actual_knowledge_results[0].score > 0
+
+    assert file_broker.mock_calls == [
+        call.directory_exists(knowledge_path),
+        call.select_files(knowledge_path, search_pattern, SearchOption.ALL_DIRECTORIES),
+        call.read_file(refunds_path),
+        call.read_file(shipping_path)]
+
+    assert knowledge_broker.mock_calls == []
+    assert sourced_knowledge_broker.mock_calls == []
     assert logging_broker.mock_calls == []
