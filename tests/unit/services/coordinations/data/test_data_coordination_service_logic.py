@@ -93,3 +93,23 @@ async def test_should_preserve_existing_observations_on_recall(
 
     # then
     assert prior_observation in actual_context.observations
+
+
+async def test_should_expand_tools_marker_in_system_prompt_on_recall(
+        data_coordination_service,
+        skill_service,
+        memory_service,
+        tool_catalog,
+        create_random_agent_context):
+    # given
+    input_context = create_random_agent_context()
+    skills_with_marker = "You may use these tools:\n{{tools}}\nChoose one."
+    skill_service.retrieve_skills.return_value = skills_with_marker
+    memory_service.recall_memories.return_value = []
+
+    # when
+    actual_context = await data_coordination_service.recall(input_context)
+
+    # then
+    assert tool_catalog in actual_context.system_prompt
+    assert "{{tools}}" not in actual_context.system_prompt
