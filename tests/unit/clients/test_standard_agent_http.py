@@ -90,3 +90,22 @@ async def test_should_route_the_brain_through_the_supplied_http_handler(bare_she
     assert len(handler.requests) == 1
     assert handler.requests[0].full_url == "http://brain.test/v1/chat/completions"
     assert header_of(handler.requests[0], "Authorization") == "Bearer key-1"
+
+
+async def test_should_route_the_native_brain_through_the_supplied_http_handler(bare_shell):
+    # given: the same handler under the native tool-calling brain, supplied AFTER the brain,
+    # because a seam that only works in one order is a trap
+    handler = RecordingHandler(NATIVE_CHAT_COMPLETION)
+
+    agent = (bare_shell
+        .native_brain("http://brain.test/v1/", "key-1", "model-1")
+        .http(lambda: handler))
+
+    # when
+    answer = await agent.process_prompt("2+2")
+
+    # then
+    assert answer == "4"
+    assert len(handler.requests) == 1
+    assert handler.requests[0].full_url == "http://brain.test/v1/chat/completions"
+    assert header_of(handler.requests[0], "Authorization") == "Bearer key-1"
