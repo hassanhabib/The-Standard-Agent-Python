@@ -19,4 +19,6 @@ class RememberTool(Tool):
         raise NotImplementedError
 
     async def execute(self, input: str) -> str:
-        raise NotImplementedError
+        await self._remember(input)
+
+        return f"Remembered: {input}"
