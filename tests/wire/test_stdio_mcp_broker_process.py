@@ -89,3 +89,24 @@ async def test_should_stop_the_server_and_every_process_it_started_when_its_bloc
 
     # then: the whole tree is gone
     assert await have_stopped(process_ids)
+
+
+async def test_should_start_a_server_named_on_the_path_without_arguments(tmp_path, monkeypatch):
+    # given: a launcher found by its bare name on PATH and started with no arguments, as npx is;
+    # on Windows through PATHEXT, as ResolveCommand finds npx.cmd
+    if os.name == "nt":
+        launcher = tmp_path / "wire-process-server.cmd"
+        launcher.write_text(f'@"{sys.executable}" "{SERVER_PATH}"\n', encoding="utf-8")
+    else:
+        launcher = tmp_path / "wire-process-server"
+        launcher.write_text(f'#!/bin/sh\nexec "{sys.executable}" "{SERVER_PATH}"\n')
+        launcher.chmod(0o755)
+
+    monkeypatch.setenv("PATH", f"{tmp_path}{os.pathsep}{os.environ.get('PATH', '')}")
+
+    # when
+    async with StdioMcpBroker(command="wire-process-server", timeout_seconds=30) as broker:
+        actual_tools = await broker.list_tools()
+
+    # then
+    assert [tool.name.split("-")[0] for tool in actual_tools] == ["server", "child"]
