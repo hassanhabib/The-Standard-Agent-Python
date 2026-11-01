@@ -19,4 +19,4 @@ class ExternalToolService(IExternalToolService):
         self.logging_broker = logging_broker
 
     async def call(self, name: str, input: str) -> str:
-        raise NotImplementedError
+        return await self.mcp_broker.call(name, input)
