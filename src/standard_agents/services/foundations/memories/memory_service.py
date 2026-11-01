@@ -14,7 +14,9 @@ from standard_agents.brokers.files.file_broker import FileBroker
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.brokers.memories.memory_broker import MemoryBroker
 from standard_agents.models.foundations.memories.exceptions import (
+    FailedMemoryDependencyException,
     InvalidMemoryException,
+    MemoryDependencyException,
     MemoryValidationException)
 
 
@@ -41,10 +43,11 @@ class MemoryService:
         self._memory_file_lock = asyncio.Lock()
 
     async def recall_memories(self) -> Sequence[str]:
-        if self.file_broker is not None:
-            return await self._select_memories_from_file(self.file_broker)
+        async with _handling_exceptions(self.logging_broker):
+            if self.file_broker is not None:
+                return await self._select_memories_from_file(self.file_broker)
 
-        return await self.memory_broker.select_memories()
+            return await self.memory_broker.select_memories()
 
     async def remember(self, memory: str) -> None:
         async with _handling_exceptions(self.logging_broker):
@@ -80,6 +83,9 @@ async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[N
     except InvalidMemoryException as invalid_memory_exception:
         raise await _create_and_log_validation_exception(
             logging_broker, invalid_memory_exception)
+    except (FileNotFoundError, NotADirectoryError, PermissionError) as critical_error:
+        raise await _create_and_log_critical_dependency_exception(
+            logging_broker, critical_error)
 
 
 async def _create_and_log_validation_exception(
@@ -93,3 +99,23 @@ async def _create_and_log_validation_exception(
     await logging_broker.log_error(memory_validation_exception)
 
     return memory_validation_exception
+
+
+async def _create_and_log_critical_dependency_exception(
+        logging_broker: LoggingBroker,
+        exception: Exception) -> MemoryDependencyException:
+
+    memory_dependency_exception = _create_dependency_exception(exception)
+    await logging_broker.log_critical(memory_dependency_exception)
+
+    return memory_dependency_exception
+
+
+def _create_dependency_exception(exception: Exception) -> MemoryDependencyException:
+    failed_memory_dependency_exception = FailedMemoryDependencyException(
+        message="Failed memory dependency error occurred, contact support.",
+        inner_exception=exception)
+
+    return MemoryDependencyException(
+        message="Memory dependency error occurred, contact support.",
+        inner_exception=failed_memory_dependency_exception)
