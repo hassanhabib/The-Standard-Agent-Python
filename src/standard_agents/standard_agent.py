@@ -186,6 +186,7 @@ from standard_agents.services.orchestrations.direction.executions.execution_orch
     import ExecutionOrchestrationService
 from standard_agents.services.orchestrations.direction.perimeters.perimeter_orchestration_service \
     import PerimeterOrchestrationService
+from standard_agents.tools.agent_tool import AgentTool
 from standard_agents.tools.remember_tool import RememberTool
 from standard_agents.tools.tool import Tool
 
@@ -890,21 +891,23 @@ class StandardAgent(Agent):
             *,
             session_id: str = "",
             cancellation: asyncio.Event | None = None) -> str:
-        return await self._compose().process_prompt(prompt)
+        return await (await self._resolve_agent()).process_prompt(prompt)
 
     async def run_request(
             self,
             request: PromptRequest,
             *,
             cancellation: asyncio.Event | None = None) -> AgentOutcome:
-        return await self._compose().run(request, cancellation=cancellation)
+        return await (await self._resolve_agent()).run(request, cancellation=cancellation)
 
     async def stream_request(
             self,
             request: PromptRequest,
             *,
             cancellation: asyncio.Event | None = None) -> AsyncIterator[AgentStreamEvent]:
-        async for stream_event in self._compose().run_stream(request, cancellation=cancellation):
+        agent = await self._resolve_agent()
+
+        async for stream_event in agent.run_stream(request, cancellation=cancellation):
             yield stream_event
 
     def http(self, handlers: Callable[[], urllib.request.BaseHandler]) -> StandardAgent:
@@ -941,7 +944,15 @@ class StandardAgent(Agent):
 
         return None if principal is None else principal.id
 
-    def _compose(self) -> RunManagementService:
+    async def _resolve_agent(self) -> RunManagementService:
+        registered_agents: list[RegisteredAgent] = []
+
+        for registry in self._agent_sources:
+            registered_agents.extend(await registry.select_agents())
+
+        return self._compose(registered_agents)
+
+    def _compose(self, registered_agents: Sequence[RegisteredAgent]) -> RunManagementService:
         _validate_composition(
             has_brain=(
                 self._generator_broker is not None
@@ -1007,6 +1018,24 @@ class StandardAgent(Agent):
                 memory_path=os.path.abspath(self._memory_path),
                 logging_broker=logging)
         all_tools = [*self._tools, RememberTool(memory_service.remember)]
+
+        # The fleet materializes as tools, which is the whole design: a handoff is an act, so the
+        # advertisement opt-in, the perimeter, the audit and cancellation across the seam all
+        # apply because they already applied to tools. First to claim a name keeps it, the rule
+        # MCP servers live by, so a registry cannot shadow a tool the host wired in code.
+        claimed_names = {tool.name.lower() for tool in all_tools}
+
+        for registered in registered_agents:
+            if registered.name.lower() in claimed_names:
+                continue
+
+            claimed_names.add(registered.name.lower())
+
+            all_tools.append(AgentTool(
+                registered.name,
+                registered.agent,
+                AgentTool.GROUNDED_HANDOFF,
+                registered.description))
 
         constitution = _read_optional_file(file, self._constitution_path)
         consumption = _read_optional_file(file, self._consumption_path)

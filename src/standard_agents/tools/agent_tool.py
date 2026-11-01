@@ -6,14 +6,18 @@
 from __future__ import annotations
 
 from standard_agents.agent import Agent
+from standard_agents.models.loggings.agent_run import AgentRun
 from standard_agents.models.orchestrations.agents.agent_status import AgentStatus
 from standard_agents.tools.tool import Tool
 
 
 _INPUT_PLACEHOLDER = "{input}"
+_PROMPT_PLACEHOLDER = "{prompt}"
 
 
 class AgentTool(Tool):
+    GROUNDED_HANDOFF = "The user asked: {prompt}\n\nYour task: {input}"
+
     def __init__(
             self,
             name: str,
@@ -41,7 +45,11 @@ class AgentTool(Tool):
         return self._parameters
 
     async def execute(self, input: str) -> str:
-        handed_off = self._handoff.replace(_INPUT_PLACEHOLDER, input)
+        outer_run = AgentRun.current()
+
+        handed_off = (self._handoff
+            .replace(_PROMPT_PLACEHOLDER, outer_run.prompt if outer_run is not None else "")
+            .replace(_INPUT_PLACEHOLDER, input))
         outcome = await self._agent.run(handed_off, cancellation=None)
 
         if outcome.status is AgentStatus.RESPONDED:
