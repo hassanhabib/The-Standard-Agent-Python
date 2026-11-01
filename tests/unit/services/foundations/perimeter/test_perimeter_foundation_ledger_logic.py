@@ -10,6 +10,7 @@ an in-flight claim is ever released, and compensation is recorded before and aft
 """
 
 import dataclasses
+from datetime import timedelta
 from unittest.mock import ANY, call
 
 from standard_agents.models.brokers.effects.effect_state import EffectState
@@ -73,5 +74,43 @@ async def test_should_retrieve_prior_record_on_claim_effect_if_act_was_seen_befo
     assert effect_ledger_broker.mock_calls == [
         call.insert_claim(ANY),
         call.select_record(random_effect.idempotency_key)]
+
+    assert logging_broker.mock_calls == []
+
+
+async def test_should_record_outcome(
+        effect_ledger_service,
+        effect_ledger_broker,
+        time_broker,
+        logging_broker,
+        create_random_string,
+        create_random_effect,
+        create_random_date_time,
+        create_in_flight_record):
+
+    # given: an in-flight claim, completed with what the act produced
+    random_effect = create_random_effect()
+    random_outcome = create_random_string()
+    claimed_on = create_random_date_time()
+    recorded_on = claimed_on + timedelta(seconds=3)
+    in_flight_record = create_in_flight_record(random_effect, claimed_on)
+
+    expected_record = dataclasses.replace(
+        in_flight_record,
+        state=EffectState.COMPLETED,
+        outcome=random_outcome,
+        detail=None,
+        recorded_on=recorded_on)
+
+    time_broker.get_current_date_time.return_value = recorded_on
+    effect_ledger_broker.select_record.return_value = in_flight_record
+
+    # when
+    await effect_ledger_service.record_outcome(random_effect, random_outcome)
+
+    # then
+    assert effect_ledger_broker.mock_calls == [
+        call.select_record(random_effect.idempotency_key),
+        call.update_record(expected_record)]
 
     assert logging_broker.mock_calls == []
