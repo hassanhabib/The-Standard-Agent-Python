@@ -147,3 +147,28 @@ async def test_should_let_the_request_speak_where_the_deployment_said_nothing():
     assert broker.captured is not None
     assert broker.captured.temperature == 0.9
     assert broker.captured.max_tokens == 512
+
+
+# Configuration is a ceiling (design 4): a temperature the deployment chose cannot be moved by
+# asking nicely.
+async def test_should_hand_the_broker_the_configured_temperature_over_the_requests():
+    # given: a brain hard-configured on both knobs
+    broker = _CapturingGeneratorBroker()
+
+    agent = (_agent_with_broker(broker)
+        .brain(
+            "http://localhost:9999/v1/",
+            api_key="",
+            model="test",
+            temperature=0.3,
+            max_tokens=256))
+
+    request = PromptRequest(prompt="hello", temperature=0.9, max_tokens=4096)
+
+    # when
+    await agent.process_prompt(request)
+
+    # then: configured won, on both
+    assert broker.captured is not None
+    assert broker.captured.temperature == 0.3
+    assert broker.captured.max_tokens == 256
