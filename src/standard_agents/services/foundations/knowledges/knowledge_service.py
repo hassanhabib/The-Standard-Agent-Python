@@ -39,7 +39,20 @@ class KnowledgeService:
         self.logging_broker = logging_broker
 
     async def retrieve_knowledge(self, query: str) -> Sequence[str]:
+        if self.file_broker is not None:
+            return await self._select_knowledge_from_files(self.file_broker, query)
+
         return await self.knowledge_broker.select_knowledge(query)
 
     async def retrieve_sourced_knowledge(self, query: str) -> Sequence[KnowledgeResult]:
+        raise NotImplementedError
+
+    async def _select_knowledge_from_files(
+            self,
+            file_broker: FileBroker,
+            query: str) -> Sequence[str]:
+
+        if not file_broker.directory_exists(self.knowledge_path):
+            return ()
+
         raise NotImplementedError
