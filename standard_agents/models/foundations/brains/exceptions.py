@@ -14,3 +14,13 @@ class InvalidBrainException(Xeption):
 class BrainValidationException(Xeption):
     def __init__(self, message: str, inner_exception: Xeption | None) -> None:
         super().__init__(message, inner_exception)
+
+
+class FailedBrainDependencyException(Xeption):
+    def __init__(self, message: str, inner_exception: BaseException | None) -> None:
+        super().__init__(message, inner_exception)
+
+
+class BrainDependencyException(Xeption):
+    def __init__(self, message: str, inner_exception: Xeption | None) -> None:
+        super().__init__(message, inner_exception)
