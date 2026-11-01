@@ -152,3 +152,27 @@ async def test_should_record_failure(
         call.update_record(expected_record)]
 
     assert logging_broker.mock_calls == []
+
+
+async def test_should_release_claim_if_record_is_in_flight(
+        effect_ledger_service,
+        effect_ledger_broker,
+        logging_broker,
+        create_random_effect,
+        create_random_date_time,
+        create_in_flight_record):
+
+    # given: a held act, claimed and never performed
+    random_effect = create_random_effect()
+    in_flight_record = create_in_flight_record(random_effect, create_random_date_time())
+    effect_ledger_broker.select_record.return_value = in_flight_record
+
+    # when
+    await effect_ledger_service.release_claim(random_effect)
+
+    # then
+    assert effect_ledger_broker.mock_calls == [
+        call.select_record(random_effect.idempotency_key),
+        call.delete_record(random_effect.idempotency_key)]
+
+    assert logging_broker.mock_calls == []
