@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import dataclasses
 from collections.abc import AsyncIterator, Callable, Sequence
-from contextlib import aclosing
+from contextlib import aclosing, asynccontextmanager
 
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.models.clients.agents.agent_stream_event import AgentStreamEvent
@@ -18,12 +18,17 @@ from standard_agents.models.foundations.judges.judgement import Judgement
 from standard_agents.models.foundations.gates.skill_directive import SkillDirective
 from standard_agents.models.orchestrations.agents.agent_context import AgentContext
 from standard_agents.models.orchestrations.agents.agent_status import AgentStatus
+from standard_agents.models.orchestrations.agents.exceptions import (
+    AgentOrchestrationValidationException,
+    NullAgentContextException)
 
 from standard_agents.services.coordinations.decision.decision_stream import DecisionStream
 from standard_agents.services.orchestrations.decision.guardians.guardian_orchestration_service \
     import GuardianOrchestrationService
 from standard_agents.services.orchestrations.decision.inferences.inference_orchestration_service \
     import InferenceOrchestrationService
+from xeptions import Xeption
+
 
 # A guardian that emits one of these is trying to answer rather than classify.
 _FINAL_PREFIX = "FINAL:"
@@ -72,36 +77,40 @@ class DecisionCoordinationService:
         raise NotImplementedError
 
     async def think(self, context: AgentContext) -> AgentContext:
-        context = _fresh_of_last_turn(context)
-        verdict = await self.guardian_service.screen(context.prompt)
-        refused = await self._refused_by_gate(context, verdict)
+        """Screens, resolves a skill conflict, decides, and judges the draft (SPEC.md 7.6)."""
+        async with _handling_exceptions(self.logging_broker):
+            _validate_context(context)
 
-        if refused is not None:
-            return refused
+            context = _fresh_of_last_turn(context)
+            verdict = await self.guardian_service.screen(context.prompt)
+            refused = await self._refused_by_gate(context, verdict)
 
-        context = await self._routed_by_gate(context, verdict)
-        resolved_context, is_terminal = await self._resolve_skill_conflict(context)
+            if refused is not None:
+                return refused
 
-        if is_terminal:
-            return resolved_context
+            context = await self._routed_by_gate(context, verdict)
+            resolved_context, is_terminal = await self._resolve_skill_conflict(context)
 
-        context = resolved_context
-        decided = await self.inference_service.decide(context)
+            if is_terminal:
+                return resolved_context
 
-        if decided.direction_type != _RETURN_RESPONSE_DIRECTION:
+            context = resolved_context
+            decided = await self.inference_service.decide(context)
+
+            if decided.direction_type != _RETURN_RESPONSE_DIRECTION:
+                return decided
+
+            # An empty answer is nothing to judge: a judge would (rightly) reject blank input,
+            # which would crash the turn. Return it as it is; the brain had nothing to say.
+            if not decided.payload:
+                return decided
+
+            revising = await self._rejected_by_guardians(context, decided)
+
+            if revising is not None:
+                return revising
+
             return decided
-
-        # An empty answer is nothing to judge: a judge would (rightly) reject blank input, which
-        # would crash the turn. Return it as it is; the brain simply had nothing to say.
-        if not decided.payload:
-            return decided
-
-        revising = await self._rejected_by_guardians(context, decided)
-
-        if revising is not None:
-            return revising
-
-        return decided
 
     def think_stream(self, context: AgentContext) -> DecisionStream:
         """The streamed door.
@@ -366,3 +375,30 @@ def _fold_ordinal_ignore_case(value: str) -> str:
         folded.append(candidate if len(candidate) == 1 else character)
 
     return "".join(folded)
+
+
+def _validate_context(context: AgentContext | None) -> None:
+    if context is None:
+        raise NullAgentContextException(message="Agent context is null.")
+
+
+@asynccontextmanager
+async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[None]:
+    try:
+        yield
+    except NullAgentContextException as null_agent_context_exception:
+        raise await _create_and_log_validation_exception(
+            logging_broker, null_agent_context_exception)
+
+
+async def _create_and_log_validation_exception(
+        logging_broker: LoggingBroker,
+        exception: Xeption | None) -> AgentOrchestrationValidationException:
+
+    agent_orchestration_validation_exception = AgentOrchestrationValidationException(
+        message="Agent orchestration validation error occurred, fix the error and try again.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(agent_orchestration_validation_exception)
+
+    return agent_orchestration_validation_exception
