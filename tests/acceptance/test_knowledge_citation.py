@@ -311,3 +311,33 @@ async def test_should_record_the_cited_answer_in_the_session(tmp_path):
 
     # then
     assert f"Source: {_REFUNDS_SOURCE}" in seen_by_brain
+
+
+# The built-in knowledge folder is citable out of the box (SPEC.md 4.2): the source is the
+# document's path relative to the folder.
+async def test_should_cite_the_built_in_knowledge_folder_by_path(tmp_path):
+    # given
+    knowledge_path = tmp_path / "knowledge"
+    (knowledge_path / "policies").mkdir(parents=True)
+
+    (knowledge_path / "policies" / "refunds.md").write_text(
+        "Refund policy. Enterprise customers may request a refund within 90 days.",
+        encoding="utf-8")
+
+    (knowledge_path / "holidays.md").write_text(
+        "The office is closed on public holidays.",
+        encoding="utf-8")
+
+    agent = (StandardAgent()
+        .use_skills(_empty_skill_broker())
+        .use_memory(_empty_memory_broker())
+        .knowledge(str(knowledge_path), max_results=1)
+        .on_brain(_answering(_ANSWER))
+        .cite_knowledge())
+
+    # when
+    actual_result = await agent.process_prompt(
+        "what is our refund policy for enterprise customers")
+
+    # then
+    assert actual_result == f"{_ANSWER}\n\nSource: policies/refunds.md"
