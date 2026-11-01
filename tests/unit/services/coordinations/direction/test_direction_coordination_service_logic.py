@@ -259,6 +259,38 @@ async def test_should_mark_an_exchange_the_ledger_answered_as_replayed_on_act(
         assert [exchange.replayed for exchange in second.tool_exchanges] == [False, True]
 
 
+async def test_should_answer_a_third_identical_ask_with_the_note_alone_on_act(
+        direction_coordination_service,
+        internal_tool_service,
+        create_context_with_direction):
+    """Watched live: a page of a file asked for fourteen more times.
+
+    Each was answered with the same sixteen kilobytes and the same note. The note was right and
+    was not enough, and every copy cost the person a turn's worth of context (SPEC.md 4.9,
+    v1.14).
+    """
+    with AgentRun.begin():
+        # given
+        internal_tool_service.handles.return_value = True
+        internal_tool_service.run.return_value = "the whole page"
+
+        first = await direction_coordination_service.act(
+            create_context_with_direction("read_file", "a.txt"))
+
+        second = await direction_coordination_service.act(
+            dataclasses.replace(first, direction_type="read_file", payload="a.txt"))
+
+        # when
+        third = await direction_coordination_service.act(
+            dataclasses.replace(second, direction_type="read_file", payload="a.txt"))
+
+        # then
+        # Not a third copy of the bytes: the model has had them twice.
+        assert second.result.startswith("the whole page")
+        assert "the whole page" not in third.result
+        assert "asked for a third time with the same arguments" in third.result
+
+
 def _count_containing(observations: tuple[str, ...], *texts: str) -> int:
     """How many observations contain every text (ContainSingle with a Contains predicate)."""
     return sum(1 for observation in observations if all(text in observation for text in texts))
