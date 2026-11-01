@@ -10,6 +10,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import timedelta
 
+from restfulsense import HttpRequestException
 from standard_agents.brokers.effects.effect_ledger_broker import EffectLedgerBroker
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.brokers.times.time_broker import TimeBroker
@@ -17,7 +18,11 @@ from standard_agents.models.brokers.effects.effect_record import EffectRecord
 from standard_agents.models.brokers.effects.effect_state import EffectState
 from standard_agents.models.foundations.effect_ledgers.exceptions import (
     EffectLedgerDependencyException,
-    FailedEffectLedgerDependencyException)
+    EffectLedgerServiceException,
+    EffectLedgerValidationException,
+    FailedEffectLedgerDependencyException,
+    FailedEffectLedgerServiceException,
+    InvalidEffectLedgerException)
 from standard_agents.models.orchestrations.effects.agent_effect import AgentEffect
 
 
@@ -49,6 +54,7 @@ class EffectLedgerService:
         time and the caller should proceed (SPEC.md 4.9).
         """
         async with _handling_exceptions(self.logging_broker):
+            _validate_effect(effect)
             now = self.time_broker.get_current_date_time()
 
             claim = EffectRecord(
@@ -71,6 +77,8 @@ class EffectLedgerService:
     async def record_outcome(self, effect: AgentEffect, outcome: str) -> None:
         """Records what the act produced, before the loop advances: the record is completed."""
         async with _handling_exceptions(self.logging_broker):
+            _validate_effect(effect)
+
             await self._update(
                 effect.idempotency_key,
                 effect.tool_name,
@@ -85,42 +93,55 @@ class EffectLedgerService:
         Whether the world changed is unknown, so the record is failed rather than released, and
         a repeat is held for reconciliation.
         """
-        await self._update(
-            effect.idempotency_key,
-            effect.tool_name,
-            effect.run_id,
-            EffectState.FAILED,
-            outcome=None,
-            detail=detail)
+        async with _handling_exceptions(self.logging_broker):
+            _validate_effect(effect)
+
+            await self._update(
+                effect.idempotency_key,
+                effect.tool_name,
+                effect.run_id,
+                EffectState.FAILED,
+                outcome=None,
+                detail=detail)
 
     async def release_claim(self, effect: AgentEffect) -> None:
         """Gives back the claim on an act that was held rather than performed.
 
-        Only an in-flight claim; a record with an outcome names an act that happened.
+        Only an unfinished claim is given back. A record with an outcome, a failure or a
+        compensation names an act that happened, and forgetting that would turn run-once back
+        into run-again.
         """
-        record = await self.effect_ledger_broker.select_record(effect.idempotency_key)
+        async with _handling_exceptions(self.logging_broker):
+            _validate_effect(effect)
+            record = await self.effect_ledger_broker.select_record(effect.idempotency_key)
 
-        if record is not None and record.state is EffectState.IN_FLIGHT:
-            await self.effect_ledger_broker.delete_record(effect.idempotency_key)
+            if record is not None and record.state is EffectState.IN_FLIGHT:
+                await self.effect_ledger_broker.delete_record(effect.idempotency_key)
 
     async def record_compensation_intent(self, idempotency_key: str) -> None:
         """Records that compensation was decided, before it is attempted."""
-        record = await self.effect_ledger_broker.select_record(idempotency_key)
+        async with _handling_exceptions(self.logging_broker):
+            _validate_key(idempotency_key)
+            record = await self.effect_ledger_broker.select_record(idempotency_key)
+            _validate_record_exists(record)
 
-        await self.effect_ledger_broker.update_record(dataclasses.replace(
-            record,
-            state=EffectState.COMPENSATION_PENDING,
-            recorded_on=self.time_broker.get_current_date_time()))
+            await self.effect_ledger_broker.update_record(dataclasses.replace(
+                record,
+                state=EffectState.COMPENSATION_PENDING,
+                recorded_on=self.time_broker.get_current_date_time()))
 
     async def record_compensation(self, idempotency_key: str, detail: str) -> None:
         """Records that the act was undone, and how."""
-        record = await self.effect_ledger_broker.select_record(idempotency_key)
+        async with _handling_exceptions(self.logging_broker):
+            _validate_key(idempotency_key)
+            record = await self.effect_ledger_broker.select_record(idempotency_key)
+            _validate_record_exists(record)
 
-        await self.effect_ledger_broker.update_record(dataclasses.replace(
-            record,
-            state=EffectState.COMPENSATED,
-            detail=detail,
-            recorded_on=self.time_broker.get_current_date_time()))
+            await self.effect_ledger_broker.update_record(dataclasses.replace(
+                record,
+                state=EffectState.COMPENSATED,
+                detail=detail,
+                recorded_on=self.time_broker.get_current_date_time()))
 
     async def _update(
             self,
@@ -154,15 +175,68 @@ class EffectLedgerService:
             recorded_on=now))
 
 
+def _validate_effect(effect: AgentEffect | None) -> None:
+    """An act with no name cannot be judged.
+
+    Judging it anyway would return a decision about nothing that the perimeter would then act on
+    (SPEC.md 4.9).
+    """
+    if effect is None or not effect.tool_name or effect.tool_name.isspace():
+        raise InvalidEffectLedgerException(
+            message="Invalid effect ledger. Please correct the error and try again.")
+
+
+def _validate_key(idempotency_key: str | None) -> None:
+    if not idempotency_key or idempotency_key.isspace():
+        raise InvalidEffectLedgerException(
+            message="Invalid effect ledger. Please correct the error and try again.")
+
+
+def _validate_record_exists(record: EffectRecord | None) -> None:
+    """Compensation is recorded against an act the ledger knows.
+
+    Marking an act it never saw would invent a history for it.
+    """
+    if record is None:
+        raise InvalidEffectLedgerException(
+            message="Invalid effect ledger. Please correct the error and try again.")
+
+
 @asynccontextmanager
 async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[None]:
     try:
         yield
+    except InvalidEffectLedgerException as invalid_effect_ledger_exception:
+        raise await _create_and_log_validation_exception(
+            logging_broker, invalid_effect_ledger_exception)
     except PermissionError as permission_error:
         raise await _create_and_log_critical_dependency_exception(
             logging_broker, permission_error)
     except OSError as os_error:
         raise await _create_and_log_dependency_exception(logging_broker, os_error)
+    except HttpRequestException as http_request_exception:
+        raise await _create_and_log_dependency_exception(
+            logging_broker, http_request_exception)
+    except Exception as exception:
+        failed_effect_ledger_service_exception = FailedEffectLedgerServiceException(
+            message="Failed effect ledger service error occurred, contact support.",
+            inner_exception=exception)
+
+        raise await _create_and_log_service_exception(
+            logging_broker, failed_effect_ledger_service_exception)
+
+
+async def _create_and_log_validation_exception(
+        logging_broker: LoggingBroker,
+        exception: Exception) -> EffectLedgerValidationException:
+
+    effect_ledger_validation_exception = EffectLedgerValidationException(
+        message="Effect ledger validation error occurred, fix the error and try again.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(effect_ledger_validation_exception)
+
+    return effect_ledger_validation_exception
 
 
 async def _create_and_log_critical_dependency_exception(
@@ -193,3 +267,16 @@ def _create_dependency_exception(exception: Exception) -> EffectLedgerDependency
     return EffectLedgerDependencyException(
         message="Effect ledger dependency error occurred, contact support.",
         inner_exception=failed_effect_ledger_dependency_exception)
+
+
+async def _create_and_log_service_exception(
+        logging_broker: LoggingBroker,
+        exception: Exception) -> EffectLedgerServiceException:
+
+    effect_ledger_service_exception = EffectLedgerServiceException(
+        message="Effect ledger service error occurred, contact support.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(effect_ledger_service_exception)
+
+    return effect_ledger_service_exception
