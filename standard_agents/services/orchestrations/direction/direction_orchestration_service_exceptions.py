@@ -16,7 +16,9 @@ from standard_agents.models.foundations.returns.exceptions import ReturnValidati
 from standard_agents.models.orchestrations.direction.exceptions import (
     DirectionOrchestrationDependencyException,
     DirectionOrchestrationDependencyValidationException,
+    DirectionOrchestrationServiceException,
     DirectionOrchestrationValidationException,
+    FailedDirectionOrchestrationServiceException,
     NullAgentContextException)
 
 
@@ -44,6 +46,25 @@ async def try_catch(
         raise await create_and_log_dependency_exception(
             logging_broker,
             dependency_exception.inner_exception)
+    except Exception as exception:
+        failed_service_exception = FailedDirectionOrchestrationServiceException(
+            message="Failed direction orchestration service error occurred, contact support.",
+            inner_exception=exception)
+
+        raise await create_and_log_service_exception(logging_broker, failed_service_exception)
+
+
+async def create_and_log_service_exception(
+    logging_broker: ILoggingBroker,
+    exception: Xeption) -> DirectionOrchestrationServiceException:
+
+    direction_orchestration_service_exception = DirectionOrchestrationServiceException(
+        message="Direction orchestration service error occurred, contact support.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(direction_orchestration_service_exception)
+
+    return direction_orchestration_service_exception
 
 
 async def create_and_log_dependency_exception(
