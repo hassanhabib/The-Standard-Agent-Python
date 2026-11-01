@@ -102,3 +102,39 @@ async def test_should_exhaust_the_cost_budget_on_the_text_protocol():
     # then: cost is priced off the token count, so a protocol that reports no tokens reports
     # no cost, and the bound silently never applies
     assert "cost budget" in actual_result
+
+
+async def test_should_measure_every_turn_on_the_text_protocol():
+    """Found in the 2026-08-23 sweep: on the text protocol only the FIRST turn was ever
+    measured. Interpret carried prompt_tokens and completion_tokens forward with the same copy
+    that carried the status, and measuring read a non-zero carried count as "the provider
+    already reported", so turns 2+ skipped the count and the loop re-billed turn 1's figures
+    every turn. A 7-turn run whose prompt grows every turn was billed as seven times its
+    smallest turn."""
+    # given: two model calls, and a counter on the Usage foundation
+    tool = _CountingTool()
+    usage_calls = 0
+    brain_calls = 0
+
+    async def brain(system_prompt, user_prompt):
+        nonlocal brain_calls
+        brain_calls += 1
+
+        return "ACTION: calculator: 1+1" if brain_calls == 1 else "FINAL: 2"
+
+    async def count(text):
+        nonlocal usage_calls
+        usage_calls += 1
+
+        return max(1, len(text) // 4)
+
+    agent = _agent_with(brain, tool).on_usage(count).max_turns(4)
+
+    # when
+    await agent.process_prompt("what is one plus one")
+
+    # then: each model call is measured once: its prompt and its completion. A turn whose spend
+    # is never measured is a budget bounding zero, and the second turn is where every real run
+    # spends most.
+    assert brain_calls == 2
+    assert usage_calls == 4
