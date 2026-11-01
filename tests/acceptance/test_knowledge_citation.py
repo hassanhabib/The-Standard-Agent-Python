@@ -226,3 +226,15 @@ async def test_should_cite_after_the_judge():
     assert seen_by_judge
     assert all("Source:" not in candidate for candidate in seen_by_judge)
     assert actual_result.endswith(f"Source: {_SHIPPING_SOURCE}")
+
+
+async def test_should_cite_when_the_request_asks_and_the_agent_expressed_no_opinion():
+    # given
+    agent = _grounded_agent(_answering(_ANSWER))
+    request = PromptRequest(prompt="what is the refund window?", cite_knowledge=True)
+
+    # when
+    actual_result = await agent.process_prompt(request)
+
+    # then
+    assert actual_result.endswith(f"Source: {_REFUNDS_SOURCE}\nSource: {_SHIPPING_SOURCE}")
