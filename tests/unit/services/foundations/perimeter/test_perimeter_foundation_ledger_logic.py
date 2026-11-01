@@ -247,3 +247,45 @@ async def test_should_record_compensation_intent(
         call.update_record(expected_record)]
 
     assert logging_broker.mock_calls == []
+
+
+async def test_should_record_compensation(
+        effect_ledger_service,
+        effect_ledger_broker,
+        time_broker,
+        logging_broker,
+        create_random_string,
+        create_random_effect,
+        create_random_date_time,
+        create_in_flight_record):
+
+    # given: the reversal happened, and how it happened is written against the same record
+    random_effect = create_random_effect()
+    random_detail = create_random_string()
+    claimed_on = create_random_date_time()
+    recorded_on = claimed_on + timedelta(seconds=12)
+
+    pending_record = dataclasses.replace(
+        create_in_flight_record(random_effect, claimed_on),
+        state=EffectState.COMPENSATION_PENDING,
+        outcome=create_random_string())
+
+    expected_record = dataclasses.replace(
+        pending_record,
+        state=EffectState.COMPENSATED,
+        detail=random_detail,
+        recorded_on=recorded_on)
+
+    time_broker.get_current_date_time.return_value = recorded_on
+    effect_ledger_broker.select_record.return_value = pending_record
+
+    # when
+    await effect_ledger_service.record_compensation(
+        random_effect.idempotency_key, random_detail)
+
+    # then
+    assert effect_ledger_broker.mock_calls == [
+        call.select_record(random_effect.idempotency_key),
+        call.update_record(expected_record)]
+
+    assert logging_broker.mock_calls == []
