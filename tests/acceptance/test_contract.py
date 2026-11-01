@@ -125,3 +125,16 @@ async def test_should_enforce_the_contract_on_the_streamed_path():
 
     assert '"amount"' in streamed_answer
     assert "one hundred US dollars" not in streamed_answer
+
+
+# Wide open by default: an agent given no contract is not constrained by having become checkable.
+# Same rule as counting versus blocking in the budget.
+async def test_should_not_constrain_an_agent_given_no_contract():
+    # given
+    agent = _agent_answering("FINAL: The amount is one hundred US dollars.")
+
+    # when
+    actual_answer = await agent.process_prompt("what is owed")
+
+    # then
+    assert actual_answer == "The amount is one hundred US dollars."
