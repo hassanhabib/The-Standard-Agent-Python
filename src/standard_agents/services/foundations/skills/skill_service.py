@@ -13,6 +13,14 @@ SKILL_SEPARATOR = "\n\n"
 FRONTMATTER_FENCE = "---"
 
 
+# A route selects the skills whose name it names. A route nothing matches selects every skill,
+# so a mislabelled route costs specificity, never the agent's instructions.
+def routed(skills: list[Skill], route: str) -> list[Skill]:
+    matching_skills = [skill for skill in skills if route.lower() in skill.name.lower()]
+
+    return matching_skills or skills
+
+
 # A skill MAY declare its name and description between two fences at the top of its body. They
 # are read, and stripped from what the brain is shown. A skill without a closing fence has no
 # frontmatter; its body is kept whole.
@@ -57,7 +65,7 @@ class SkillService(ISkillService):
     async def retrieve_skills(self, route: str = "") -> str:
         async def returning_string_function() -> str:
             skills = [read_frontmatter(skill) for skill in await self.skill_broker.select_skills()]
-            ordered_skills = sorted(skills, key=lambda skill: skill.name)
+            ordered_skills = sorted(routed(skills, route), key=lambda skill: skill.name)
 
             return SKILL_SEPARATOR.join(skill.content for skill in ordered_skills)
 
