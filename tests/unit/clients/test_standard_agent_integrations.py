@@ -13,6 +13,7 @@ import sys
 from unittest.mock import ANY, call
 
 from standard_agents.models.brokers.mcps.mcp_tool import McpTool
+from standard_agents.models.foundations.skills.skill import Skill
 from standard_agents.standard_agent import StandardAgent
 
 STUDENTS_SERVER_PATH = os.path.join(os.path.dirname(__file__), "students_mcp_server.py")
@@ -82,3 +83,35 @@ async def test_should_start_an_mcp_server_process_and_call_its_tool(
 
     # then: the tool was found in the process's catalog, called, and its answer came back
     assert "student 1 is Hassan, at Redmond High, for the fall term" in observed_prompts[-1]
+
+
+async def test_should_read_skills_from_every_registered_source(
+        empty_memory_broker,
+        empty_knowledge_broker,
+        create_skill_broker):
+
+    # given: a broker-backed source and a delegate source, registered in that order.
+    registry_source = create_skill_broker(Skill(name="alpha", content="ALPHA-RULE"))
+    captured_system_prompts = []
+
+    async def select_skills():
+        return [Skill(name="beta", content="BETA-RULE")]
+
+    async def brain(system_prompt, user_prompt):
+        captured_system_prompts.append(system_prompt)
+
+        return "FINAL: done"
+
+    agent = (StandardAgent()
+        .use_memory(empty_memory_broker)
+        .use_knowledge(empty_knowledge_broker)
+        .use_skills(registry_source)
+        .on_skills(select_skills)
+        .on_brain(brain))
+
+    # when
+    await agent.process_prompt("hello")
+
+    # then: both sources reached the brain; the second registration added, not replaced.
+    assert "ALPHA-RULE" in captured_system_prompts[-1]
+    assert "BETA-RULE" in captured_system_prompts[-1]
