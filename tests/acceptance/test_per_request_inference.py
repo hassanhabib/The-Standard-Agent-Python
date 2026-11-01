@@ -16,10 +16,12 @@ import threading
 from unittest.mock import create_autospec
 
 from standard_agents.brokers.generators.generator_broker import GeneratorBroker
+from standard_agents.brokers.generators.generator_broker_v1 import GeneratorBrokerV1
 from standard_agents.brokers.knowledges.knowledge_broker import KnowledgeBroker
 from standard_agents.brokers.memories.memory_broker import MemoryBroker
 from standard_agents.brokers.skills.skill_broker import SkillBroker
 from standard_agents.models.brokers.generators.resolved_inference import ResolvedInference
+from standard_agents.models.brokers.generators.v1.conversation import GenerationResult
 from standard_agents.models.clients.agents.agent_stream_event_type import AgentStreamEventType
 from standard_agents.models.clients.agents.prompt_request import PromptRequest
 from standard_agents.models.foundations.skills.skill import Skill
@@ -290,3 +292,39 @@ async def test_should_hold_a_streamed_answer_to_the_request_schema():
 
     assert len(responses) == 1
     assert responses[0] == '{"city":"Paris"}'
+
+
+class _CapturingNativeBroker(GeneratorBrokerV1):
+    """A native broker that opts in and captures the resolved options it is handed."""
+
+    def __init__(self) -> None:
+        self.captured: ResolvedInference | None = None
+
+    @property
+    def honors_request(self) -> bool:
+        return True
+
+    async def generate(self, messages, tools, *, inference=None):
+        if inference is not None:
+            self.captured = inference
+
+        return GenerationResult(content="FINAL: ok")
+
+
+# The V1 path is where the context already reached the Brain foundation intact and was then
+# discarded (design 2). This pins the discarding stopped: the resolved options ride through to
+# the native broker exactly as they do on the text protocol.
+async def test_should_carry_the_request_to_the_native_broker():
+    # given
+    broker = _CapturingNativeBroker()
+    agent = _shell().use_native_brain(broker)
+
+    request = PromptRequest(prompt="hello", temperature=0.2, max_tokens=64)
+
+    # when
+    await agent.process_prompt(request)
+
+    # then
+    assert broker.captured is not None
+    assert broker.captured.temperature == 0.2
+    assert broker.captured.max_tokens == 64
