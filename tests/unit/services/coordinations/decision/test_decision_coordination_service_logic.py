@@ -94,3 +94,21 @@ async def test_should_preserve_colons_in_tool_input_on_think(
     # then
     assert actual_context.direction_type == "fetch"
     assert actual_context.payload == "https://example.com:8080/a?b=1"
+
+
+async def test_should_set_intent_to_tool_name_on_think_if_action(
+        decision_coordination_service,
+        brain_service,
+        create_random_agent_context,
+        setup_gate_allows):
+
+    # given
+    input_context = create_random_agent_context()
+    setup_gate_allows()
+    brain_service.generate.return_value = "ACTION: calculator: 1+1"
+
+    # when
+    actual_context = await decision_coordination_service.think(input_context)
+
+    # then
+    assert actual_context.intent == "calculator"
