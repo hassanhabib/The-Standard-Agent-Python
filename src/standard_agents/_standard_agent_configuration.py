@@ -330,6 +330,16 @@ def _apply_mcp_server(agent: StandardAgent, server: Any) -> None:
     # A server is a URL when it needs nothing else, an object when it carries auth: an API key in
     # a named header, or a bearer token (an OAuth access token or PAT). A refresh-flow token is
     # code (a callable) and arrives through use_mcp, never through the document.
+    if isinstance(server, dict) and "command" in server:
+        agent.mcp_process(
+            server["command"],
+            arguments=_mcp_arguments(server),
+            environment_variables=_mcp_environment_variables(server),
+            working_directory=server.get("workingDirectory"),
+            timeout_seconds=server.get("timeoutSeconds", 30))
+
+        return
+
     if isinstance(server, dict):
         agent.mcp(
             server["endpointUrl"],
@@ -343,6 +353,26 @@ def _apply_mcp_server(agent: StandardAgent, server: Any) -> None:
 
     agent.mcp(server)
 
+
+
+# A process server takes the builder's words, or the words MCP clients' own configuration files
+# already use, so a server's published setup pastes in unchanged.
+def _mcp_arguments(server: dict[str, Any]) -> list[str]:
+    arguments = server.get("arguments")
+
+    if arguments is None:
+        arguments = server.get("args")
+
+    return [] if arguments is None else list(arguments)
+
+
+def _mcp_environment_variables(server: dict[str, Any]) -> dict[str, str] | None:
+    environment_variables = server.get("environmentVariables")
+
+    if environment_variables is None:
+        environment_variables = server.get("env")
+
+    return None if environment_variables is None else dict(environment_variables)
 
 def _named(enumeration: type[_Named], name: str, key: str) -> _Named:
     """The member a name means, as .NET's Enum.TryParse reads it: whatever the case."""
