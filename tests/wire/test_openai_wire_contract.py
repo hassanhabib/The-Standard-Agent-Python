@@ -1,0 +1,106 @@
+# ---------------------------------------------------------------
+# Copyright (c) Hassan Habib All rights reserved.
+# Licensed under the The Standard Software License (TSSL)
+# ---------------------------------------------------------------
+
+# Found in the 2026-09-04 principal review (F-21): the native OpenAI-compatible broker was only
+# ever exercised through scripted doubles, so the route, the headers, the request shape, the
+# response variants and the failure modes of the real wire could drift unseen. These run the
+# real broker against a scripted protocol server and read the bytes.
+
+import json
+
+from standard_agents.brokers.generators.openai_generator_broker_v1 import OpenAiGeneratorBrokerV1
+from standard_agents.models.brokers.generators.v1.conversation import (
+    ConversationMessage,
+    GenerationResult,
+    MessageRole,
+    ModelToolCall,
+    ToolDefinition)
+from tests.wire.scripted_server_handler import ScriptedServerHandler, header_of
+
+BASE_URL = "http://provider.test/v1/"
+
+CONVERSATION = (
+    ConversationMessage(role=MessageRole.SYSTEM, content="be brief"),
+    ConversationMessage(role=MessageRole.USER, content="what is owed on 42?"),
+
+    ConversationMessage(
+        role=MessageRole.ASSISTANT,
+        tool_calls=(ModelToolCall("call_1", "lookup", '{"account":"42"}'),)),
+
+    ConversationMessage(role=MessageRole.TOOL, content="owed: 12", tool_call_id="call_1"),
+)
+
+TOOLS = (
+    ToolDefinition(
+        name="lookup",
+        description="looks up an account",
+        parameters_json='{"type":"object","properties":{"account":{"type":"string"}}}'),
+)
+
+
+def create_broker(
+        server: ScriptedServerHandler,
+        timeout_seconds: int = 30) -> OpenAiGeneratorBrokerV1:
+
+    return OpenAiGeneratorBrokerV1(
+        BASE_URL,
+        "key-1",
+        "model-1",
+        temperature=0.2,
+        max_tokens=64,
+        timeout_seconds=timeout_seconds,
+        handler=server)
+
+
+async def test_should_post_a_chat_completion_in_the_open_ai_shape():
+    # given: a server answering with a tool call and usage
+    server = ScriptedServerHandler.answering(
+        '{"choices":[{"message":{"role":"assistant","content":null,'
+        + '"tool_calls":[{"id":"call_2","type":"function",'
+        + '"function":{"name":"lookup","arguments":"{\\"account\\":\\"7\\"}"}}]}}],'
+        + '"usage":{"prompt_tokens":21,"completion_tokens":8}}')
+
+    broker = create_broker(server)
+
+    expected_result = GenerationResult(
+        content="",
+        tool_calls=(ModelToolCall("call_2", "lookup", '{"account":"7"}'),),
+        prompt_tokens=21,
+        completion_tokens=8)
+
+    # when
+    actual_result = await broker.generate(CONVERSATION, TOOLS)
+
+    # then: the route, the credential, the media type
+    [request] = server.requests
+    assert request.get_method() == "POST"
+    assert request.full_url == "http://provider.test/v1/chat/completions"
+    assert header_of(request, "Authorization") == "Bearer key-1"
+    assert header_of(request, "Content-Type").split(";")[0] == "application/json"
+
+    # and the request body, as the provider reads it
+    body = json.loads(server.bodies[0])
+    assert body["model"] == "model-1"
+    assert body["temperature"] == 0.2
+    assert body["max_tokens"] == 64
+
+    messages = body["messages"]
+    assert len(messages) == 4
+    assert messages[0]["role"] == "system"
+    assert messages[1]["role"] == "user"
+    assert messages[2]["role"] == "assistant"
+    assert messages[2]["tool_calls"][0]["id"] == "call_1"
+    assert messages[2]["tool_calls"][0]["type"] == "function"
+    assert messages[2]["tool_calls"][0]["function"]["arguments"] == '{"account":"42"}'
+    assert messages[3]["role"] == "tool"
+    assert messages[3]["tool_call_id"] == "call_1"
+
+    tool = body["tools"][0]
+    assert tool["type"] == "function"
+    assert tool["function"]["name"] == "lookup"
+    assert tool["function"]["parameters"]["type"] == "object"
+
+    # and the response, read back whole
+    assert actual_result == expected_result
