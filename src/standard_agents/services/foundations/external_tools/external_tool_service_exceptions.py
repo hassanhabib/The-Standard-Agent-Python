@@ -8,7 +8,9 @@ from collections.abc import Awaitable, Callable
 from xeptions import Xeption
 from standard_agents.brokers.loggings.ilogging_broker import ILoggingBroker
 from standard_agents.models.foundations.external_tools.exceptions import (
+    ExternalToolDependencyException,
     ExternalToolValidationException,
+    FailedExternalToolDependencyException,
     InvalidExternalToolException)
 
 
@@ -22,6 +24,27 @@ async def try_catch(
         raise await create_and_log_validation_exception(
             logging_broker,
             invalid_external_tool_exception)
+    except OSError as os_error:
+        failed_dependency_exception = FailedExternalToolDependencyException(
+            message="Failed external tool dependency error occurred, contact support.",
+            inner_exception=os_error)
+
+        raise await create_and_log_dependency_exception(
+            logging_broker,
+            failed_dependency_exception)
+
+
+async def create_and_log_dependency_exception(
+    logging_broker: ILoggingBroker,
+    exception: Xeption) -> ExternalToolDependencyException:
+
+    external_tool_dependency_exception = ExternalToolDependencyException(
+        message="External tool dependency error occurred, contact support.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(external_tool_dependency_exception)
+
+    return external_tool_dependency_exception
 
 
 async def create_and_log_validation_exception(
