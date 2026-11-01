@@ -39,3 +39,23 @@ async def test_should_throw_validation_exception_on_screen_if_input_is_invalid_a
         call.log_error(same_exception_as(expected_gate_validation_exception))]
 
     assert classifier_broker.mock_calls == []
+
+
+@pytest.mark.parametrize("invalid_instructions", [None, "", "   "])
+async def test_should_throw_validation_exception_on_detect_conflict_if_instructions_invalid_and_log_it(
+        invalid_instructions, gate_service, classifier_broker, logging_broker, same_exception_as):
+
+    # given
+    expected_gate_validation_exception = _gate_validation_exception()
+
+    # when
+    with pytest.raises(GateValidationException) as raised:
+        await gate_service.detect_conflict(invalid_instructions)
+
+    # then
+    assert raised.value.same_exception_as(expected_gate_validation_exception)
+
+    assert logging_broker.mock_calls == [
+        call.log_error(same_exception_as(expected_gate_validation_exception))]
+
+    assert classifier_broker.mock_calls == []
