@@ -13,6 +13,7 @@ from standard_agents.brokers.memories.imemory_broker import IMemoryBroker
 from standard_agents.brokers.skills.iskill_broker import ISkillBroker
 from standard_agents.brokers.verifiers.iverifier_broker import IVerifierBroker
 from standard_agents.standard_agent import StandardAgent
+from standard_agents.tools.itool import ITool
 
 
 # Every capability is reachable three ways: Local (a path), Custom (on_*, your own function) and
@@ -110,3 +111,55 @@ class TestStandardAgentCompositions:
         assert random_knowledge in brain.calls[0][1]
         assert gate.screened == [input_prompt]
         assert judge.reviewed == [random_answer]
+
+    def test_should_compose_from_functions_the_host_writes(self) -> None:
+        # given
+        input_prompt = create_random_string()
+        random_skill = create_random_string()
+        random_memory = create_random_string()
+        first_tool = NamedTool("first")
+        second_tool = NamedTool("second")
+        brain_calls = []
+
+        async def skills() -> dict[str, str]:
+            return {"skill.md": random_skill + "\n{{tools}}"}
+
+        async def memories() -> list[str]:
+            return [random_memory]
+
+        async def brain(system_prompt: str, user_prompt: str) -> str:
+            brain_calls.append((system_prompt, user_prompt))
+
+            return "FINAL: done"
+
+        expected_system_prompt = (
+            f"{random_skill}\n- first: the first tool\n- second: the second tool")
+
+        agent = (StandardAgent()
+            .on_skills(skills)
+            .on_memory(memories)
+            .tools([first_tool, second_tool])
+            .on_brain(brain))
+
+        # when
+        asyncio.run(agent.run(input_prompt))
+
+        # then
+        assert brain_calls[0][0] == expected_system_prompt
+        assert random_memory in brain_calls[0][1]
+
+
+class NamedTool(ITool):
+    def __init__(self, tool_name: str) -> None:
+        self.tool_name = tool_name
+
+    @property
+    def name(self) -> str:
+        return self.tool_name
+
+    @property
+    def description(self) -> str:
+        return f"the {self.tool_name} tool"
+
+    async def execute(self, input: str) -> str:
+        return input
