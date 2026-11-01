@@ -431,3 +431,24 @@ def test_should_throw_invalid_agent_configuration_exception_on_from_json_if_a_ne
         expected_message):
 
     should_refuse(document, expected_message)
+
+
+@pytest.mark.parametrize(("document", "expected_message"), [
+    (
+        '{ "brain": { "apiUrl": "http://b.test/v1/", "model": "m", "maxTokens": "lots" } }',
+        "'brain.maxTokens' must be a number."),
+    (
+        '{ "knowledge": { "path": "Knowledge", "minScore": "high" } }',
+        "'knowledge.minScore' must be a number."),
+    (
+        '{ "budget": { "maxCostUsd": "cheap" } }',
+        "'budget.maxCostUsd' must be a number."),
+    (
+        '{ "usage": { "charactersPerToken": true } }',
+        "'usage.charactersPerToken' must be a number."),
+])
+def test_should_throw_invalid_agent_configuration_exception_on_from_json_if_a_number_is_not_a_number(
+        document,
+        expected_message):
+
+    should_refuse(document, expected_message)
