@@ -23,6 +23,7 @@ from standard_agents.models.coordinations.agents.principal_resolver import Princ
 from standard_agents.models.coordinations.agents.tool_narration import ToolNarration
 from standard_agents.models.coordinations.agents.tool_selector import ToolSelector
 from standard_agents.models.orchestrations.agents.agent_context import AgentContext
+from standard_agents.models.orchestrations.agents.agent_status import AgentStatus
 from standard_agents.services.coordinations.data.data_coordination_service import (
     DataCoordinationService)
 from standard_agents.services.coordinations.decision.decision_coordination_service import (
@@ -31,6 +32,9 @@ from standard_agents.services.coordinations.direction.direction_coordination_ser
     DirectionCoordinationService)
 
 _DEFAULT_MAX_TURNS = 7
+
+_TURNS_EXHAUSTED_MESSAGE = (
+    "I ran out of turns before an answer was ready; nothing was delivered.")
 
 # Above the default turn cap, so a composition that never set it is bounded by the turn cap
 # exactly as before (SPEC.md 4.10, v1.14).
@@ -162,8 +166,18 @@ class RunManagementService:
             cancellation: asyncio.Event | None) -> AgentOutcome:
 
         context = AgentContext(prompt=request.prompt)
-        context = await self.data_coordination_service.recall(context)
-        context = await self.decision_coordination_service.think(context)
-        context = await self.direction_coordination_service.act(context)
+
+        for _ in range(_DEFAULT_MAX_TURNS):
+            context = await self.data_coordination_service.recall(context)
+            context = await self.decision_coordination_service.think(context)
+            context = await self.direction_coordination_service.act(context)
+
+            if context.status is not AgentStatus.WORKING:
+                break
+
+        # Turns ran out with the loop still WORKING: no answer was ever delivered, and the last
+        # tool output is not one.
+        if context.status is AgentStatus.WORKING:
+            return AgentOutcome(_TURNS_EXHAUSTED_MESSAGE, context.status)
 
         return AgentOutcome(context.result, context.status)
