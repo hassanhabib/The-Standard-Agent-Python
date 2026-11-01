@@ -127,3 +127,49 @@ async def test_should_hide_the_value_from_the_judge():
     # then
     assert seen_by_judge != ""
     assert _SECRET_EMAIL not in seen_by_judge
+
+
+class _SplittingGeneratorBroker(GeneratorBroker):
+    """A placeholder can arrive split across two chunks. Without the streaming buffer the caller
+    sees "{{EMAIL_" and never gets the value back."""
+
+    def __init__(self) -> None:
+        self.seen_user_prompt = ""
+
+    async def generate(self, system_prompt, user_prompt, *, inference=None):
+        self.seen_user_prompt = user_prompt
+
+        return "FINAL: done"
+
+    async def generate_stream(self, system_prompt, user_prompt, *, inference=None):
+        self.seen_user_prompt = user_prompt
+
+        yield "FINAL: sent to {{EMAI"
+        yield "L_0}} just now"
+
+
+async def test_should_rehydrate_a_streamed_value_split_across_chunks():
+    # given
+    generator = _SplittingGeneratorBroker()
+
+    agent = (StandardAgent()
+        .on_skills(_select_no_skills)
+        .on_memory(_recall_nothing, _remember_nothing)
+        .on_knowledge(_retrieve_nothing)
+        .use_generator(generator)
+        .redact())
+
+    # when
+    streamed = []
+
+    async for stream_event in agent.process_prompt_stream(
+            f"please email {_SECRET_EMAIL} the report"):
+        streamed.append(stream_event.content)
+
+    # then
+    assert _SECRET_EMAIL not in generator.seen_user_prompt
+
+    whole = "".join(streamed)
+
+    assert _SECRET_EMAIL in whole
+    assert "{{EMAI" not in whole
