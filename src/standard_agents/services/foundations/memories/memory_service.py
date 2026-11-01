@@ -41,4 +41,4 @@ class MemoryService:
         if not file_broker.file_exists(self.memory_path):
             return ()
 
-        raise NotImplementedError
+        return await file_broker.read_all_lines(self.memory_path)
