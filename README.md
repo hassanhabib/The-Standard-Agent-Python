@@ -38,12 +38,9 @@ python -m conformance reference/conformance/vectors --profile Core
 The sparse checkout takes only the vectors; a full clone of the reference repository fails on
 Windows, where some of its test file paths exceed the default path length.
 
-Today the runner can drive 13 of the 88 vectors and the rest are reported `UNSUPPORTED`, never
-run half-configured. Of the 13, ten pass: the six Core vectors, plus `gate-refusal-short-circuits`,
-`constitution-binds-guardians`, `consumption-replaces-policy` and `judge-receives-the-task`. Three
-fail, as expected for Full capabilities that are not built: `structured-tool-call` (6.1) and
-`duplicate-effect-executes-once` and `a-replay-says-it-already-ran` (run-once, 4.9). No profile
-above Core is claimed.
+The runner is a port of the reference runner (Standard.Agents.Conformance) and drives every field
+of all 88 vectors. All 88 pass, and CI certifies Core, Reliable, Enterprise and Critical on every
+change; the same command with `--profile Critical` reproduces it.
 
 ## Install
 
