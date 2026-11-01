@@ -8,11 +8,14 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+from restfulsense import HttpRequestException
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.brokers.usages.usage_broker import UsageBroker
 from standard_agents.models.foundations.usages.agent_usage import AgentUsage
 from standard_agents.models.foundations.usages.exceptions import (
+    FailedUsageDependencyException,
     InvalidUsageException,
+    UsageDependencyException,
     UsageValidationException)
 from xeptions import Xeption
 
@@ -86,6 +89,18 @@ async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[N
     except InvalidUsageException as invalid_usage_exception:
         raise await _create_and_log_validation_exception(logging_broker, invalid_usage_exception)
 
+    # A counter that cannot be reached is a dependency failure, not a service one: the caller can
+    # carry on with a reported number, and only knows to if the failure names the counter rather
+    # than the measurement. TimeoutError stands for .NET's TaskCanceledException, which is how
+    # HttpClient reports a timeout; asyncio.CancelledError is left to propagate.
+    except (HttpRequestException, TimeoutError) as dependency_error:
+        failed_usage_dependency_exception = FailedUsageDependencyException(
+            message="Failed usage dependency error occurred, contact support.",
+            inner_exception=dependency_error)
+
+        raise await _create_and_log_dependency_exception(
+            logging_broker, failed_usage_dependency_exception)
+
 
 async def _create_and_log_validation_exception(
         logging_broker: LoggingBroker,
@@ -98,3 +113,16 @@ async def _create_and_log_validation_exception(
     await logging_broker.log_error(usage_validation_exception)
 
     return usage_validation_exception
+
+
+async def _create_and_log_dependency_exception(
+        logging_broker: LoggingBroker,
+        exception: Xeption) -> UsageDependencyException:
+
+    usage_dependency_exception = UsageDependencyException(
+        message="Usage dependency error occurred, contact support.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(usage_dependency_exception)
+
+    return usage_dependency_exception
