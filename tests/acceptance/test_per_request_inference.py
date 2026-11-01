@@ -13,9 +13,11 @@ wins, and what degrades gracefully.
 
 from unittest.mock import create_autospec
 
+from standard_agents.brokers.generators.generator_broker import GeneratorBroker
 from standard_agents.brokers.knowledges.knowledge_broker import KnowledgeBroker
 from standard_agents.brokers.memories.memory_broker import MemoryBroker
 from standard_agents.brokers.skills.skill_broker import SkillBroker
+from standard_agents.models.brokers.generators.resolved_inference import ResolvedInference
 from standard_agents.models.clients.agents.prompt_request import PromptRequest
 from standard_agents.models.foundations.skills.skill import Skill
 from standard_agents.standard_agent import StandardAgent
@@ -93,3 +95,55 @@ async def test_should_discard_the_request_schema_when_a_contract_is_configured()
 
     # then: configured won; the draft shaped like the request was sent back
     assert actual_result == '{"city":"Paris"}'
+
+
+class _CapturingGeneratorBroker(GeneratorBroker):
+    """A broker that opts in: it takes the resolved options and says so.
+
+    What it captures is the resolution's OUTPUT: a broker below the boundary writes what it is
+    given and decides nothing (design 4.2).
+    """
+
+    def __init__(self) -> None:
+        self.captured: ResolvedInference | None = None
+
+    @property
+    def honors_request(self) -> bool:
+        return True
+
+    async def generate(self, system_prompt, user_prompt, *, inference=None):
+        if inference is not None:
+            self.captured = inference
+
+        return "FINAL: ok"
+
+    async def generate_stream(self, system_prompt, user_prompt, *, inference=None):
+        if inference is not None:
+            self.captured = inference
+
+        yield "FINAL: ok"
+
+
+def _agent_with_broker(broker: GeneratorBroker) -> StandardAgent:
+    return _shell().use_generator(broker)
+
+
+# 4.2's exact blocker, pinned: the host called brain() and said nothing about temperature.
+# "Configured wins" must mean HARD-configured wins: a request beaten by a default nobody
+# expressed an opinion about would make per-request inference unimplementable.
+async def test_should_let_the_request_speak_where_the_deployment_said_nothing():
+    # given: a brain configured with no opinion on temperature or max tokens
+    broker = _CapturingGeneratorBroker()
+
+    agent = (_agent_with_broker(broker)
+        .brain("http://localhost:9999/v1/", api_key="", model="test"))
+
+    request = PromptRequest(prompt="hello", temperature=0.9, max_tokens=512)
+
+    # when
+    await agent.process_prompt(request)
+
+    # then: the request's values reached the wire
+    assert broker.captured is not None
+    assert broker.captured.temperature == 0.9
+    assert broker.captured.max_tokens == 512
