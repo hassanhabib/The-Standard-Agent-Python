@@ -3,6 +3,9 @@
 # Licensed under the The Standard Software License (TSSL)
 # ---------------------------------------------------------------
 
+from standard_agents.models.clients.agents.exceptions import InvalidAgentCompositionException
+from standard_agents.standard_agent import StandardAgent
+
 
 async def test_should_compose_and_process_prompt(create_fully_stubbed_agent):
     # given
@@ -13,3 +16,25 @@ async def test_should_compose_and_process_prompt(create_fully_stubbed_agent):
 
     # then
     assert actual_result == "42"
+
+
+async def test_should_configure_brain_from_constructor_arguments(
+        create_skill_broker,
+        empty_memory_broker,
+        empty_knowledge_broker):
+
+    # given
+    agent = (StandardAgent(api_url="https://api.peerllm.invalid/v1/", api_key="key", model="model")
+        .use_skills(create_skill_broker())
+        .use_memory(empty_memory_broker)
+        .use_knowledge(empty_knowledge_broker))
+
+    # when
+    try:
+        await agent.process_prompt(prompt="what is the answer?")
+        actual_exception = None
+    except Exception as exception:
+        actual_exception = exception
+
+    # then
+    assert type(actual_exception) is not InvalidAgentCompositionException
