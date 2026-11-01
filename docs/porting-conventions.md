@@ -55,6 +55,12 @@ class says what it is:
 Every other concrete broker already said what it was (`FunctionMemoryBroker`,
 `FileSessionBroker`, `RetryingGeneratorBroker`) and keeps its C# name.
 
+### JSON stays a string where C# keeps it a string
+
+`arguments_json`, `input_schema_json`, `McpBroker.call(name, arguments_json) -> str` and their
+kin carry JSON text, as in C#, so the ported tests, the conformance vectors and the wire bytes stay
+one to one (owner decision, 2026-11-01).
+
 ## Paths
 
 | C# | Python |

@@ -42,6 +42,13 @@ when its tests are at parity and the whole suite is green.
 After Phase 1 the capability work is independent enough to run in parallel, one session per
 capability group, each in its own worktree.
 
+## Xeption and RESTFulSense
+
+In C# they are NuGet packages of their own. In Python they will be too (owner decision,
+2026-11-01): `xeption` and `restfulsense` on PyPI, each with its own repository, tests and
+Trusted Publishing, and `the-standard-agent` depending on them. Until they are published they
+live in `src/xeptions` and `src/restfulsense`, and the wheel must not ship them before then.
+
 ## Known mismatches, each fixed test-first in its phase
 
 - `HttpMcpBroker` reads an event-stream data line as blank with `str.isspace`, which also counts
@@ -49,6 +56,17 @@ capability group, each in its own worktree.
 - `AgentRun` still carries a `cancellation_token`. C# stops a run only at a turn boundary, so no
   effect is left half-recorded; cancelling a Python task interrupts at any await. The Python way
   to keep that guarantee is decided with `RunManagementService` (Phase 1).
+- `StdioMcpBroker` raises `TypeError` when given a command without arguments (`list(None)`),
+  has no `async with` lifecycle (cleanup rides `atexit`), finds child processes through `/proc`
+  only, and resolves the command by hand where `shutil.which` would do (Phase 4).
+- `OpenAiGeneratorBroker` applies the host's `handler` to streamed calls only; `generate()`
+  goes through a client that builds its own opener (Phase 4).
+- Type hints that do not hold: `AnthropicGeneratorBrokerV1(api_key: str)` accepts None, the MCP
+  tool list models type fields that may be None as non-optional, and `HttpMcpBroker._post`
+  returns `tuple[Any, str]` where a `type[T]` gives `T` (Phase 4).
+- `AgentRun.started_on` defaults to `datetime(1, 1, 1)`, .NET's `default(DateTimeOffset)`;
+  whether None can stand in without changing a trace line is decided with the trace tests
+  (Phase 3, traces).
 
 ## Version
 
