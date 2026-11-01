@@ -5,6 +5,7 @@
 
 from unittest.mock import call
 
+from standard_agents.models.orchestrations.agents.agent_context import AgentContext
 from standard_agents.models.orchestrations.agents.agent_status import AgentStatus
 
 
@@ -117,6 +118,31 @@ async def test_should_route_to_external_and_recover_on_act_if_tool_is_unknown(
     assert _count_containing(actual_context.observations, "weather") == 1
     assert external_tool_service.mock_calls == [call.call("weather", "today")]
     assert internal_tool_service.run.mock_calls == []
+
+
+async def test_should_preserve_existing_observations_on_act(
+        direction_coordination_service,
+        internal_tool_service,
+        create_random_string):
+
+    # given
+    prior_observation = create_random_string()
+
+    input_context = AgentContext(
+        prompt=create_random_string(),
+        direction_type="calculator",
+        payload="1+1",
+        observations=(prior_observation,))
+
+    internal_tool_service.handles.return_value = True
+    internal_tool_service.run.return_value = "2"
+
+    # when
+    actual_context = await direction_coordination_service.act(input_context)
+
+    # then
+    assert len(actual_context.observations) == 2
+    assert prior_observation in actual_context.observations
 
 
 def _count_containing(observations: tuple[str, ...], *texts: str) -> int:
