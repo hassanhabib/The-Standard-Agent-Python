@@ -27,7 +27,8 @@ class ToolListEntry:
     interprets it, so a server's own vocabulary reaches the model unchanged.
     """
 
-    name: str
+    # None when the server sent no name: the deserializer leaves a string null.
+    name: str | None
     description: str | None
 
     # The parsed JSON it arrived as (a JsonElement?); None when absent or null.
@@ -57,7 +58,8 @@ class ToolListEntry:
 
 @dataclass(frozen=True)
 class ToolListResult:
-    tools: tuple[ToolListEntry, ...]
+    # None when the server sent none, and an entry is None where the server sent null.
+    tools: tuple[ToolListEntry | None, ...] | None
     next_cursor: str | None
 
     def to_json_dict(self) -> dict:

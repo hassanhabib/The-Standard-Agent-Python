@@ -17,7 +17,7 @@ import urllib.request
 from dataclasses import dataclass
 from email.message import Message
 from collections.abc import Awaitable, Callable
-from typing import Any
+from typing import Any, TypeVar
 
 from restfulsense.exceptions import HttpRequestException
 from restfulsense.validation_service import read_as_string, validate_http_response
@@ -49,6 +49,8 @@ _SESSION_ID_HEADER = "Mcp-Session-Id"
 _PROTOCOL_VERSION_HEADER = "MCP-Protocol-Version"
 _METHOD_NOT_FOUND_CODE = -32601
 _OPEN_OBJECT_SCHEMA = "{}"
+
+_Result = TypeVar("_Result")
 
 # StringContent(json, Encoding.UTF8, "application/json") sends the charset with the media type.
 _REQUEST_CONTENT_TYPE = "application/json; charset=utf-8"
@@ -237,7 +239,12 @@ class HttpMcpBroker(McpBroker):
 
         await self._notify(self._relative_url, initialized_notification)
 
-    async def _post(self, relative_url: str, content: Any, result_type: type) -> tuple[Any, str]:
+    async def _post(
+            self,
+            relative_url: str,
+            content: Any,
+            result_type: type[_Result]) -> tuple[_Result | None, str]:
+
         deadline = self._start_deadline()
         sent_session_id = self._session_id
         http_response = await self._send(relative_url, content, deadline)
@@ -394,7 +401,9 @@ def _is_expired_session(http_response: _HttpResponse, sent_session_id: str | Non
     return http_response.status_code == 404 and sent_session_id is not None
 
 
-def _read(http_response: _HttpResponse, result_type: type) -> tuple[Any, str]:
+def _read(
+        http_response: _HttpResponse,
+        result_type: type[_Result]) -> tuple[_Result | None, str]:
     """The model and the JSON it was read from.
 
     As RESTFulSense's ReadAsync: the status is validated (reading the whole body), then the body,
