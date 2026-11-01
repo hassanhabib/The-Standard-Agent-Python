@@ -251,3 +251,53 @@ async def test_should_carry_the_session_and_the_negotiated_version_after_initial
     for request in server.requests[1:]:
         assert header_of(request, "Mcp-Session-Id") == "session-7"
         assert header_of(request, "MCP-Protocol-Version") == "2025-03-26"
+
+
+async def test_should_start_a_new_session_when_the_server_forgets_the_old_one():
+    # given: a server that ends its first session after one listing, answering 404 to it from
+    # then on, as the protocol says a server that terminated a session does
+    opened_sessions = 0
+    listings = 0
+
+    def respond(request, body):
+        nonlocal opened_sessions, listings
+
+        if '"initialize"' in body:
+            initialize_response = ScriptedServerHandler.json(
+                http.HTTPStatus.OK,
+                '{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-06-18",'
+                + '"capabilities":{},"serverInfo":{"name":"s","version":"1"}}}')
+
+            opened_sessions += 1
+            initialize_response.headers["Mcp-Session-Id"] = f"session-{opened_sessions}"
+
+            return initialize_response
+
+        is_first_session = header_of(request, "Mcp-Session-Id") == "session-1"
+
+        if "tools/list" in body and is_first_session:
+            listings += 1
+
+            if listings > 1:
+                return ScriptedResponse(http.HTTPStatus.NOT_FOUND)
+
+        return ScriptedServerHandler.json(
+            http.HTTPStatus.OK,
+            '{"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"lookup"}]}}')
+
+    server = ScriptedServerHandler(respond)
+    broker = create_broker(server)
+    await broker.list_tools()
+
+    # when
+    actual_tools = await broker.list_tools()
+
+    # then: a fresh initialize, without the dead session, and the listing retried on the new one
+    assert [tool.name for tool in actual_tools] == ["lookup"]
+    assert opened_sessions == 2
+
+    reinitialize = server.requests[4]
+    assert '"initialize"' in server.bodies[4]
+    assert header_of(reinitialize, "Mcp-Session-Id") is None
+
+    assert header_of(server.requests[-1], "Mcp-Session-Id") == "session-2"
