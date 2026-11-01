@@ -60,7 +60,7 @@ class RetrievalOrchestrationService:
         The callers apply the opt-in themselves: selection judges described names, the native
         list advertises described definitions, and the perimeter binds described names.
         """
-        return await self.external_tool_service.retrieve_tools()
+        return await self._discover_remote_tools()
 
     async def _render_tool_catalog(self, skills: str) -> str:
         """Remote tools join the catalog only when the marker is present.
