@@ -38,3 +38,23 @@ def test_should_strip_every_core_owned_key_and_report_each_one():
     survived = json.loads(sanitized.json)
     assert len(survived) == 1
     assert "chat_template_kwargs" in survived
+
+
+def test_should_pass_engine_keys_through_whole():
+    # given: what the core cannot model and should not try to
+    provider_options_json = """
+        {
+            "grammar": "root ::= object",
+            "thinking": {"type": "enabled", "budget_tokens": 1024}
+        }
+        """
+
+    # when
+    sanitized = ProviderOptions.sanitize(provider_options_json)
+
+    # then
+    assert sanitized.stripped_keys == ()
+
+    survived = json.loads(sanitized.json)
+    assert survived["grammar"] == "root ::= object"
+    assert survived["thinking"]["budget_tokens"] == 1024
