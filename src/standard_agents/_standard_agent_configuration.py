@@ -113,7 +113,7 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
                 max_tokens=_positive_whole(value, key, "maxTokens", 1024))
 
         case "skills" if isinstance(value, list):
-            for source in value:
+            for source in _listed(value, key):
                 agent.skills(source)
 
         case "skills":
@@ -135,14 +135,14 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
             agent.memory(value)
 
         case "mcp" if isinstance(value, list):
-            for server in value:
+            for server in _listed(value, key):
                 _apply_mcp_server(agent, server, key)
 
         case "mcp":
             _apply_mcp_server(agent, value, key)
 
         case "agents" if isinstance(value, list):
-            for member in value:
+            for member in _listed(value, key):
                 _apply_fleet_member(agent, member, key)
 
         case "agents":
@@ -160,7 +160,7 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
                 timeout_seconds=_positive_whole(value, key, "timeoutSeconds", 30))
 
         case "ruleGate":
-            agent.rule_gate(*value)
+            agent.rule_gate(*_listed(value, key))
 
         case "judge":
             _shaped(value, key)
@@ -174,7 +174,7 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
                 timeout_seconds=_positive_whole(value, key, "timeoutSeconds", 30))
 
         case "ruleJudge":
-            agent.rule_judge(*value)
+            agent.rule_judge(*_listed(value, key))
 
         # The contract is itself a JSON schema, so it rides embedded rather than as an escaped
         # string a form author would have to hand-quote.
@@ -194,7 +194,7 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
                 RedactionRule(
                     label=_shaped(rule, "redact.rules")["label"],
                     pattern=rule["pattern"])
-                for rule in value["rules"]))
+                for rule in _listed(value.get("rules"), "redact.rules")))
 
         case "redact" if value:
             agent.redact()
@@ -227,7 +227,7 @@ def _apply(agent: StandardAgent, key: str, value: Any) -> None:
                 agent.risk(_named(RiskLevel, level_name, key), *tool_names)
 
         case "requireApproval":
-            agent.require_approval(*value)
+            agent.require_approval(*_listed(value, key))
 
         case "logTo" if isinstance(value, dict):
             _shaped(value, key)
@@ -440,11 +440,32 @@ def _shaped(node: Any, key: str) -> dict[str, Any]:
     return node
 
 
+def _listed(node: Any, key: str) -> list[Any]:
+    # A control that lists nothing is not a control: a gate with no rules, an approval list with
+    # no tools, a fleet with no agents all read as on and do nothing.
+    if not isinstance(node, list):
+        raise InvalidAgentConfigurationException(message=f"'{key}' must be an array.")
+
+    if not node:
+        raise InvalidAgentConfigurationException(message=_lists_nothing(key))
+
+    return node
+
+
 def _listed_entries(node: Any, key: str) -> dict[str, Any]:
     if not isinstance(node, dict):
         raise InvalidAgentConfigurationException(message=f"'{key}' must be an object.")
 
+    if not node:
+        raise InvalidAgentConfigurationException(message=_lists_nothing(key))
+
     return node
+
+
+def _lists_nothing(key: str) -> str:
+    return (
+        f"'{key}' lists nothing. A control that lists nothing is not a control: remove the "
+        + "key, or list what it should hold.")
 
 # A limit of zero or less composes as if it were set and never binds (or, in max_turns' case, is
 # quietly clamped). The document refuses it by name instead.
