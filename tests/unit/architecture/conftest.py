@@ -108,6 +108,9 @@ class TierMap:
                 if _is_broker_contract(_unwrap(parameter.annotation)))
             for constructor in self.constructors(cls))
 
+    def brokers_taken_by(self, cls: type) -> frozenset[str]:
+        return frozenset().union(*self.broker_sets_taken_by(cls))
+
     @staticmethod
     def dependencies_in(constructor: tuple[Parameter, ...]) -> tuple[type, ...]:
         """A dependency for counting purposes is another SERVICE: what the tier below supplies.

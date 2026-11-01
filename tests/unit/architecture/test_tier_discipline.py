@@ -128,3 +128,25 @@ def test_should_hold_no_naked_delegate_in_any_service_constructor(tier_service, 
         "a service's decisions is a collaborator the dependency count cannot see. Policy is "
         "Data: carry it inside a named model under models/, where its arrival is a reviewed "
         "diff rather than constructor sprawl")
+
+
+def test_should_take_no_broker_above_the_foundation_tier_beyond_the_utilities(
+        service_above_foundations, tier_map):
+    """A tier that reaches a broker skips the foundation beneath it.
+
+    That foundation is what would have given it validation, exception mapping and attribution.
+    Skipping it is how a full disk came to be blamed on Direction.
+    """
+    # given
+    service_name = service_above_foundations.__name__
+
+    # when
+    resource_brokers = sorted(
+        tier_map.brokers_taken_by(service_above_foundations) - tier_map.utility_brokers)
+
+    # then
+    assert resource_brokers == [], (
+        f"{service_name} sits above the foundation tier and takes "
+        f"[{', '.join(resource_brokers)}]. A resource reached from here has no validation, no "
+        "exception mapping, and its failures are attributed to the caller rather than to the "
+        "resource.")
