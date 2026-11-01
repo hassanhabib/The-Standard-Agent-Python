@@ -35,6 +35,18 @@ class DirectionOrchestrationService(IDirectionOrchestrationService):
 
     async def act(self, context: AgentContext) -> AgentContext:
         terminal_status = TERMINAL_STATUSES.get(context.direction_type.lower())
-        result = await self.return_service.return_payload(context.payload)
 
-        return dataclasses.replace(context, result=result, status=terminal_status)
+        if terminal_status is not None:
+            result = await self.return_service.return_payload(context.payload)
+
+            return dataclasses.replace(context, result=result, status=terminal_status)
+
+        await self.internal_tool_service.handles(context.direction_type)
+        outcome = await self.internal_tool_service.run(context.direction_type, context.payload)
+
+        return dataclasses.replace(
+            context,
+            observations=context.observations + (
+                f"{context.direction_type} returned: {outcome}",),
+            result=outcome,
+            status=AgentStatus.WORKING)
