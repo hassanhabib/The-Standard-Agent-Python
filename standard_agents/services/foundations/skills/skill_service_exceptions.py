@@ -9,7 +9,9 @@ from xeptions import Xeption
 from standard_agents.brokers.loggings.ilogging_broker import ILoggingBroker
 from standard_agents.models.foundations.skills.exceptions import (
     FailedSkillDependencyException,
-    SkillDependencyException)
+    FailedSkillServiceException,
+    SkillDependencyException,
+    SkillServiceException)
 
 
 async def try_catch(
@@ -27,6 +29,27 @@ async def try_catch(
         raise await create_and_log_critical_dependency_exception(
             logging_broker,
             failed_skill_dependency_exception)
+    except Exception as exception:
+        failed_skill_service_exception = FailedSkillServiceException(
+            message="Failed skill service error occurred, contact support.",
+            inner_exception=exception)
+
+        raise await create_and_log_service_exception(
+            logging_broker,
+            failed_skill_service_exception)
+
+
+async def create_and_log_service_exception(
+    logging_broker: ILoggingBroker,
+    exception: Xeption) -> SkillServiceException:
+
+    skill_service_exception = SkillServiceException(
+        message="Skill service error occurred, contact support.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(skill_service_exception)
+
+    return skill_service_exception
 
 
 async def create_and_log_critical_dependency_exception(
