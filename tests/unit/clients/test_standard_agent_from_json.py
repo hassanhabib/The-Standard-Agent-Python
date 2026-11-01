@@ -500,3 +500,23 @@ def test_should_throw_invalid_agent_configuration_exception_on_from_json_if_a_se
         expected_message):
 
     should_refuse(document, expected_message)
+
+
+@pytest.mark.parametrize(("document", "key"), [
+    ('{ "ruleGate": [] }', "ruleGate"),
+    ('{ "ruleJudge": [] }', "ruleJudge"),
+    ('{ "requireApproval": [] }', "requireApproval"),
+    ('{ "redact": { "rules": [] } }', "redact.rules"),
+    ('{ "risk": {} }', "risk"),
+    ('{ "skills": [] }', "skills"),
+    ('{ "mcp": [] }', "mcp"),
+    ('{ "agents": [] }', "agents"),
+])
+def test_should_throw_invalid_agent_configuration_exception_on_from_json_if_a_control_lists_nothing(
+        document,
+        key):
+
+    should_refuse(
+        document,
+        f"'{key}' lists nothing. A control that lists nothing is not a control: remove the "
+        + "key, or list what it should hold.")
