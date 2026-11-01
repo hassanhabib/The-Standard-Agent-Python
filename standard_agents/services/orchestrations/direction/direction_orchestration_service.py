@@ -41,7 +41,15 @@ class DirectionOrchestrationService(IDirectionOrchestrationService):
 
             return dataclasses.replace(context, result=result, status=terminal_status)
 
-        await self.internal_tool_service.handles(context.direction_type)
+        if await self.internal_tool_service.handles(context.direction_type) is False:
+            return dataclasses.replace(
+                context,
+                observations=context.observations + (
+                    f"There is no tool named '{context.direction_type}'. "
+                    + "Use a tool from the catalog, or give a FINAL answer.",),
+                result="",
+                status=AgentStatus.WORKING)
+
         outcome = await self.internal_tool_service.run(context.direction_type, context.payload)
 
         return dataclasses.replace(
