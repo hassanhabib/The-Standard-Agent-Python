@@ -307,6 +307,9 @@ class StandardAgent:
         return compose_rubric(constitution, policy, contract)
 
     # What the brain reads at {{tools}} in its skills: one line per tool, as the tool describes it.
+    # Only a described tool is advertised (SPEC.md 6.1); an undescribed one stays callable.
     def render_tool_catalog(self) -> str:
         return "\n".join(
-            f"- {tool.name}: {tool.description}" for tool in self.agent_tools.values())
+            f"- {tool.name}: {tool.description}"
+            for tool in self.agent_tools.values()
+            if tool.description.strip() != "")
