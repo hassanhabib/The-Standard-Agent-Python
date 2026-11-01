@@ -27,3 +27,23 @@ async def test_should_retrieve_session(
     assert actual_session == expected_session
     assert session_broker.mock_calls == [call.select_session(random_session_id)]
     assert logging_broker.mock_calls == []
+
+
+async def test_should_retrieve_no_session_on_retrieve_session_if_none_exists(
+        session_service, session_broker, logging_broker, create_random_string):
+    """A conversation that has not started yet is not an error.
+
+    It is the ordinary first prompt, and the caller has to be able to tell it apart from a
+    failure to read.
+    """
+    # given
+    random_session_id = create_random_string()
+    session_broker.select_session.return_value = None
+
+    # when
+    actual_session = await session_service.retrieve_session(random_session_id)
+
+    # then
+    assert actual_session is None
+    assert session_broker.mock_calls == [call.select_session(random_session_id)]
+    assert logging_broker.mock_calls == []
