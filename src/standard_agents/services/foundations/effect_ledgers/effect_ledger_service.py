@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 from datetime import timedelta
 
 from standard_agents.brokers.effects.effect_ledger_broker import EffectLedgerBroker
@@ -63,7 +64,13 @@ class EffectLedgerService:
 
     async def record_outcome(self, effect: AgentEffect, outcome: str) -> None:
         """Records what the act produced, before the loop advances: the record is completed."""
-        raise NotImplementedError
+        await self._update(
+            effect.idempotency_key,
+            effect.tool_name,
+            effect.run_id,
+            EffectState.COMPLETED,
+            outcome=outcome,
+            detail=None)
 
     async def record_failure(self, effect: AgentEffect, detail: str) -> None:
         """Records that the tool threw.
@@ -87,3 +94,23 @@ class EffectLedgerService:
     async def record_compensation(self, idempotency_key: str, detail: str) -> None:
         """Records that the act was undone, and how."""
         raise NotImplementedError
+
+    async def _update(
+            self,
+            idempotency_key: str,
+            tool_name: str,
+            owner: str,
+            state: EffectState,
+            *,
+            outcome: str | None,
+            detail: str | None) -> None:
+
+        now = self.time_broker.get_current_date_time()
+        record = await self.effect_ledger_broker.select_record(idempotency_key)
+
+        await self.effect_ledger_broker.update_record(dataclasses.replace(
+            record,
+            state=state,
+            outcome=outcome,
+            detail=detail,
+            recorded_on=now))
