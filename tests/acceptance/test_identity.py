@@ -124,3 +124,37 @@ async def test_should_let_policy_refuse_an_act_on_the_identity_alone():
     assert tool.execution_count == 0
     assert "'intern-9' may not move money" in second_prompt
     assert actual_result == "I could not do that"
+
+
+async def test_should_carry_the_whole_identity_into_the_authorization_decision():
+    """An identifier alone answers "who" and nothing else. A policy engine is routinely written
+    as "this principal, in this tenant, under this jurisdiction", and a delegated act, where a
+    service acts on a person's behalf, is a different question from that service acting for
+    itself (SPEC.md 4.9)."""
+    # given
+    tool = _CountingTool()
+    seen_by_policy = None
+
+    async def authorize(effect):
+        nonlocal seen_by_policy
+        seen_by_policy = effect.identity
+
+        return AuthorizationDecision.allow()
+
+    agent = (_agent_that_calls_the_tool(tool, "ACTION: wire_transfer: 10000", "FINAL: paid")
+        .principal(lambda: AgentPrincipal(
+            id="svc-payments",
+            tenant_id="acme-eu",
+            jurisdiction="EU",
+            delegated_by="teller-42"))
+        .on_policy(authorize))
+
+    # when
+    await agent.process_prompt("pay the invoice")
+
+    # then
+    assert seen_by_policy is not None
+    assert seen_by_policy.id == "svc-payments"
+    assert seen_by_policy.tenant_id == "acme-eu"
+    assert seen_by_policy.jurisdiction == "EU"
+    assert seen_by_policy.delegated_by == "teller-42"
