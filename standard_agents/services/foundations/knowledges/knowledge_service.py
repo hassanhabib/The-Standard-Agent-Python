@@ -7,6 +7,10 @@ from standard_agents.brokers.knowledges.iknowledge_broker import IKnowledgeBroke
 from standard_agents.brokers.loggings.ilogging_broker import ILoggingBroker
 from standard_agents.services.foundations.knowledges.iknowledge_service import (
     IKnowledgeService)
+from standard_agents.services.foundations.knowledges.knowledge_service_exceptions import (
+    try_catch)
+from standard_agents.services.foundations.knowledges.knowledge_service_validations import (
+    validate_query)
 
 
 class KnowledgeService(IKnowledgeService):
@@ -19,4 +23,9 @@ class KnowledgeService(IKnowledgeService):
         self.logging_broker = logging_broker
 
     async def retrieve_knowledge(self, query: str) -> list[str]:
-        return await self.knowledge_broker.select_knowledge(query)
+        async def returning_list_function() -> list[str]:
+            validate_query(query)
+
+            return await self.knowledge_broker.select_knowledge(query)
+
+        return await try_catch(self.logging_broker, returning_list_function)
