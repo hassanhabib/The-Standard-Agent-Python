@@ -3,9 +3,13 @@
 # Licensed under the The Standard Software License (TSSL)
 # ---------------------------------------------------------------
 
+from decimal import Decimal
+
 import pytest
 
-from standard_agents.models.clients.agents.exceptions import InvalidAgentApiUrlException
+from standard_agents.models.clients.agents.exceptions import (
+    InvalidAgentApiUrlException,
+    InvalidAgentBudgetException)
 from standard_agents.standard_agent import StandardAgent
 
 # Found in the 2026-09-04 principal review (F-12): hosting.md taught an endpoint that already
@@ -90,3 +94,30 @@ def test_should_throw_invalid_agent_api_url_exception_on_judge_if_api_url_is_inv
 
     # then
     assert raised.value.same_exception_as(expected_invalid_agent_api_url_exception)
+
+
+# Found in the 2026-09-04 principal review (F-01): cost is priced off the token count times the
+# rate, and the rate defaulted to zero. A cost bound with no rate computed zero dollars forever and
+# never tripped: a guardrail the host believed was armed and was not. The framework cannot know a
+# model's price, so it cannot fill the rate in; what it can do is refuse the contradiction of a
+# dollar bound on a model declared free.
+@pytest.mark.parametrize("invalid_cost_per_thousand_tokens", [Decimal("0"), Decimal("-0.002")])
+def test_should_throw_invalid_agent_budget_exception_on_budget_if_cost_bound_has_no_rate(
+        invalid_cost_per_thousand_tokens):
+
+    # given
+    expected_invalid_agent_budget_exception = InvalidAgentBudgetException(
+        message=(
+            "Invalid agent budget: a cost bound (maxCostUsd) needs a positive "
+            + "costPerThousandTokens. Cost is the token count times that rate, so at "
+            + "zero the bound can never trip. Pass your model's rate, or bound by "
+            + "maxTokens instead."))
+
+    # when
+    with pytest.raises(InvalidAgentBudgetException) as raised:
+        StandardAgent().budget(
+            max_cost_usd=Decimal("0.25"),
+            cost_per_thousand_tokens=invalid_cost_per_thousand_tokens)
+
+    # then
+    assert raised.value.same_exception_as(expected_invalid_agent_budget_exception)
