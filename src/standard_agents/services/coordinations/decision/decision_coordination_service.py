@@ -60,6 +60,7 @@ class DecisionCoordinationService:
         raise NotImplementedError
 
     async def think(self, context: AgentContext) -> AgentContext:
+        context = _fresh_of_last_turn(context)
         verdict = await self.guardian_service.screen(context.prompt)
         refused = await self._refused_by_gate(context, verdict)
 
@@ -171,7 +172,17 @@ class DecisionCoordinationService:
         return question_context, True
 
 
-def _conflict_key(conflict: SkillConflict) -> str:
+def _fresh_of_last_turn(context: AgentContext) -> AgentContext:
+    """This turn's outputs, cleared of the last turn's.
+
+    Narration is a turn's output: a refusal or conflict path bypasses interpretation, and last
+    turn's prose leaking out would be voiced over this turn.
+    """
+    return dataclasses.replace(context, narration="")
+
+
+def _conflict_key(
+conflict: SkillConflict) -> str:
     return "|".join(option.skill.strip().lower() for option in conflict.options)
 
 
