@@ -240,3 +240,25 @@ async def test_should_deny_an_act_that_was_never_explicitly_permitted():
     assert tool.writes == 0
     assert "not permitted" in second_prompt
     assert actual_answer == "done"
+
+
+async def _approved(effect):
+    return ApprovalDecision.APPROVED
+
+
+# The positive half, so a mode that denies everything cannot pass: an act that WAS named, here
+# through require_approval, still reaches its authority and still runs when permitted.
+async def test_should_still_permit_what_was_explicitly_named_under_deny():
+    # given
+    tool = _WriteFileTool()
+
+    agent = (_agent_acting(tool, "ACTION: write_file: /project/a.txt hello", "FINAL: done")
+        .permissions(PermissionMode.DENY)
+        .require_approval("write_file")
+        .on_approval(_approved))
+
+    # when
+    await agent.process_prompt("write it")
+
+    # then: the mode speaks only for what the explicit permissions did not mention
+    assert tool.writes == 1
