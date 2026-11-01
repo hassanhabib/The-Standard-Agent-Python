@@ -229,3 +229,9 @@ def test_should_throw_invalid_agent_configuration_exception_on_from_json_if_brai
 
     # then
     assert raised.value.same_exception_as(expected_invalid_agent_configuration_exception)
+
+
+def test_should_reject_malformed_configuration_json():
+    # given . when . then
+    with pytest.raises(InvalidAgentConfigurationException):
+        StandardAgent.from_json("{ not json at all")
