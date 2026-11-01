@@ -84,3 +84,33 @@ async def test_should_post_tools_list_as_json_rpc_and_keep_schemas_whole():
 
     # and the schema, verbatim (F-03)
     assert actual_tools == expected_tools
+
+
+async def test_should_post_tools_call_with_arguments_as_an_object_and_increasing_ids():
+    # given: a call after a list on the same broker
+    server = ScriptedServerHandler(lambda request, body: (
+        ScriptedServerHandler.json(
+            http.HTTPStatus.OK,
+            '{"jsonrpc":"2.0","id":1,"result":{"tools":[]}}')
+        if "tools/list" in body
+        else ScriptedServerHandler.json(
+            http.HTTPStatus.OK,
+            '{"jsonrpc":"2.0","id":2,"result":{"content":'
+            + '[{"type":"text","text":"owed: "},{"type":"text","text":"12"}]}}')))
+
+    broker = create_broker(server, bearer_token="static-token")
+
+    # when
+    await broker.list_tools()
+    actual_text = await broker.call("lookup", '{"account":"42","deep":{"n":1}}')
+
+    # then: params as the protocol reads them, id advanced, text blocks joined
+    call = json.loads(server.bodies[-1])
+    assert call["method"] == "tools/call"
+    assert call["id"] == 3
+    assert call["params"]["name"] == "lookup"
+    assert call["params"]["arguments"]["account"] == "42"
+    assert call["params"]["arguments"]["deep"]["n"] == 1
+
+    assert header_of(server.requests[-1], "Authorization") == "Bearer static-token"
+    assert actual_text == "owed: 12"
