@@ -9,9 +9,12 @@ from xeptions import Xeption
 from standard_agents.brokers.loggings.ilogging_broker import ILoggingBroker
 from standard_agents.models.orchestrations.agents.agent_context import AgentContext
 from standard_agents.models.foundations.internal_tools.exceptions import (
+    InternalToolDependencyException,
+    InternalToolServiceException,
     InternalToolValidationException)
 from standard_agents.models.foundations.returns.exceptions import ReturnValidationException
 from standard_agents.models.orchestrations.direction.exceptions import (
+    DirectionOrchestrationDependencyException,
     DirectionOrchestrationDependencyValidationException,
     DirectionOrchestrationValidationException,
     NullAgentContextException)
@@ -34,6 +37,26 @@ async def try_catch(
         raise await create_and_log_dependency_validation_exception(
             logging_broker,
             dependency_validation_exception.inner_exception)
+    except (
+        InternalToolDependencyException,
+        InternalToolServiceException) as dependency_exception:
+
+        raise await create_and_log_dependency_exception(
+            logging_broker,
+            dependency_exception.inner_exception)
+
+
+async def create_and_log_dependency_exception(
+    logging_broker: ILoggingBroker,
+    exception: BaseException | None) -> DirectionOrchestrationDependencyException:
+
+    direction_orchestration_dependency_exception = DirectionOrchestrationDependencyException(
+        message="Direction orchestration dependency error occurred, contact support.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(direction_orchestration_dependency_exception)
+
+    return direction_orchestration_dependency_exception
 
 
 async def create_and_log_dependency_validation_exception(
