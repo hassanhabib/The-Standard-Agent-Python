@@ -80,3 +80,49 @@ async def test_should_deliver_a_draft_that_passes_on_revision_when_streamed():
     # then: a control a caller can step around by changing method is not a control
     assert "forty two" in "".join(responses)
     assert len(judged) == 2
+
+
+class _RecordingTool(Tool):
+    def __init__(self) -> None:
+        self.execution_count = 0
+
+    @property
+    def name(self) -> str:
+        return "calculator"
+
+    @property
+    def description(self) -> str:
+        return "Evaluates arithmetic."
+
+    async def execute(self, input: str) -> str:
+        self.execution_count += 1
+
+        return "4183"
+
+
+# Exit three: the tool-call branch. A model told its draft was rejected may consult a tool before
+# drafting again, and a stale revising status carried out of Decision would skip Direction and
+# swallow the call.
+async def test_should_execute_a_tool_the_model_chooses_after_a_rejection():
+    # given: reject the guess; the model then consults a tool and answers from it
+    tool = _RecordingTool()
+    evaluate, _ = _judge_rejecting_once()
+    replies = iter([
+        "FINAL: a guess",
+        "ACTION: calculator: 47*89"])
+
+    async def brain(system_prompt, user_prompt):
+        return next(replies, "FINAL: the answer is 4183")
+
+    agent = (StandardAgent()
+        .tool(tool)
+        .on_brain(brain)
+        .on_judge(evaluate)
+        .max_turns(5))
+
+    # when
+    actual_answer = await agent.process_prompt("what is 47*89")
+
+    # then: a revision signal that swallows the act is a retry that cannot succeed that way
+    assert tool.execution_count == 1
+    assert actual_answer == "the answer is 4183"
