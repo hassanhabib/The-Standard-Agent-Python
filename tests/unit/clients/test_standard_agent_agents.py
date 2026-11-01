@@ -12,6 +12,7 @@ import itertools
 
 from standard_agents.models.brokers.agents.registered_agent import RegisteredAgent
 from standard_agents.models.foundations.skills.skill import Skill
+from standard_agents.models.orchestrations.agents.agent_status import AgentStatus
 from standard_agents.standard_agent import StandardAgent
 
 
@@ -145,3 +146,42 @@ async def test_should_transfer_the_run_to_a_registered_agent(
     assert answer == "the refund is booked"
     assert len(outer_turns) == 1
     assert "please refund my last order, number 7741" in inner_received[-1]
+
+
+# A transfer that does not deliver is an observation, not an answer. The specialist's own
+# controls can refuse or hold, and the outer loop then keeps working the task instead of
+# presenting the refusal as the user's answer.
+async def test_should_keep_working_when_a_transfer_does_not_deliver(
+        empty_memory_broker,
+        empty_knowledge_broker):
+
+    # given: a specialist whose own gate refuses everything about refunds.
+    async def strict_brain(system_prompt, user_prompt):
+        return "FINAL: should never be reached"
+
+    strict_agent = (StandardAgent()
+        .use_memory(empty_memory_broker)
+        .use_knowledge(empty_knowledge_broker)
+        .rule_gate("refund")
+        .on_brain(strict_brain))
+
+    turns = itertools.count(1)
+
+    async def outer_brain(system_prompt, user_prompt):
+        return (
+            "TRANSFER: billing" if next(turns) == 1
+            else "FINAL: billing could not take this; here is what I can do instead.")
+
+    outer_agent = (StandardAgent()
+        .use_memory(empty_memory_broker)
+        .use_knowledge(empty_knowledge_broker)
+        .on_agents(registry_of(
+            RegisteredAgent("billing", "Handles refunds and invoices.", strict_agent)))
+        .on_brain(outer_brain))
+
+    # when
+    outcome = await outer_agent.run("please refund order 7741")
+
+    # then: the outer brain saw the failed transfer and answered itself.
+    assert outcome.status is AgentStatus.RESPONDED
+    assert "here is what I can do instead" in outcome.result
