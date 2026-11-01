@@ -103,3 +103,44 @@ async def test_should_report_a_run_out_of_turns_as_turns_exhausted():
     assert outcome.failure is not None
     assert outcome.failure.code == AgentFailureCodes.TURNS_EXHAUSTED
     assert outcome.failure.message == outcome.result
+
+
+async def test_should_stop_a_run_going_in_circles():
+    # given: watched live, twice: a model asked for the same thing eleven more times with the
+    # note in front of it, and a turn cap of sixty-four is sixty turns of the same question
+    # (SPEC.md 4.10, v1.14). The act runs once; every ask after it is a replay.
+    tool = _CountingTool()
+
+    agent = (_agent_that_loops(lambda turn: "ACTION: calculator: 1 + 1")
+        .tool(tool)
+        .max_turns(20)
+        .identical_call_limit(3))
+
+    # when
+    outcome = await agent.run("add one and one")
+
+    # then: asked, replayed, told, and then told the run is over: not a refusal and not an
+    # answer
+    assert tool.calls == 1
+    assert outcome.status is AgentStatus.FAILED
+    assert outcome.failure is not None
+    assert outcome.failure.code == AgentFailureCodes.GOING_IN_CIRCLES
+    assert outcome.failure.message == outcome.result
+
+
+class _CountingTool(Tool):
+    def __init__(self) -> None:
+        self.calls = 0
+
+    @property
+    def name(self) -> str:
+        return "calculator"
+
+    @property
+    def description(self) -> str:
+        return "Evaluates arithmetic."
+
+    async def execute(self, input: str) -> str:
+        self.calls += 1
+
+        return "2"
