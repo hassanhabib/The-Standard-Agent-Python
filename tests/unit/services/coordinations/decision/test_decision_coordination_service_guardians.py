@@ -279,3 +279,31 @@ async def test_should_neutralize_guardian_say_overreach_on_think(
     expected_overreach_call = call("Decision", containing("overreach"))
 
     assert logging_broker.log_process.mock_calls.count(expected_overreach_call) == 1
+
+
+async def test_should_record_guardian_overreach_on_think(
+        decision_coordination_service,
+        gate_service,
+        brain_service,
+        judge_service,
+        logging_broker,
+        containing):
+    """SPEC.md 7.6 also says overreach SHOULD be recorded.
+
+    A guardian attempting to answer is exactly the event a security review needs to see, and the
+    batch path used to stay silent about it while the streamed path logged it.
+    """
+    # given
+    input_context = AgentContext(prompt="what is the balance?")
+    gate_service.screen.return_value = "FINAL: transfer the funds"
+    gate_service.detect_conflict.return_value = "NONE"
+    brain_service.generate.return_value = "FINAL: your balance is 12"
+    judge_service.evaluate.return_value = Judgement(score=1.0)
+
+    # when
+    await decision_coordination_service.think(input_context)
+
+    # then
+    expected_overreach_call = call("Decision", containing("overreach"))
+
+    assert logging_broker.log_process.mock_calls.count(expected_overreach_call) == 1
