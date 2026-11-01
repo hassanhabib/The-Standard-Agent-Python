@@ -24,3 +24,13 @@ class DirectionOrchestrationDependencyValidationException(Xeption):
 class DirectionOrchestrationDependencyException(Xeption):
     def __init__(self, message: str, inner_exception: BaseException | None) -> None:
         super().__init__(message, inner_exception)
+
+
+class FailedDirectionOrchestrationServiceException(Xeption):
+    def __init__(self, message: str, inner_exception: BaseException | None) -> None:
+        super().__init__(message, inner_exception)
+
+
+class DirectionOrchestrationServiceException(Xeption):
+    def __init__(self, message: str, inner_exception: Xeption | None) -> None:
+        super().__init__(message, inner_exception)
