@@ -9,9 +9,11 @@ from xeptions import Xeption
 from standard_agents.brokers.loggings.ilogging_broker import ILoggingBroker
 from standard_agents.models.clients.agents.agent_outcome import AgentOutcome
 from standard_agents.models.coordinations.runs.exceptions import (
+    FailedRunCoordinationServiceException,
     InvalidRunException,
     RunCoordinationDependencyException,
     RunCoordinationDependencyValidationException,
+    RunCoordinationServiceException,
     RunCoordinationValidationException)
 from standard_agents.models.orchestrations.data.exceptions import (
     DataOrchestrationDependencyException,
@@ -60,6 +62,25 @@ async def try_catch(
         raise await create_and_log_dependency_exception(
             logging_broker,
             dependency_exception.inner_exception)
+    except Exception as exception:
+        failed_service_exception = FailedRunCoordinationServiceException(
+            message="Failed run coordination service error occurred, contact support.",
+            inner_exception=exception)
+
+        raise await create_and_log_service_exception(logging_broker, failed_service_exception)
+
+
+async def create_and_log_service_exception(
+    logging_broker: ILoggingBroker,
+    exception: Xeption) -> RunCoordinationServiceException:
+
+    run_coordination_service_exception = RunCoordinationServiceException(
+        message="Run coordination service error occurred, contact support.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(run_coordination_service_exception)
+
+    return run_coordination_service_exception
 
 
 async def create_and_log_dependency_exception(
