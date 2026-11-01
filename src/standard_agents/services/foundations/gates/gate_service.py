@@ -21,8 +21,10 @@ from standard_agents.brokers.classifiers.classifier_broker import ClassifierBrok
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.models.foundations.gates.exceptions import (
     FailedGateDependencyException,
+    FailedGateServiceException,
     GateDependencyException,
     GateDependencyValidationException,
+    GateServiceException,
     GateValidationException,
     InvalidGateException)
 from xeptions import Xeption
@@ -87,6 +89,13 @@ async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[N
             HttpResponseInternalServerErrorException,
             HttpResponseServiceUnavailableException) as dependency_exception:
         raise await _create_and_log_dependency_exception(logging_broker, dependency_exception)
+    except Exception as exception:
+        failed_gate_service_exception = FailedGateServiceException(
+            message="Failed gate service error occurred, contact support.",
+            inner_exception=exception)
+
+        raise await _create_and_log_service_exception(
+            logging_broker, failed_gate_service_exception)
 
 
 async def _create_and_log_validation_exception(
@@ -143,3 +152,16 @@ def _create_dependency_exception(exception: Exception) -> GateDependencyExceptio
     return GateDependencyException(
         message="Gate dependency error occurred, contact support.",
         inner_exception=failed_gate_dependency_exception)
+
+
+async def _create_and_log_service_exception(
+        logging_broker: LoggingBroker,
+        exception: Xeption) -> GateServiceException:
+
+    gate_service_exception = GateServiceException(
+        message="Gate service error occurred, contact support.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(gate_service_exception)
+
+    return gate_service_exception
