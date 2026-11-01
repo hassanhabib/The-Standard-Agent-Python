@@ -123,6 +123,12 @@ class StdioMcpBroker(McpBroker):
         self._server_process: asyncio.subprocess.Process | None = None
         self._stop_at_exit: Callable[[], None] | None = None
 
+    async def __aenter__(self) -> StdioMcpBroker:
+        return self
+
+    async def __aexit__(self, *exception_info: object) -> None:
+        await self.aclose()
+
     async def aclose(self) -> None:
         """Stop the server process this broker started, and every process it started.
 
