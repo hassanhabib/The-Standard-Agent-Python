@@ -13,8 +13,11 @@ from standard_agents.services.foundations.gates.igate_service import IGateServic
 from standard_agents.services.foundations.judges.ijudge_service import IJudgeService
 from standard_agents.services.orchestrations.decision.decision_orchestration_service_protocol import (
     build_user_message,
+    REFUSAL_MESSAGE,
+    REFUSE_DIRECTION,
     interpret,
     is_final_answer,
+    is_refusal,
     revision_feedback)
 from standard_agents.services.orchestrations.decision.idecision_orchestration_service import (
     IDecisionOrchestrationService)
@@ -36,7 +39,18 @@ class DecisionOrchestrationService(IDecisionOrchestrationService):
         self.logging_broker = logging_broker
 
     async def think(self, context: AgentContext) -> AgentContext:
-        await self.gate_service.screen(context.prompt)
+        verdict = await self.gate_service.screen(context.prompt)
+
+        # The Gate's reason is for the trace, not the user: a refusal says what it will not do,
+        # never what the screen looked for.
+        if is_refusal(verdict):
+            await self.logging_broker.log_process("Decision", f"Gate refused: {verdict}")
+
+            return dataclasses.replace(
+                context,
+                direction_type=REFUSE_DIRECTION,
+                payload=REFUSAL_MESSAGE)
+
         user_message = build_user_message(context)
         reply = await self.brain_service.generate(context.system_prompt, user_message)
         decided = interpret(context, reply.strip())

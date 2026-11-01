@@ -12,6 +12,13 @@ ACTION_PREFIX = "ACTION:"
 FINAL_PREFIX = "FINAL:"
 SAY_PREFIX = "SAY:"
 RETURN_RESPONSE_DIRECTION = "ReturnResponse"
+REFUSE_DIRECTION = "Refuse"
+REFUSE_VERDICT = "refuse"
+REFUSAL_MESSAGE = "I'm not able to help with that."
+
+
+def is_refusal(verdict: str) -> bool:
+    return verdict.lower().startswith(REFUSE_VERDICT)
 
 
 # The text protocol the brain answers in, the same as the C# framework's: an optional
