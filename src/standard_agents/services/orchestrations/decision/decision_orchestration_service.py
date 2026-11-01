@@ -34,12 +34,16 @@ class DecisionOrchestrationService(IDecisionOrchestrationService):
         brain_service: IBrainService,
         gate_service: IGateService,
         judge_service: IJudgeService,
-        logging_broker: ILoggingBroker) -> None:
+        logging_broker: ILoggingBroker,
+        gate_rubric: str = "",
+        judge_rubric: str = "") -> None:
 
         self.brain_service = brain_service
         self.gate_service = gate_service
         self.judge_service = judge_service
         self.logging_broker = logging_broker
+        self.gate_rubric = gate_rubric
+        self.judge_rubric = judge_rubric
 
     async def think(self, context: AgentContext) -> AgentContext:
         async def returning_context_function() -> AgentContext:

@@ -121,7 +121,7 @@ class TestStandardAgentRuns:
         input_prompt = create_random_string()
         brain_calls = []
 
-        async def gate(text: str) -> str:
+        async def gate(rubric: str, text: str) -> str:
             return "refuse: asks for secrets"
 
         async def brain(system_prompt: str, user_prompt: str) -> str:
@@ -155,7 +155,7 @@ class TestStandardAgentRuns:
 
             return f"FINAL: {drafts[len(brain_calls) - 1]}"
 
-        async def judge(task: str, candidate: str) -> str:
+        async def judge(rubric: str, task: str, candidate: str) -> str:
             if candidate == weak_draft:
                 return "0.1 too vague"
 

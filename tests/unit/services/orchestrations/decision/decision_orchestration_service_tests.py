@@ -22,12 +22,16 @@ class DecisionOrchestrationServiceTests:
         self.gate_service_mock = create_autospec(IGateService, instance=True)
         self.judge_service_mock = create_autospec(IJudgeService, instance=True)
         self.logging_broker_mock = create_autospec(ILoggingBroker, instance=True)
+        self.gate_rubric = self.create_random_string()
+        self.judge_rubric = self.create_random_string()
 
         self.decision_orchestration_service = DecisionOrchestrationService(
             brain_service=self.brain_service_mock,
             gate_service=self.gate_service_mock,
             judge_service=self.judge_service_mock,
-            logging_broker=self.logging_broker_mock)
+            logging_broker=self.logging_broker_mock,
+            gate_rubric=self.gate_rubric,
+            judge_rubric=self.judge_rubric)
 
     @staticmethod
     def create_random_string() -> str:
