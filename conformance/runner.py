@@ -5,10 +5,15 @@
 
 import asyncio
 import json
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from conformance.doubles import RecordingVerifierBroker, ScriptedGeneratorBroker, StubTool
+from conformance.doubles import (
+    RecordingClassifierBroker,
+    RecordingVerifierBroker,
+    ScriptedGeneratorBroker,
+    StubTool)
 from standard_agents import AgentOutcome, StandardAgent
 
 # What this runner can drive. A vector that asks for anything else is reported UNSUPPORTED rather
@@ -16,12 +21,13 @@ from standard_agents import AgentOutcome, StandardAgent
 # for the wrong reason, and either answer would be a claim about the harness.
 SUPPORTED_SETUP = {
     "name", "description", "generatorReplies", "tools", "prompt", "prompts", "concurrent",
-    "expect", "maxTurns", "judgeScore"
+    "expect", "maxTurns", "judgeScore", "gateVerdict", "constitution", "consumption"
 }
 
 SUPPORTED_EXPECTATIONS = {
     "result", "resultContains", "resultsContain", "toolInput", "toolRunCount", "toolNeverRan",
-    "brainSees", "brainNeverSees", "judgeSawTask", "status"
+    "brainSees", "brainNeverSees", "judgeSawTask", "status", "guardianRubricContains",
+    "guardianRubricExcludes"
 }
 
 
@@ -29,6 +35,7 @@ SUPPORTED_EXPECTATIONS = {
 class VectorRun:
     outcomes: list[AgentOutcome]
     generator: ScriptedGeneratorBroker
+    classifier: RecordingClassifierBroker
     verifier: RecordingVerifierBroker
     tools: dict[str, StubTool] = field(default_factory=dict)
 
@@ -97,7 +104,15 @@ def required_vectors(profiles_path: Path, profile_name: str) -> set[str]:
 
 
 async def run_vector(vector: dict) -> VectorRun:
+    with tempfile.TemporaryDirectory() as data_folder:
+        return await run_vector_in(vector, Path(data_folder))
+
+
+# The guardians answer through the real rubric composition; a constitution or a consumption
+# skill is written to a file the real builder is pointed at, as a host would.
+async def run_vector_in(vector: dict, data_folder: Path) -> VectorRun:
     generator = ScriptedGeneratorBroker(vector["generatorReplies"])
+    classifier = RecordingClassifierBroker(vector.get("gateVerdict", "accept"))
     verifier = RecordingVerifierBroker(vector.get("judgeScore", "1.0"))
 
     tools = {
@@ -107,8 +122,15 @@ async def run_vector(vector: dict) -> VectorRun:
 
     agent = (StandardAgent()
         .use_generator(generator)
+        .use_gate(classifier)
         .use_judge(verifier)
         .tools(tools.values()))
+
+    for layer in ("constitution", "consumption"):
+        if layer in vector:
+            layer_file = data_folder / f"{layer}.md"
+            layer_file.write_text(vector[layer], encoding="utf-8")
+            getattr(agent, layer)(str(layer_file))
 
     if "maxTurns" in vector:
         agent.max_turns(vector["maxTurns"])
@@ -120,7 +142,12 @@ async def run_vector(vector: dict) -> VectorRun:
     else:
         outcomes = [await agent.run(prompt) for prompt in prompts]
 
-    return VectorRun(outcomes=outcomes, generator=generator, verifier=verifier, tools=tools)
+    return VectorRun(
+        outcomes=outcomes,
+        generator=generator,
+        classifier=classifier,
+        verifier=verifier,
+        tools=tools)
 
 
 def check(vector: dict, run: VectorRun) -> list[str]:
@@ -165,6 +192,21 @@ def check(vector: dict, run: VectorRun) -> list[str]:
 
     if expect.get("judgeSawTask") and vector["prompt"] not in run.verifier.tasks:
         failures.append("the Judge was never handed the task")
+
+    # The composed rubric, in both guardians: each phrase must be in, or out of, every rubric
+    # either guardian was handed.
+    rubrics = run.classifier.rubrics + run.verifier.rubrics
+
+    if not rubrics and ("guardianRubricContains" in expect or "guardianRubricExcludes" in expect):
+        failures.append("no guardian was handed a rubric")
+
+    for expected in as_list(expect.get("guardianRubricContains")):
+        if not all(expected in rubric for rubric in rubrics):
+            failures.append(f"a guardian rubric lacks {expected!r}")
+
+    for unexpected in as_list(expect.get("guardianRubricExcludes")):
+        if any(unexpected in rubric for rubric in rubrics):
+            failures.append(f"a guardian rubric carries {unexpected!r}")
 
     if "status" in expect and run.outcomes[-1].status.name != status_name(expect["status"]):
         failures.append(f"status {run.outcomes[-1].status.name}, expected {expect['status']}")
