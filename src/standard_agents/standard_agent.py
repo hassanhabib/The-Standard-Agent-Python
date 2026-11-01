@@ -8,6 +8,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import warnings
 from collections.abc import AsyncIterator, Awaitable, Callable
 from datetime import timedelta
 
@@ -181,6 +182,24 @@ class StandardAgent(Agent):
         self._skill_sources.append(broker)
 
         return self
+
+    def local_brain(self, generate: Callable[[str, str], Awaitable[str]]) -> StandardAgent:
+        """Renamed to on_brain: a delegate is the Custom mode, not the Local one."""
+        _warn_renamed("local_brain", "on_brain")
+
+        return self.on_brain(generate)
+
+    def local_gate(self, screen: Callable[[str, str], Awaitable[str]]) -> StandardAgent:
+        """Renamed to on_gate: a delegate is the Custom mode, not the Local one."""
+        _warn_renamed("local_gate", "on_gate")
+
+        return self.on_gate(screen)
+
+    def local_judge(self, evaluate: Callable[[str, str], Awaitable[str]]) -> StandardAgent:
+        """Renamed to on_judge: a delegate is the Custom mode, not the Local one."""
+        _warn_renamed("local_judge", "on_judge")
+
+        return self.on_judge(evaluate)
 
     def on_gate(self, screen: Callable[[str, str], Awaitable[str]]) -> StandardAgent:
         self._local_gate_screen = screen
@@ -410,3 +429,11 @@ def _validate_composition(has_brain: bool) -> None:
                 "Agent has no brain. Call Brain(apiUrl, apiKey, model), "
                 + "UseGenerator(broker) or NativeBrain(apiUrl, apiKey, model) "
                 + "before processing a prompt."))
+
+
+def _warn_renamed(obsolete_name: str, new_name: str) -> None:
+    warnings.warn(
+        f"Renamed to {new_name}: a delegate is the Custom mode, not the Local one. "
+        + "Local means a provider that runs on your own machine. This alias keeps working.",
+        DeprecationWarning,
+        stacklevel=3)
