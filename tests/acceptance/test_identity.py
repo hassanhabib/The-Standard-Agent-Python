@@ -209,3 +209,27 @@ async def test_should_keep_the_identifier_only_principal_working():
     assert seen_id == "teller-42"
     assert seen_identity.id == "teller-42"
     assert seen_identity.tenant_id is None
+
+
+async def test_should_carry_no_principal_when_none_is_configured():
+    # given: the neutral case: nothing configured, nothing asserted about identity
+    tool = _CountingTool()
+    policy_ran = False
+    seen_by_policy = "not asked"
+
+    async def authorize(effect):
+        nonlocal policy_ran, seen_by_policy
+        policy_ran = True
+        seen_by_policy = effect.principal
+
+        return AuthorizationDecision.allow()
+
+    agent = (_agent_that_calls_the_tool(tool, "ACTION: wire_transfer: 10000", "FINAL: paid")
+        .on_policy(authorize))
+
+    # when
+    await agent.process_prompt("pay the invoice")
+
+    # then: absent an identity the effect claims none, rather than inventing one
+    assert policy_ran
+    assert seen_by_policy is None
