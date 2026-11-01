@@ -86,3 +86,17 @@ async def test_should_recall_memories_from_file(
         call.read_all_lines(memory_path)]
 
     assert logging_broker.mock_calls == []
+
+
+async def test_should_remember(
+        memory_service, memory_broker, logging_broker, create_random_string):
+
+    # given
+    input_memory = create_random_string()
+
+    # when
+    await memory_service.remember(input_memory)
+
+    # then
+    assert memory_broker.mock_calls == [call.insert_memory(input_memory)]
+    assert logging_broker.mock_calls == []
