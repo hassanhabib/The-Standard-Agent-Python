@@ -3,12 +3,19 @@
 # Licensed under the The Standard Software License (TSSL)
 # ---------------------------------------------------------------
 
-from unittest.mock import ANY, call
+from unittest.mock import ANY, call, create_autospec
 
 import pytest
 
+from standard_agents.brokers.classifiers.classifier_broker import ClassifierBroker
+from standard_agents.brokers.generators.generator_broker import GeneratorBroker
+from standard_agents.brokers.loggings.logging_broker import LoggingBroker
+from standard_agents.brokers.mcps.mcp_broker import McpBroker
+from standard_agents.brokers.verifiers.verifier_broker import VerifierBroker
 from standard_agents.models.clients.agents.agent_outcome import AgentOutcome
+from standard_agents.models.foundations.skills.skill import Skill
 from standard_agents.models.orchestrations.agents.agent_status import AgentStatus
+from standard_agents.standard_agent import StandardAgent
 from standard_agents.tools.agent_tool import AgentTool
 
 
@@ -80,3 +87,44 @@ def test_should_expose_description_and_parameters_on_agent_tool(nested_agent):
     # then
     assert agent_tool.description == description
     assert agent_tool.parameters == parameters
+
+
+async def test_should_nest_agent_inside_agent(
+        nested_agent,
+        create_skill_broker,
+        empty_memory_broker,
+        empty_knowledge_broker):
+
+    # given: the inner agent answers anything with a fixed finding
+    nested_agent.run.return_value = AgentOutcome("the capital is Paris", AgentStatus.RESPONDED)
+    researcher = AgentTool(name="researcher", agent=nested_agent)
+
+    outer_brain = create_autospec(GeneratorBroker, instance=True)
+    outer_brain.honors_request = False
+    outer_brain.generate.side_effect = ["ACTION: researcher: capital of France", "FINAL: Paris"]
+
+    gate = create_autospec(ClassifierBroker, instance=True)
+    gate.classify.return_value = "allow"
+    gate.assess.return_value = None
+    judge = create_autospec(VerifierBroker, instance=True)
+    judge.verify.return_value = "1.0"
+    mcp = create_autospec(McpBroker, instance=True)
+    mcp.list_tools.return_value = []
+
+    outer_agent = (StandardAgent()
+        .use_skills(create_skill_broker(Skill(content="you are an agent")))
+        .use_generator(outer_brain)
+        .use_memory(empty_memory_broker)
+        .use_knowledge(empty_knowledge_broker)
+        .use_gate(gate)
+        .use_judge(judge)
+        .use_mcp(mcp)
+        .use_logging(create_autospec(LoggingBroker, instance=True))
+        .tool(researcher))
+
+    # when
+    actual_result = await outer_agent.process_prompt(prompt="what is the capital of France?")
+
+    # then
+    assert actual_result == "Paris"
+    nested_agent.run.assert_awaited_once_with("capital of France", cancellation=ANY)
