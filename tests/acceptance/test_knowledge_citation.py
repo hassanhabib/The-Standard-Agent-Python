@@ -94,3 +94,25 @@ async def test_should_return_the_answer_unchanged_when_citation_was_never_asked_
 
     # then: byte for byte the answer an agent without citation always returned
     assert actual_result == _ANSWER
+
+
+# The passage reaches the brain exactly as an unsourced broker's would (SPEC.md 3.7): the source
+# rides the run, not the observation, so the model is shown what it was always shown.
+async def test_should_show_the_brain_the_passage_without_its_source():
+    # given
+    seen_by_brain = ""
+
+    async def brain(system_prompt, user_prompt):
+        nonlocal seen_by_brain
+        seen_by_brain = user_prompt
+
+        return f"FINAL: {_ANSWER}"
+
+    agent = _grounded_agent(brain).cite_knowledge()
+
+    # when
+    await agent.process_prompt("what is the refund window?")
+
+    # then
+    assert "within 90 days" in seen_by_brain
+    assert _REFUNDS_SOURCE not in seen_by_brain
