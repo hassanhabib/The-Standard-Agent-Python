@@ -283,3 +283,29 @@ async def test_should_advertise_only_described_tools_at_tools_marker_on_process_
     assert "calculator" in captured_system_prompt
     assert "secret" not in captured_system_prompt
     assert "{{tools}}" not in captured_system_prompt
+
+
+async def test_should_use_custom_gate_to_refuse_on_process_prompt(
+        create_skill_broker,
+        empty_memory_broker,
+        empty_knowledge_broker):
+
+    # given
+    async def brain(system_prompt, user_prompt):
+        return "FINAL: hello"
+
+    async def gate(gate_rubric, prompt):
+        return "refuse: not allowed"
+
+    agent = (StandardAgent()
+        .use_skills(create_skill_broker())
+        .use_memory(empty_memory_broker)
+        .use_knowledge(empty_knowledge_broker)
+        .on_brain(brain)
+        .on_gate(gate))
+
+    # when
+    actual_result = await agent.process_prompt(prompt="do something bad")
+
+    # then
+    assert actual_result == "I'm not able to help with that."
