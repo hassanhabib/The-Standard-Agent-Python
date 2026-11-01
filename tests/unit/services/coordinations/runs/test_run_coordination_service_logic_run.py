@@ -53,25 +53,22 @@ class TestRunCoordinationServiceLogicRun(RunCoordinationServiceTests):
             call.act(decided_context)
         ]
 
-    # A turn the Judge sent back is spent revising: nothing is acted on, and the next turn starts
-    # from the revising context put back to work, carrying the reason it was rejected.
-    def test_should_run_revise_without_acting_and_then_respond(self) -> None:
+    # SPEC.md 5: a turn that leaves the run working (a tool ran, or a draft went back for
+    # revision) hands its context to the next turn's Recall, and the run ends on the first turn
+    # whose status is anything else.
+    def test_should_run_turn_after_turn_until_a_turn_ends_the_run(self) -> None:
         # given
         input_prompt = self.create_random_string()
         initial_context = AgentContext(prompt=input_prompt)
         first_recalled_context = self.create_random_context(input_prompt)
-        revising_context = self.create_random_context(input_prompt, AgentStatus.REVISING)
-
-        resumed_context = dataclasses.replace(
-            copy.deepcopy(revising_context),
-            status=AgentStatus.WORKING)
-
+        first_decided_context = self.create_random_context(input_prompt)
+        first_acted_context = self.create_random_context(input_prompt, AgentStatus.WORKING)
         second_recalled_context = self.create_random_context(input_prompt)
-        decided_context = self.create_random_context(input_prompt)
-        acted_context = self.create_random_context(input_prompt, AgentStatus.RESPONDED)
+        second_decided_context = self.create_random_context(input_prompt)
+        second_acted_context = self.create_random_context(input_prompt, AgentStatus.RESPONDED)
 
         expected_outcome = AgentOutcome(
-            result=acted_context.result,
+            result=second_acted_context.result,
             status=AgentStatus.RESPONDED)
 
         self.data_orchestration_service_mock.recall.side_effect = [
@@ -80,11 +77,14 @@ class TestRunCoordinationServiceLogicRun(RunCoordinationServiceTests):
         ]
 
         self.decision_orchestration_service_mock.think.side_effect = [
-            revising_context,
-            decided_context
+            first_decided_context,
+            second_decided_context
         ]
 
-        self.direction_orchestration_service_mock.act.return_value = acted_context
+        self.direction_orchestration_service_mock.act.side_effect = [
+            first_acted_context,
+            second_acted_context
+        ]
 
         # when
         actual_outcome = asyncio.run(self.run_coordination_service.run(input_prompt))
@@ -94,7 +94,7 @@ class TestRunCoordinationServiceLogicRun(RunCoordinationServiceTests):
 
         assert self.data_orchestration_service_mock.mock_calls == [
             call.recall(initial_context),
-            call.recall(resumed_context)
+            call.recall(first_acted_context)
         ]
 
         assert self.decision_orchestration_service_mock.mock_calls == [
@@ -103,7 +103,8 @@ class TestRunCoordinationServiceLogicRun(RunCoordinationServiceTests):
         ]
 
         assert self.direction_orchestration_service_mock.mock_calls == [
-            call.act(decided_context)
+            call.act(first_decided_context),
+            call.act(second_decided_context)
         ]
 
     # A run that is still working when its turns run out delivers nothing. Saying so is the

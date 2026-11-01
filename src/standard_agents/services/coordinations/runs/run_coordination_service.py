@@ -3,8 +3,6 @@
 # Licensed under the The Standard Software License (TSSL)
 # ---------------------------------------------------------------
 
-import dataclasses
-
 from standard_agents.brokers.loggings.ilogging_broker import ILoggingBroker
 from standard_agents.models.clients.agents.agent_outcome import AgentOutcome
 from standard_agents.models.orchestrations.agents.agent_context import AgentContext
@@ -51,8 +49,8 @@ class RunCoordinationService(IRunCoordinationService):
 
         return await try_catch(self.logging_broker, returning_outcome_function)
 
-    # Each turn: Recall, Think, Act. A turn the Judge sent back is spent revising; any status
-    # other than WORKING ends the run with how it ended.
+    # Each turn: Recall, Think, Act (SPEC.md 5). Any status other than WORKING ends the run with
+    # how it ended; a turn that only revised a draft leaves it working.
     async def turn_the_loop(self, prompt: str) -> AgentOutcome:
         context = AgentContext(prompt=prompt)
 
@@ -60,12 +58,6 @@ class RunCoordinationService(IRunCoordinationService):
             await self.logging_broker.log_turn(turn)
             context = await self.data_orchestration_service.recall(context)
             context = await self.decision_orchestration_service.think(context)
-
-            if context.status is AgentStatus.REVISING:
-                context = dataclasses.replace(context, status=AgentStatus.WORKING)
-
-                continue
-
             context = await self.direction_orchestration_service.act(context)
 
             if context.status is not AgentStatus.WORKING:
