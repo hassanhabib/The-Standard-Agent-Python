@@ -249,3 +249,23 @@ async def test_should_treat_malformed_tool_call_as_answer_on_think(
 
     # then
     assert actual_context.direction_type == "ReturnResponse"
+
+
+async def test_should_peel_narration_before_interpreting_on_think(
+        decision_coordination_service,
+        brain_service,
+        create_random_agent_context,
+        setup_gate_allows):
+
+    # given
+    input_context = create_random_agent_context()
+    setup_gate_allows()
+    brain_service.generate.return_value = "SAY: Checking the numbers...\nACTION: calculator: 2+2"
+
+    # when
+    actual_context = await decision_coordination_service.think(input_context)
+
+    # then
+    assert actual_context.direction_type == "calculator"
+    assert actual_context.payload == "2+2"
+    assert actual_context.narration == "Checking the numbers..."
