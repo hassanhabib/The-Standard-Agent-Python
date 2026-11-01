@@ -126,3 +126,22 @@ async def test_should_execute_a_tool_the_model_chooses_after_a_rejection():
     # then: a revision signal that swallows the act is a retry that cannot succeed that way
     assert tool.execution_count == 1
     assert actual_answer == "the answer is 4183"
+
+
+# The other half, already covered and still true: a draft that never passes ends in a graceful
+# refusal rather than an exception or an empty string.
+async def test_should_refuse_when_no_draft_ever_passes():
+    # given
+    async def rejecting_judge(judge_rubric, draft_answer):
+        return "0.0"
+
+    agent = (StandardAgent()
+        .on_brain(_forty_two)
+        .on_judge(rejecting_judge)
+        .max_turns(3))
+
+    # when
+    actual_answer = await agent.process_prompt("what is the answer")
+
+    # then
+    assert actual_answer == "I can't help with that at the moment."
