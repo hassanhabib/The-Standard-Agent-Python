@@ -30,3 +30,28 @@ class TestXeption:
 
         # then
         assert xeption.data == expected_data
+
+    def test_should_throw_if_contains_errors(self) -> None:
+        # given
+        xeption = Xeption(message=create_random_string())
+        xeption.upsert_data_list(create_random_string(), create_random_string())
+        actual_xeption = None
+
+        # when
+        try:
+            xeption.throw_if_contains_errors()
+        except Xeption as raised_xeption:
+            actual_xeption = raised_xeption
+
+        # then
+        assert actual_xeption is xeption
+
+    def test_should_not_throw_if_contains_no_errors(self) -> None:
+        # given
+        xeption = Xeption(message=create_random_string())
+
+        # when
+        xeption.throw_if_contains_errors()
+
+        # then
+        assert xeption.data == {}
