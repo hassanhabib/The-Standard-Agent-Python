@@ -59,3 +59,26 @@ def test_should_refuse_a_key_the_schema_does_not_name():
 
     # then
     assert "buget" in raised.value.message
+
+
+def test_should_close_every_object_section_in_the_schema():
+    # given
+    properties = schema()["properties"]
+    open_sections = []
+
+    # when . then: every object shape with a property list admits nothing else; the one without
+    # a list is the contract, which is a JSON Schema of its own and stays open
+    for key, description in properties.items():
+        for shape in description["anyOf"]:
+            if shape.get("type") != "object":
+                continue
+
+            if "properties" not in shape:
+                open_sections.append(key)
+
+                continue
+
+            assert shape["additionalProperties"] is False, (
+                f"'{key}' is validated against a closed property list")
+
+    assert open_sections == ["contract"]
