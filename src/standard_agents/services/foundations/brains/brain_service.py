@@ -12,7 +12,9 @@ from restfulsense.exceptions import (
     HttpRequestException,
     HttpResponseBadRequestException,
     HttpResponseForbiddenException,
+    HttpResponseInternalServerErrorException,
     HttpResponseNotFoundException,
+    HttpResponseServiceUnavailableException,
     HttpResponseUnauthorizedException,
     HttpResponseUrlNotFoundException)
 from standard_agents.brokers.generators.generator_broker import GeneratorBroker
@@ -103,6 +105,11 @@ async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[N
 
         raise await _create_and_log_critical_dependency_exception(
             logging_broker, critical_dependency_exception)
+    except (
+            HttpResponseInternalServerErrorException,
+            HttpResponseServiceUnavailableException) as dependency_exception:
+
+        raise await _create_and_log_dependency_exception(logging_broker, dependency_exception)
     except HttpRequestException as http_request_exception:
         raise await _create_and_log_unreachable_exception(
             logging_broker, http_request_exception)
@@ -172,14 +179,27 @@ async def _create_and_log_critical_dependency_exception(
         logging_broker: LoggingBroker,
         exception: Exception) -> BrainDependencyException:
 
+    brain_dependency_exception = _create_dependency_exception(exception)
+    await logging_broker.log_critical(brain_dependency_exception)
+
+    return brain_dependency_exception
+
+
+async def _create_and_log_dependency_exception(
+        logging_broker: LoggingBroker,
+        exception: Exception) -> BrainDependencyException:
+
+    brain_dependency_exception = _create_dependency_exception(exception)
+    await logging_broker.log_error(brain_dependency_exception)
+
+    return brain_dependency_exception
+
+
+def _create_dependency_exception(exception: Exception) -> BrainDependencyException:
     failed_brain_dependency_exception = FailedBrainDependencyException(
         message="Failed brain dependency error occurred, contact support.",
         inner_exception=exception)
 
-    brain_dependency_exception = BrainDependencyException(
+    return BrainDependencyException(
         message="Brain dependency error occurred, contact support.",
         inner_exception=failed_brain_dependency_exception)
-
-    await logging_broker.log_critical(brain_dependency_exception)
-
-    return brain_dependency_exception
