@@ -7,6 +7,9 @@ from standard_agents.brokers.loggings.ilogging_broker import ILoggingBroker
 from standard_agents.brokers.verifiers.iverifier_broker import IVerifierBroker
 from standard_agents.models.foundations.judges.judgement import Judgement
 from standard_agents.services.foundations.judges.ijudge_service import IJudgeService
+from standard_agents.services.foundations.judges.judge_service_exceptions import try_catch
+from standard_agents.services.foundations.judges.judge_service_validations import (
+    validate_evaluate)
 
 
 class JudgeService(IJudgeService):
@@ -20,9 +23,13 @@ class JudgeService(IJudgeService):
 
     # The task travels with the candidate: an answer is good or bad for a question.
     async def evaluate(self, task: str, candidate: str) -> Judgement:
-        verdict = await self.verifier_broker.verify(task, candidate)
+        async def returning_judgement_function() -> Judgement:
+            validate_evaluate(task, candidate)
+            verdict = await self.verifier_broker.verify(task, candidate)
 
-        return parse_judgement(verdict)
+            return parse_judgement(verdict)
+
+        return await try_catch(self.logging_broker, returning_judgement_function)
 
 
 def parse_judgement(verdict: str) -> Judgement:
