@@ -9,6 +9,7 @@ import dataclasses
 from unittest.mock import call
 
 from standard_agents.models.foundations.judges.judgement import Judgement
+from standard_agents.models.orchestrations.agents.agent_status import AgentStatus
 from tests.unit.services.orchestrations.decision.decision_orchestration_service_tests import (
     DecisionOrchestrationServiceTests)
 
@@ -77,6 +78,37 @@ class TestDecisionOrchestrationServiceLogicThink(DecisionOrchestrationServiceTes
         assert self.brain_service_mock.mock_calls == [
             call.generate(input_context.system_prompt, expected_user_message)
         ]
+
+        assert self.judge_service_mock.mock_calls == [
+            call.evaluate(input_context.prompt, random_answer)
+        ]
+
+    def test_should_think_and_revise_when_judge_rejects(self) -> None:
+        # given
+        input_context = self.create_random_context()
+        random_answer = self.create_random_string()
+        random_reason = self.create_random_string()
+        returned_reply = f"FINAL: {random_answer}"
+        returned_judgement = Judgement(score=0.29, reason=random_reason)
+
+        expected_feedback = (
+            f"A previous draft was rejected on review: {random_reason}. "
+            + f"The draft was: {random_answer}")
+
+        expected_context = dataclasses.replace(
+            copy.deepcopy(input_context),
+            observations=input_context.observations + (expected_feedback,),
+            status=AgentStatus.REVISING)
+
+        self.gate_service_mock.screen.return_value = "allow"
+        self.brain_service_mock.generate.return_value = returned_reply
+        self.judge_service_mock.evaluate.return_value = returned_judgement
+
+        # when
+        actual_context = asyncio.run(self.decision_orchestration_service.think(input_context))
+
+        # then
+        assert actual_context == expected_context
 
         assert self.judge_service_mock.mock_calls == [
             call.evaluate(input_context.prompt, random_answer)
