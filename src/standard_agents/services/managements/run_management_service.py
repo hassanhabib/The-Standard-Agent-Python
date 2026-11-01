@@ -193,4 +193,7 @@ class RunManagementService:
                 result=_RETRIES_EXHAUSTED_MESSAGE,
                 status=AgentStatus.REFUSED)
 
+        if context.remember:
+            await self.data_coordination_service.remember(context.remember)
+
         return AgentOutcome(context.result, context.status)
