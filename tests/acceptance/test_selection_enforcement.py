@@ -223,3 +223,38 @@ async def test_should_never_deny_a_caller_tool():
     assert outcome.status is AgentStatus.AWAITING_INPUT
     assert outcome.pending_effect is not None
     assert outcome.pending_effect.tool_name == "send_email"
+
+
+# Found in the 2026-09-04 principal review (F-04): enforcement denied a withheld tool only when
+# its name was in the LOCAL advertised set, so a disobedient brain could call an unoffered remote
+# tool freely. A described remote tool is advertised like a local one, and an enforced offering
+# binds it the same way.
+async def test_should_deny_an_unoffered_remote_tool_when_the_offering_is_enforced():
+    # given: the run is offered only the calculator, yet the brain names the remote almanac
+    server = create_autospec(McpBroker, instance=True)
+    server.list_tools.return_value = [McpTool("almanac", "consults the stars")]
+    server.call.return_value = "the stars say yes"
+
+    calculator = _NamedTool("calculator")
+    second_turn_messages: list[Sequence[ConversationMessage]] = []
+
+    agent = (_agent_with(
+            _calls_then_answers(
+                "almanac",
+                "answered among what was offered",
+                second_turn_messages.append),
+            calculator)
+        .use_mcp(server)
+        .on_select_tools(_selecting("calculator"))
+        .enforce_selection())
+
+    # when
+    result = await agent.process_prompt("when should I plant?")
+
+    # then: the remote act never ran, the denial was told, and the run recovered
+    server.call.assert_not_called()
+    assert result == "answered among what was offered"
+
+    assert any(
+        message.content is not None and "not offered" in message.content
+        for message in second_turn_messages[-1])
