@@ -30,3 +30,19 @@ async def test_should_compose_an_agent_from_json(tmp_path, monkeypatch):
 
     # then: the gate the JSON configured refused before the brain ever ran.
     assert brain_calls == []
+
+
+async def test_should_cap_turns_from_json(tmp_path, monkeypatch):
+    # given
+    monkeypatch.chdir(tmp_path)
+
+    async def brain(system_prompt, user_prompt):
+        return "ACTION: missing_tool: anything"
+
+    agent = StandardAgent.from_json('{ "maxTurns": 1 }').on_brain(brain)
+
+    # when
+    answer = await agent.process_prompt("loop forever")
+
+    # then: one turn, then the honest stop the fluent .max_turns(1) produces.
+    assert "ran out of turns" in answer
