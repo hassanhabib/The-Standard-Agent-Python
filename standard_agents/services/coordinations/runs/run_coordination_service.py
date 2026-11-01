@@ -3,6 +3,8 @@
 # Licensed under the The Standard Software License (TSSL)
 # ---------------------------------------------------------------
 
+import dataclasses
+
 from standard_agents.brokers.loggings.ilogging_broker import ILoggingBroker
 from standard_agents.models.clients.agents.agent_outcome import AgentOutcome
 from standard_agents.models.orchestrations.agents.agent_context import AgentContext
@@ -41,6 +43,12 @@ class RunCoordinationService(IRunCoordinationService):
             await self.logging_broker.log_turn(turn)
             context = await self.data_orchestration_service.recall(context)
             context = await self.decision_orchestration_service.think(context)
+
+            if context.status is AgentStatus.REVISING:
+                context = dataclasses.replace(context, status=AgentStatus.WORKING)
+
+                continue
+
             context = await self.direction_orchestration_service.act(context)
 
             if context.status is not AgentStatus.WORKING:
