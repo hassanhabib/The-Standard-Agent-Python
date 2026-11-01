@@ -18,7 +18,9 @@ from standard_agents.models.foundations.returns.exceptions import ReturnServiceE
 from standard_agents.models.orchestrations.agents.exceptions import (
     AgentOrchestrationDependencyException,
     AgentOrchestrationDependencyValidationException,
+    AgentOrchestrationServiceException,
     AgentOrchestrationValidationException,
+    FailedAgentOrchestrationServiceException,
     NullAgentContextException)
 from xeptions import Xeption
 
@@ -140,6 +142,36 @@ async def test_should_throw_dependency_exception_on_act_if_dependency_error_occu
 
     # when
     with pytest.raises(AgentOrchestrationDependencyException) as raised:
+        await direction_coordination_service.act(input_context)
+
+    # then
+    assert raised.value.same_exception_as(expected_exception)
+    assert logging_broker.mock_calls == [call.log_error(same_exception_as(expected_exception))]
+
+
+async def test_should_throw_service_exception_on_act_if_service_error_occurs_and_log_it(
+        direction_coordination_service,
+        internal_tool_service,
+        logging_broker,
+        create_context_with_direction,
+        same_exception_as):
+
+    # given
+    input_context = create_context_with_direction("calculator", "1+1")
+    service_exception = Exception()
+
+    failed_agent_orchestration_service_exception = FailedAgentOrchestrationServiceException(
+        message="Failed agent orchestration service error occurred, contact support.",
+        inner_exception=service_exception)
+
+    expected_exception = AgentOrchestrationServiceException(
+        message="Agent orchestration service error occurred, contact support.",
+        inner_exception=failed_agent_orchestration_service_exception)
+
+    internal_tool_service.handles.side_effect = service_exception
+
+    # when
+    with pytest.raises(AgentOrchestrationServiceException) as raised:
         await direction_coordination_service.act(input_context)
 
     # then
