@@ -80,3 +80,12 @@ async def test_should_stop_the_server_and_every_process_it_started_when_closed()
 
     # then: the whole tree is gone
     assert await have_stopped(process_ids)
+
+
+async def test_should_stop_the_server_and_every_process_it_started_when_its_block_ends():
+    # given, when: a server that started a child of its own, used inside an async with block
+    async with create_broker() as broker:
+        process_ids = await process_ids_of(broker)
+
+    # then: the whole tree is gone
+    assert await have_stopped(process_ids)
