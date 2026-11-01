@@ -16,7 +16,9 @@ from standard_agents.brokers.knowledges.knowledge_broker import KnowledgeBroker
 from standard_agents.brokers.knowledges.sourced_knowledge_broker import SourcedKnowledgeBroker
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.models.foundations.knowledges.exceptions import (
+    FailedKnowledgeDependencyException,
     InvalidKnowledgeException,
+    KnowledgeDependencyException,
     KnowledgeValidationException)
 from standard_agents.models.foundations.knowledges.knowledge_result import KnowledgeResult
 
@@ -301,6 +303,9 @@ async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[N
     except InvalidKnowledgeException as invalid_knowledge_exception:
         raise await _create_and_log_validation_exception(
             logging_broker, invalid_knowledge_exception)
+    except (FileNotFoundError, NotADirectoryError, PermissionError) as critical_error:
+        raise await _create_and_log_critical_dependency_exception(
+            logging_broker, critical_error)
 
 
 async def _create_and_log_validation_exception(
@@ -314,3 +319,23 @@ async def _create_and_log_validation_exception(
     await logging_broker.log_error(knowledge_validation_exception)
 
     return knowledge_validation_exception
+
+
+async def _create_and_log_critical_dependency_exception(
+        logging_broker: LoggingBroker,
+        exception: Exception) -> KnowledgeDependencyException:
+
+    knowledge_dependency_exception = _create_dependency_exception(exception)
+    await logging_broker.log_critical(knowledge_dependency_exception)
+
+    return knowledge_dependency_exception
+
+
+def _create_dependency_exception(exception: Exception) -> KnowledgeDependencyException:
+    failed_knowledge_dependency_exception = FailedKnowledgeDependencyException(
+        message="Failed knowledge dependency error occurred, contact support.",
+        inner_exception=exception)
+
+    return KnowledgeDependencyException(
+        message="Knowledge dependency error occurred, contact support.",
+        inner_exception=failed_knowledge_dependency_exception)
