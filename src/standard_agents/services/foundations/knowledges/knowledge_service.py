@@ -17,8 +17,10 @@ from standard_agents.brokers.knowledges.sourced_knowledge_broker import SourcedK
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.models.foundations.knowledges.exceptions import (
     FailedKnowledgeDependencyException,
+    FailedKnowledgeServiceException,
     InvalidKnowledgeException,
     KnowledgeDependencyException,
+    KnowledgeServiceException,
     KnowledgeValidationException)
 from standard_agents.models.foundations.knowledges.knowledge_result import KnowledgeResult
 
@@ -308,6 +310,13 @@ async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[N
             logging_broker, critical_error)
     except OSError as os_error:
         raise await _create_and_log_dependency_exception(logging_broker, os_error)
+    except Exception as exception:
+        failed_knowledge_service_exception = FailedKnowledgeServiceException(
+            message="Failed knowledge service error occurred, contact support.",
+            inner_exception=exception)
+
+        raise await _create_and_log_service_exception(
+            logging_broker, failed_knowledge_service_exception)
 
 
 async def _create_and_log_validation_exception(
@@ -351,3 +360,16 @@ def _create_dependency_exception(exception: Exception) -> KnowledgeDependencyExc
     return KnowledgeDependencyException(
         message="Knowledge dependency error occurred, contact support.",
         inner_exception=failed_knowledge_dependency_exception)
+
+
+async def _create_and_log_service_exception(
+        logging_broker: LoggingBroker,
+        exception: Exception) -> KnowledgeServiceException:
+
+    knowledge_service_exception = KnowledgeServiceException(
+        message="Knowledge service error occurred, contact support.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(knowledge_service_exception)
+
+    return knowledge_service_exception
