@@ -402,3 +402,32 @@ async def test_should_stream_tool_reasoning_as_thinking_on_think_stream(
     assert decision_stream.result.direction_type == "calculator"
     assert decision_stream.result.payload == "2+2"
     assert judge_service.evaluate.mock_calls == []
+
+
+async def test_should_stream_final_draft_as_thinking_on_think_stream(
+        decision_coordination_service,
+        brain_service,
+        create_random_agent_context,
+        setup_gate_allows,
+        setup_judge_approves,
+        to_async_stream,
+        drain):
+
+    # given
+    input_context = create_random_agent_context()
+    setup_gate_allows()
+    setup_judge_approves()
+    brain_service.generate_stream.return_value = to_async_stream("FINAL: ", "The answer is 42.")
+
+    # when
+    decision_stream = decision_coordination_service.think_stream(input_context)
+    actual_events = await drain(decision_stream)
+
+    # then
+    assert any(
+        stream_event.type is AgentStreamEventType.THINKING for stream_event in actual_events)
+
+    assert not any(
+        stream_event.type is AgentStreamEventType.RESPONSE for stream_event in actual_events)
+
+    assert decision_stream.result.payload == "The answer is 42."
