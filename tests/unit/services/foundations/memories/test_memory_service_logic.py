@@ -26,3 +26,18 @@ async def test_should_recall_memories(
     assert list(actual_memories) == expected_memories
     assert memory_broker.mock_calls == [call.select_memories()]
     assert logging_broker.mock_calls == []
+
+
+async def test_should_recall_no_memories_on_recall_memories_if_store_is_empty(
+        memory_service, memory_broker, logging_broker):
+
+    # given
+    memory_broker.select_memories.return_value = []
+
+    # when
+    actual_memories = await memory_service.recall_memories()
+
+    # then
+    assert not actual_memories
+    assert memory_broker.mock_calls == [call.select_memories()]
+    assert logging_broker.mock_calls == []
