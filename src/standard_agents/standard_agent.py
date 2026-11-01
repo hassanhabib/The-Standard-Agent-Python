@@ -21,6 +21,7 @@ from standard_agents.brokers.knowledges.function_knowledge_broker import (
 from standard_agents.brokers.knowledges.iknowledge_broker import IKnowledgeBroker
 from standard_agents.brokers.knowledges.not_configured_knowledge_broker import (
     NotConfiguredKnowledgeBroker)
+from standard_agents.brokers.loggings.function_logging_broker import FunctionLoggingBroker
 from standard_agents.brokers.loggings.ilogging_broker import ILoggingBroker
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.brokers.mcps.function_mcp_broker import FunctionMcpBroker
@@ -240,6 +241,11 @@ class StandardAgent:
             logger.addHandler(file_handler)
 
         self.logging_broker = LoggingBroker(logger)
+
+        return self
+
+    def on_log(self, write: Callable[[str], Awaitable[None]]) -> "StandardAgent":
+        self.logging_broker = FunctionLoggingBroker(write)
 
         return self
 
