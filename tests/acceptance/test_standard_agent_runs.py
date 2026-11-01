@@ -114,6 +114,64 @@ class TestStandardAgentRuns:
         assert knowledge_queries == [input_prompt]
         assert brain_calls == [expected_user_prompt]
 
+    # Decision's guardians, end to end: the Gate refuses before the brain is ever asked, and the
+    # Judge sends a weak draft back so only the reviewed answer is delivered.
+    def test_should_refuse_when_the_gate_refuses(self) -> None:
+        # given
+        input_prompt = create_random_string()
+        brain_calls = []
+
+        async def gate(text: str) -> str:
+            return "refuse: asks for secrets"
+
+        async def brain(system_prompt: str, user_prompt: str) -> str:
+            brain_calls.append(user_prompt)
+
+            return "FINAL: secrets"
+
+        expected_outcome = AgentOutcome(
+            result="I'm not able to help with that.",
+            status=AgentStatus.REFUSED)
+
+        agent = StandardAgent().on_gate(gate).on_brain(brain)
+
+        # when
+        actual_outcome = asyncio.run(agent.run(input_prompt))
+
+        # then
+        assert actual_outcome == expected_outcome
+        assert brain_calls == []
+
+    def test_should_revise_when_the_judge_rejects_a_draft(self) -> None:
+        # given
+        input_prompt = create_random_string()
+        weak_draft = create_random_string()
+        strong_answer = create_random_string()
+        drafts = [weak_draft, strong_answer]
+        brain_calls = []
+
+        async def brain(system_prompt: str, user_prompt: str) -> str:
+            brain_calls.append(user_prompt)
+
+            return f"FINAL: {drafts[len(brain_calls) - 1]}"
+
+        async def judge(task: str, candidate: str) -> str:
+            if candidate == weak_draft:
+                return "0.1 too vague"
+
+            return "0.9"
+
+        expected_outcome = AgentOutcome(result=strong_answer, status=AgentStatus.RESPONDED)
+        agent = StandardAgent().on_judge(judge).on_brain(brain)
+
+        # when
+        actual_outcome = asyncio.run(agent.run(input_prompt))
+
+        # then
+        assert actual_outcome == expected_outcome
+        assert len(brain_calls) == 2
+        assert "too vague" in brain_calls[1]
+
 
 class EchoTool(ITool):
     @property
