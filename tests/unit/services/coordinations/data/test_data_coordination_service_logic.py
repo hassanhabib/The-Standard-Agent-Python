@@ -48,3 +48,24 @@ async def test_should_not_mutate_input_context_on_recall(
     assert input_context.prompt == original_prompt
     assert actual_context is not input_context
     assert actual_context.prompt == original_prompt
+
+
+async def test_should_seed_observations_from_memories_on_recall(
+        data_coordination_service,
+        skill_service,
+        memory_service,
+        create_random_agent_context,
+        create_random_string):
+    # given
+    input_context = create_random_agent_context()
+    random_skills = create_random_string()
+    random_memories = [create_random_string(), create_random_string()]
+    skill_service.retrieve_skills.return_value = random_skills
+    memory_service.recall_memories.return_value = random_memories
+
+    # when
+    actual_context = await data_coordination_service.recall(input_context)
+
+    # then
+    assert all(memory in actual_context.observations for memory in random_memories)
+    assert memory_service.mock_calls.count(call.recall_memories()) == 1
