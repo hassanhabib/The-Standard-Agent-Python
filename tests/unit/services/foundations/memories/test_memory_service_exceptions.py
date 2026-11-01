@@ -51,3 +51,23 @@ async def test_should_throw_dependency_exception_on_recall_memories_if_critical_
 
     assert logging_broker.mock_calls == [
         call.log_critical(same_exception_as(expected_memory_dependency_exception))]
+
+
+async def test_should_throw_dependency_exception_on_recall_memories_if_io_error_occurs_and_log_it(
+        memory_service, memory_broker, logging_broker, same_exception_as):
+
+    # given
+    io_error = OSError()
+    expected_memory_dependency_exception = _memory_dependency_exception(io_error)
+    memory_broker.select_memories.side_effect = io_error
+
+    # when
+    with pytest.raises(MemoryDependencyException) as raised:
+        await memory_service.recall_memories()
+
+    # then
+    assert raised.value.same_exception_as(expected_memory_dependency_exception)
+    assert memory_broker.mock_calls == [call.select_memories()]
+
+    assert logging_broker.mock_calls == [
+        call.log_error(same_exception_as(expected_memory_dependency_exception))]
