@@ -276,3 +276,23 @@ async def test_should_throw_service_exception_on_call_if_service_error_occurs_an
 
     assert logging_broker.mock_calls == [
         call.log_error(same_exception_as(expected_external_tool_service_exception))]
+
+
+async def test_should_throw_service_exception_on_retrieve_tools_if_service_error_occurs_and_log_it(
+        external_tool_service, mcp_broker, logging_broker, same_exception_as):
+
+    # given
+    service_exception = Exception()
+    expected_external_tool_service_exception = _external_tool_service_exception(service_exception)
+    mcp_broker.list_tools.side_effect = service_exception
+
+    # when
+    with pytest.raises(ExternalToolServiceException) as raised:
+        await external_tool_service.retrieve_tools()
+
+    # then
+    assert raised.value.same_exception_as(expected_external_tool_service_exception)
+    assert mcp_broker.mock_calls == [call.list_tools()]
+
+    assert logging_broker.mock_calls == [
+        call.log_error(same_exception_as(expected_external_tool_service_exception))]
