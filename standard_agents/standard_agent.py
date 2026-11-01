@@ -56,6 +56,7 @@ from standard_agents.services.orchestrations.decision.decision_orchestration_ser
     DecisionOrchestrationService)
 from standard_agents.services.orchestrations.direction.direction_orchestration_service import (
     DirectionOrchestrationService)
+from standard_agents.standard_agent_validations import validate_brain
 from standard_agents.tools.itool import ITool
 
 
@@ -167,6 +168,7 @@ class StandardAgent:
         return self
 
     async def run(self, prompt: str) -> AgentOutcome:
+        validate_brain(self.generator_broker)
         run_coordination_service = self.compose_run_coordination_service()
 
         return await run_coordination_service.run(prompt)
