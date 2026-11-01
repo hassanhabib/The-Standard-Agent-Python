@@ -10,7 +10,9 @@ import pytest
 from restfulsense import HttpRequestException
 from standard_agents.models.foundations.usages.exceptions import (
     FailedUsageDependencyException,
-    UsageDependencyException)
+    FailedUsageServiceException,
+    UsageDependencyException,
+    UsageServiceException)
 
 
 async def test_should_throw_dependency_exception_on_measure_if_counter_is_unreachable(
@@ -42,3 +44,30 @@ async def test_should_throw_dependency_exception_on_measure_if_counter_is_unreac
 
     assert logging_broker.mock_calls == [
         call.log_error(same_exception_as(expected_usage_dependency_exception))]
+
+
+async def test_should_throw_service_exception_on_measure_if_counter_fails(
+        usage_service, usage_broker, logging_broker, same_exception_as, create_random_string):
+
+    # given
+    service_exception = Exception()
+
+    failed_usage_service_exception = FailedUsageServiceException(
+        message="Failed usage service error occurred, contact support.",
+        inner_exception=service_exception)
+
+    expected_usage_service_exception = UsageServiceException(
+        message="Usage service error occurred, contact support.",
+        inner_exception=failed_usage_service_exception)
+
+    usage_broker.count_tokens.side_effect = service_exception
+
+    # when
+    with pytest.raises(UsageServiceException) as raised:
+        await usage_service.measure(create_random_string(), create_random_string())
+
+    # then
+    assert raised.value.same_exception_as(expected_usage_service_exception)
+
+    assert logging_broker.mock_calls == [
+        call.log_error(same_exception_as(expected_usage_service_exception))]
