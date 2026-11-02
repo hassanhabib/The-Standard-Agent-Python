@@ -1302,6 +1302,14 @@ class StandardAgent(Agent):
         await self.aclose()
 
     async def aclose(self) -> None:
+        """Stops what the agent owns: every MCP server process it started (mcp_process), with
+        every process each server started. A Python addition; optional.
+
+        Without it the agent behaves as the C# does, and its servers stop when the interpreter
+        exits. What the host handed it (a broker to use_mcp or any use_ verb, a handler to http)
+        is the host's, and is left as it is. A closed agent still works: its next run starts its
+        servers again, and they are the agent's to stop again.
+        """
         with self._composition_lock:
             owned_mcp_brokers = list(self._owned_mcp_brokers)
 
