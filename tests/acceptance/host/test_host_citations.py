@@ -64,3 +64,18 @@ async def test_should_cite_the_sources_when_the_request_asks_through_http(serve_
 
     # then
     assert actual_response["result"] == expected_result
+
+
+async def test_should_cite_the_sources_when_the_deployment_cites_and_the_request_declines_through_http(
+        serve_host,
+        v1_document):
+
+    # given: a deployment that must cite cannot be switched off by a caller
+    expected_result = f"{_REFUNDS_ANSWER}\n\nSource: {_REFUNDS_SOURCE}"
+
+    # when
+    actual_response = await _post_citation_run(
+        serve_host, v1_document, lambda agent: agent.cite_knowledge(), cite_knowledge=False)
+
+    # then
+    assert actual_response["result"] == expected_result
