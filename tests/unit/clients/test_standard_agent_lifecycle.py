@@ -67,3 +67,21 @@ async def test_should_stop_every_mcp_server_process_it_started_when_closed(
 
     # then: the whole tree is gone
     assert await have_stopped(process_ids)
+
+
+async def test_should_stop_every_mcp_server_process_it_started_when_its_block_ends(
+        empty_memory_broker,
+        empty_knowledge_broker):
+
+    # given, when: an agent that started an MCP server, used inside an async with block
+    system_prompts = []
+
+    async with create_agent(
+            empty_memory_broker,
+            empty_knowledge_broker,
+            system_prompts) as agent:
+
+        process_ids = await process_ids_of(agent, system_prompts)
+
+    # then: the whole tree is gone
+    assert await have_stopped(process_ids)
