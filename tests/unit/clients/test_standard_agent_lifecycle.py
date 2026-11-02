@@ -9,6 +9,7 @@
 # What the host handed it (a broker, an HTTP handler) is the host's, and is left as it is.
 
 import io
+import itertools
 import re
 import sys
 import urllib.request
@@ -74,6 +75,40 @@ def create_agent(memory_broker, knowledge_broker, system_prompts: list[str]) -> 
         .on_skills(select_persona)
         .mcp_process(sys.executable, arguments=[PROCESS_SERVER_PATH])
         .on_brain(brain))
+
+
+def create_calling_agent(
+        memory_broker,
+        knowledge_broker,
+        tool_answers: list[str]) -> StandardAgent:
+    """An agent that starts the process server and, on every prompt, calls one of its tools
+    once, recording the prompt that carries the server's answer."""
+    turns = itertools.count(1)
+
+    async def brain(system_prompt, user_prompt):
+        if next(turns) % 2 == 1:
+            tool_name = re.search(r"\bserver-\d+\b", system_prompt).group()
+
+            return f"ACTION: {tool_name}: now"
+
+        tool_answers.append(user_prompt)
+
+        return "FINAL: done"
+
+    return (StandardAgent()
+        .use_memory(memory_broker)
+        .use_knowledge(knowledge_broker)
+        .on_skills(select_persona)
+        .mcp_process(sys.executable, arguments=[PROCESS_SERVER_PATH])
+        .on_brain(brain))
+
+
+def process_ids_answered(tool_answers: list[str]) -> list[int]:
+    """The server's process id and its child's, as the server running at the last call had
+    them."""
+    server_id, child_id = re.findall(r"\bserver-(\d+) child-(\d+)\b", tool_answers[-1])[-1]
+
+    return [int(server_id), int(child_id)]
 
 
 async def process_ids_of(agent: StandardAgent, system_prompts: list[str]) -> list[int]:
@@ -253,3 +288,29 @@ async def test_should_not_close_an_http_handler_the_host_supplied_when_closed(
     # then: the agent used the host's handler, and left it to the host
     assert host_handler.request_count > 0
     assert host_handler.is_closed is False
+
+
+async def test_should_answer_when_used_again_after_closing(
+        empty_memory_broker,
+        empty_knowledge_broker):
+
+    # given: an agent that ran, calling its MCP server, and was closed
+    tool_answers = []
+    agent = create_calling_agent(empty_memory_broker, empty_knowledge_broker, tool_answers)
+    await agent.process_prompt("hello")
+    closed_process_ids = process_ids_answered(tool_answers)
+    await agent.aclose()
+
+    try:
+        # when
+        answer = await agent.process_prompt("hello again")
+
+        # then: it answered through a server started again, which is running
+        restarted_process_ids = process_ids_answered(tool_answers)
+
+        assert answer == "done"
+        assert restarted_process_ids != closed_process_ids
+        assert all(is_running(process_id) for process_id in restarted_process_ids)
+    finally:
+        await agent.aclose()
+
