@@ -12,7 +12,9 @@ The owner's target, set 2026-11-01:
   brains, and MCP clients over HTTP and standard input and output. The library still makes no call
   a host did not compose.
 
-Publishing to PyPI is on hold until the target is met.
+**Reached 2026-11-02:** every C# unit, acceptance, wire, client, host and packaging test has a
+Python twin (577 of 577), all 88 vectors pass, and Core, Reliable, Enterprise and Critical certify
+in CI. Publishing to PyPI still waits for the owner's explicit approval.
 
 ## How progress is measured
 
@@ -144,5 +146,5 @@ behaves exactly as the C# does.
 
 ## Version
 
-The library is unpublished at 1.0.0.0. When it reaches parity it takes the C# version it matches
-(Standard.Agents is at 6.0.0.0 today), so one number means one behaviour in both languages.
+At parity the library takes the C# version it matches, Standard.Agents 6.0.0.0, so one number
+means one behaviour in both languages. It is unpublished.
