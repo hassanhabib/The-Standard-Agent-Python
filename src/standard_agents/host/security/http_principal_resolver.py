@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from standard_agents.host.http_context import HttpContextAccessor
+from standard_agents.host.security.claims import ClaimsPrincipal
 from standard_agents.models.orchestrations.effects.agent_principal import AgentPrincipal
 
 
@@ -22,4 +23,21 @@ class HttpPrincipalResolver:
         self.http_context_accessor = http_context_accessor
 
     def resolve(self) -> AgentPrincipal | None:
-        raise NotImplementedError
+        user = self.http_context_accessor.http_context.user
+
+        return AgentPrincipal(
+            id=_first_value(user, "sub"),
+            tenant_id=_first_value(user, "tid", "tenant"),
+            jurisdiction=_first_value(user, "jurisdiction"),
+            delegated_by=_first_value(user, "act"))
+
+
+def _first_value(user: ClaimsPrincipal, *claim_types: str) -> str | None:
+    """The value of the first of these claim types the user carries, in the order given."""
+    for claim_type in claim_types:
+        claim = user.find_first(claim_type)
+
+        if claim is not None:
+            return claim.value
+
+    return None
