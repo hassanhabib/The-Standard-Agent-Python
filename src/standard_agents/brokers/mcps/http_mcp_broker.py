@@ -501,6 +501,6 @@ def _text(value: str | None) -> str:
 def _client_version() -> str:
     """The installed distribution's version (the assembly version in C#), empty when none."""
     try:
-        return importlib.metadata.version("standard-agents")
+        return importlib.metadata.version("the-standard-agent")
     except importlib.metadata.PackageNotFoundError:
         return ""
