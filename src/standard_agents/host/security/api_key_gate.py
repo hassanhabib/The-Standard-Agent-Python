@@ -12,4 +12,4 @@ and one configuration line locks every agent route for what a deployment wants.
 
 
 def allows(configured_key: str | None, presented_key: str | None, path: str) -> bool:
-    raise NotImplementedError
+    return not configured_key
