@@ -86,7 +86,8 @@ async def test_should_not_cite_the_sources_when_the_deployment_declines_and_the_
         v1_document):
 
     # given: a deployment that never cites cannot be switched on by a caller
-    configure = lambda agent: agent.cite_knowledge(cite=False)  # noqa: E731
+    def configure(agent):
+        return agent.cite_knowledge(cite=False)
 
     # when
     actual_response = await _post_citation_run(
