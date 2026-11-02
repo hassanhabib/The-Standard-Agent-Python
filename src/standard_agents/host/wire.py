@@ -75,6 +75,19 @@ def read_model(model_type: type, text: str) -> Any:
     return _read(model_type, document, "$")
 
 
+def required_field_errors(model: Any) -> dict[str, list[str]]:
+    """Every field the model leaves None that its contract does not let be None.
+
+    The model validation ASP.NET runs after binding: a non-nullable property is implicitly
+    required, so a null where the contract does not allow one is refused naming it, nested
+    records and list items included (History, History[0].Prompt), and never guessed at.
+    """
+    errors: dict[str, list[str]] = {}
+    _collect_required_field_errors(model, "", errors)
+
+    return errors
+
+
 def write_json(value: Any) -> str:
     """Write a model, a list or a dictionary as the web serializer writes it."""
     return "".join(_write(value))
@@ -178,6 +191,27 @@ def _read_dataclass(model_type: type, document: _JsonObject, path: str) -> Any:
             arguments[field.name] = None
 
     return model_type(**arguments)
+
+
+def _collect_required_field_errors(model: Any, prefix: str, errors: dict) -> None:
+    hints = typing.get_type_hints(type(model))
+
+    for field in dataclasses.fields(model):
+        value = getattr(model, field.name)
+        name = csharp_name(field.name)
+        key = f"{prefix}{name}"
+
+        if value is None:
+            if _without_none(hints[field.name]) is hints[field.name]:
+                errors[key] = [f"The {name} field is required."]
+
+        elif dataclasses.is_dataclass(value):
+            _collect_required_field_errors(value, f"{key}.", errors)
+
+        elif isinstance(value, tuple):
+            for index, item in enumerate(value):
+                if dataclasses.is_dataclass(item):
+                    _collect_required_field_errors(item, f"{key}[{index}].", errors)
 
 
 def _write(value: Any) -> Iterable[str]:

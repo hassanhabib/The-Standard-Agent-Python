@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+import secrets
 import urllib.parse
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from contextlib import suppress
@@ -177,6 +178,13 @@ class AgentHost:
             return
 
         model = wire.read_model(route.request_type, request.body.decode("utf-8"))
+        errors = wire.required_field_errors(model)
+
+        if errors:
+            await _write_validation_problem(connection, request, errors)
+
+            return
+
         result = await route.action(self._get_agent(), model, asyncio.Event())
 
         await self._write_object_result(connection, request, result)
@@ -205,6 +213,28 @@ class AgentHost:
             headers=(("Content-Type", content_type),),
             body=body.encode("utf-8"),
             keep_alive=request.keep_alive)
+
+
+async def _write_validation_problem(
+        connection: _Connection,
+        request: HttpRequest,
+        errors: dict[str, list[str]]) -> None:
+    """The 400 the C# host's [ApiController] answers a request that failed binding with: a
+    ValidationProblemDetails naming every field that failed."""
+
+    problem = {
+        "type": "https://tools.ietf.org/html/rfc9110#section-15.5.1",
+        "title": "One or more validation errors occurred.",
+        "status": HTTPStatus.BAD_REQUEST.value,
+        "errors": errors,
+        "traceId": _trace_id(),
+    }
+
+    await connection.write_response(
+        HTTPStatus.BAD_REQUEST,
+        headers=(("Content-Type", "application/problem+json; charset=utf-8"),),
+        body=wire.write_json(problem).encode("utf-8"),
+        keep_alive=request.keep_alive)
 
 
 class _Connection:
@@ -294,6 +324,11 @@ def _path_of(target: str) -> str:
     return "".join(
         part if _PERCENT_ENCODED_SLASH.fullmatch(part) else urllib.parse.unquote(part)
         for part in _PERCENT_ENCODED_SLASH.split(path))
+
+
+def _trace_id() -> str:
+    """A W3C trace id, the shape ASP.NET stamps a problem with when no trace is running."""
+    return f"00-{secrets.token_hex(16)}-{secrets.token_hex(8)}-00"
 
 
 def _endpoint(url: str) -> tuple[str | None, int]:
