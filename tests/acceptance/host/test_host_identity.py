@@ -80,3 +80,24 @@ async def test_should_hand_the_authenticated_user_to_the_agent_as_the_principal_
     assert actual_response["status"] == "AwaitingApproval"
     assert actual_response["pendingEffect"] is not None
     assert actual_response["pendingEffect"]["principal"] == "hassan"
+
+
+async def test_should_hand_no_principal_to_the_agent_for_an_anonymous_request_through_http(
+        serve_host,
+        v1_document):
+
+    # given: the same host, no credential presented, no authentication configured to require one
+    async with serve_host(
+            agent_factory=_authenticated_agent,
+            authenticate=_test_authentication) as client:
+
+        # when
+        response = await client.post_json(
+            "api/V1/agents/runs",
+            v1_document(prompt="wire the money"))
+
+    actual_response = response.json()
+
+    # then: nobody was invented
+    assert response.status == 200
+    assert actual_response["pendingEffect"]["principal"] is None
