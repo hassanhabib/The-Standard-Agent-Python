@@ -96,3 +96,18 @@ async def test_should_refuse_an_empty_prompt_through_http(agent, serve_host, v1_
     # then
     assert response.status == 400
     agent.run.assert_not_called()
+
+
+async def test_should_post_a_prompt_only_run_through_the_convenience_door(agent, serve_host):
+    # given: V0 of the wire, untouched by V1; its controller rides the string door
+    agent.run.return_value = AgentOutcome("the answer", AgentStatus.RESPONDED)
+    expected_response = {"result": "the answer", "status": "Responded"}
+
+    async with serve_host() as client:
+        # when
+        response = await client.post_json("api/agents/runs", {"prompt": "what is owed"})
+
+    # then
+    assert response.status == 200
+    assert response.json() == expected_response
+    assert agent.run.call_args_list == [call("what is owed", cancellation=ANY)]
