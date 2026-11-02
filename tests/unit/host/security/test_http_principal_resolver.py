@@ -10,7 +10,12 @@
 # field in which a caller can claim to be someone.
 
 from standard_agents.host.http_context import HttpContext, HttpContextAccessor
-from standard_agents.host.security.claims import Claim, ClaimsIdentity, ClaimsPrincipal
+from standard_agents.host.security.claims import (
+    Claim,
+    ClaimsIdentity,
+    ClaimsPrincipal,
+    ClaimTypes,
+)
 from standard_agents.host.security.http_principal_resolver import HttpPrincipalResolver
 from standard_agents.models.orchestrations.effects.agent_principal import AgentPrincipal
 
@@ -41,6 +46,22 @@ def test_should_resolve_the_authenticated_user_as_the_principal():
         tenant_id="peerllm",
         jurisdiction="US-WA",
         delegated_by="ops-bot")
+
+    # when
+    actual_principal = resolver.resolve()
+
+    # then
+    assert actual_principal == expected_principal
+
+
+def test_should_resolve_the_name_identifier_when_there_is_no_subject_claim():
+    # given: an identity in the .NET claim vocabulary rather than the token one
+    identity = ClaimsIdentity(
+        claims=(Claim(ClaimTypes.NAME_IDENTIFIER, "hassan@peerllm.com"),),
+        authentication_type="Cookies")
+
+    resolver = _resolver_for(ClaimsPrincipal(identity))
+    expected_principal = AgentPrincipal(id="hassan@peerllm.com")
 
     # when
     actual_principal = resolver.resolve()
