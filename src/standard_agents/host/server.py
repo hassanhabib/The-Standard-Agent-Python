@@ -30,9 +30,11 @@ from standard_agents.host.controllers.action_results import ObjectResult, Stream
 from standard_agents.host.controllers.agents_controller import AgentsController
 from standard_agents.host.controllers.home_controller import HomeController
 from standard_agents.host.controllers.v1.agents_v1_controller import AgentsV1Controller
+from standard_agents.host.http_context import HttpContext, HttpContextAccessor
 from standard_agents.host.models.agent_run_request import AgentRunRequest
 from standard_agents.host.models.v1.agent_run_request_v1 import AgentRunRequestV1
 from standard_agents.host.security import api_key_gate
+from standard_agents.host.security.claims import ClaimsPrincipal
 
 _PERCENT_ENCODED_SLASH = re.compile(r"(%2[Ff])")
 
@@ -127,9 +129,13 @@ class AgentHost:
             resolve_agent: Callable[[], Agent],
             *,
             urls: Sequence[str] = ("http://localhost:5000",),
-            api_key: str | None = None) -> None:
+            api_key: str | None = None,
+            authenticate: Callable[[HttpRequest], Awaitable[ClaimsPrincipal | None]] | None = None,
+            http_context_accessor: HttpContextAccessor | None = None) -> None:
 
         self._api_key = api_key
+        self._authenticate = authenticate
+        self._http_context_accessor = http_context_accessor or HttpContextAccessor()
         self._resolve_agent = resolve_agent
         self._agent: Agent | None = None
         self._configured_urls = tuple(urls)
@@ -198,7 +204,27 @@ class AgentHost:
                 await writer.wait_closed()
 
     async def _respond(self, connection: _Connection, request: HttpRequest) -> bool:
-        """Answer one request; whether the connection can carry another."""
+        """Answer one request; whether the connection can carry another.
+
+        The scheme establishes who the request is before anything else runs, and the context
+        holds them for the request's whole life, so the agent's principal callable, called
+        deep inside the run, reads this request's user and never another's.
+        """
+        user = await self._authenticate_user(request)
+        self._http_context_accessor.http_context = HttpContext(user=user)
+
+        try:
+            return await self._respond_to(connection, request)
+        finally:
+            self._http_context_accessor.http_context = None
+
+    async def _authenticate_user(self, request: HttpRequest) -> ClaimsPrincipal:
+        user = await self._authenticate(request) if self._authenticate is not None else None
+
+        # No scheme, or a scheme with no result, is an anonymous user, never no user.
+        return user if user is not None else ClaimsPrincipal()
+
+    async def _respond_to(self, connection: _Connection, request: HttpRequest) -> bool:
         # The front door, before the routes: no configured key means open (a laptop), one
         # configuration line means every agent route wants X-Api-Key (a deployment). The
         # heartbeat stays open either way: a probe cannot present a key and learns nothing.

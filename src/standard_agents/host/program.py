@@ -37,12 +37,20 @@ def create_host(
     None for an anonymous request.
     """
     settings = _Settings(configuration or {})
-    principals = HttpPrincipalResolver(HttpContextAccessor())
+
+    # Who is acting comes from the request's authenticated user, translated per act into the
+    # principal the policy decides on and the audit stamps (principal review 2026-09-04, F-10).
+    # The wire has no field in which a caller can claim to be someone; the scheme establishes
+    # them.
+    http_context_accessor = HttpContextAccessor()
+    principals = HttpPrincipalResolver(http_context_accessor)
 
     return AgentHost(
         lambda: agent_factory(principals),
         urls=_urls(settings),
-        api_key=settings.get("Host:ApiKey"))
+        api_key=settings.get("Host:ApiKey"),
+        authenticate=authenticate,
+        http_context_accessor=http_context_accessor)
 
 
 class _Settings:
