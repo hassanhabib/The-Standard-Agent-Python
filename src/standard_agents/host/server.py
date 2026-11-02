@@ -158,7 +158,12 @@ class AgentHost:
             self._servers.append(await asyncio.start_server(self._serve, host, port))
 
     async def aclose(self) -> None:
-        """Stops listening, then closes every connection."""
+        """Stops listening, closes every connection, then closes the agent the host composed.
+
+        The agent is the host's because the host resolved it, as the C# container disposes the
+        singletons it created: a StandardAgent stops the MCP server processes it started. An
+        agent that offers no aclose has nothing to stop.
+        """
         for server in self._servers:
             server.close()
 
@@ -169,6 +174,12 @@ class AgentHost:
 
         for server in self._servers:
             await server.wait_closed()
+
+        close_agent = getattr(self._agent, "aclose", None)
+        self._agent = None
+
+        if close_agent is not None:
+            await close_agent()
 
     async def __aenter__(self) -> AgentHost:
         await self.start()
