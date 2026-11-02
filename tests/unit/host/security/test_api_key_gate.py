@@ -15,3 +15,26 @@ def test_should_allow_everything_when_no_key_is_configured():
 
     # then: an unset key is a deliberate open door, not a locked one with no key cut.
     assert actual_decision is True
+
+
+def test_should_allow_the_agent_routes_only_with_the_configured_key():
+    # given . when
+    matching_decision = api_key_gate.allows(
+        configured_key="psk-live-7",
+        presented_key="psk-live-7",
+        path="/api/agents/runs")
+
+    mismatched_decision = api_key_gate.allows(
+        configured_key="psk-live-7",
+        presented_key="psk-live-8",
+        path="/api/agents/runs")
+
+    absent_decision = api_key_gate.allows(
+        configured_key="psk-live-7",
+        presented_key=None,
+        path="/api/agents/streams")
+
+    # then
+    assert matching_decision is True
+    assert mismatched_decision is False
+    assert absent_decision is False
