@@ -257,6 +257,7 @@ class StandardAgent(Agent):
         self._skill_sources: list[SkillBroker] = []
         self._mcp_sources: list[Callable[[], McpBroker]] = []
         self._agent_sources: list[AgentRegistryBroker] = []
+        self._mcp_brokers: list[McpBroker] = []
 
         self._name = ""
         self._description = ""
@@ -1295,7 +1296,12 @@ class StandardAgent(Agent):
         set_outcome(events.outcome)
 
     async def aclose(self) -> None:
-        raise NotImplementedError
+        with self._composition_lock:
+            mcp_brokers = list(self._mcp_brokers)
+
+        for mcp_broker in mcp_brokers:
+            if isinstance(mcp_broker, StdioMcpBroker):
+                await mcp_broker.aclose()
 
     @contextmanager
     def _configuring(self) -> Iterator[None]:
@@ -1511,6 +1517,7 @@ class StandardAgent(Agent):
         # One source composes as itself; several compose behind the same seam the service already
         # speaks, so the tier above never learns how many integrations answered.
         mcp_brokers = [source() for source in self._mcp_sources]
+        self._mcp_brokers = mcp_brokers
 
         if not mcp_brokers:
             mcp: McpBroker = NotConfiguredMcpBroker()
