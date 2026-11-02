@@ -11,6 +11,7 @@ never new concepts, so the appliance guarantee holds at the exposure layer too.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Awaitable, Callable, Mapping
 
 from standard_agents.agent import Agent
@@ -20,6 +21,7 @@ from standard_agents.host.security.http_principal_resolver import HttpPrincipalR
 from standard_agents.host.server import AgentHost, HttpRequest
 
 _DEFAULT_URLS = "http://localhost:5000"
+_LOGGER = logging.getLogger("standard_agents.host")
 
 
 def create_host(
@@ -45,10 +47,23 @@ def create_host(
     http_context_accessor = HttpContextAccessor()
     principals = HttpPrincipalResolver(http_context_accessor)
 
+    # Naming an issuer (Host:Authentication:Authority) is what configures authentication, and
+    # then every agent route wants an authenticated user. Name nothing and the door is as open
+    # as before, with no principal handed to the agent.
+    authority = settings.get("Host:Authentication:Authority")
+    authentication_configured = not _is_blank(authority)
+
+    if authentication_configured and authenticate is None:
+        _LOGGER.warning(
+            "Host:Authentication:Authority is set, and this host has no scheme that can "
+            "validate a bearer token: every agent route answers 401 until create_host is "
+            "given an authenticate scheme.")
+
     return AgentHost(
         lambda: agent_factory(principals),
         urls=_urls(settings),
         api_key=settings.get("Host:ApiKey"),
+        authentication_configured=authentication_configured,
         authenticate=authenticate,
         http_context_accessor=http_context_accessor)
 
@@ -61,6 +76,10 @@ class _Settings:
 
     def get(self, key: str) -> str | None:
         return self._values.get(key.upper())
+
+
+def _is_blank(value: str | None) -> bool:
+    return not value or value.isspace()
 
 
 def _urls(settings: _Settings) -> tuple[str, ...]:

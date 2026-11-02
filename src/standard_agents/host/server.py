@@ -33,7 +33,7 @@ from standard_agents.host.controllers.v1.agents_v1_controller import AgentsV1Con
 from standard_agents.host.http_context import HttpContext, HttpContextAccessor
 from standard_agents.host.models.agent_run_request import AgentRunRequest
 from standard_agents.host.models.v1.agent_run_request_v1 import AgentRunRequestV1
-from standard_agents.host.security import api_key_gate
+from standard_agents.host.security import api_key_gate, identity_gate
 from standard_agents.host.security.claims import ClaimsPrincipal
 
 _PERCENT_ENCODED_SLASH = re.compile(r"(%2[Ff])")
@@ -130,10 +130,12 @@ class AgentHost:
             *,
             urls: Sequence[str] = ("http://localhost:5000",),
             api_key: str | None = None,
+            authentication_configured: bool = False,
             authenticate: Callable[[HttpRequest], Awaitable[ClaimsPrincipal | None]] | None = None,
             http_context_accessor: HttpContextAccessor | None = None) -> None:
 
         self._api_key = api_key
+        self._authentication_configured = authentication_configured
         self._authenticate = authenticate
         self._http_context_accessor = http_context_accessor or HttpContextAccessor()
         self._resolve_agent = resolve_agent
@@ -214,7 +216,7 @@ class AgentHost:
         self._http_context_accessor.http_context = HttpContext(user=user)
 
         try:
-            return await self._respond_to(connection, request)
+            return await self._respond_to(connection, request, user)
         finally:
             self._http_context_accessor.http_context = None
 
@@ -224,7 +226,12 @@ class AgentHost:
         # No scheme, or a scheme with no result, is an anonymous user, never no user.
         return user if user is not None else ClaimsPrincipal()
 
-    async def _respond_to(self, connection: _Connection, request: HttpRequest) -> bool:
+    async def _respond_to(
+            self,
+            connection: _Connection,
+            request: HttpRequest,
+            user: ClaimsPrincipal) -> bool:
+
         # The front door, before the routes: no configured key means open (a laptop), one
         # configuration line means every agent route wants X-Api-Key (a deployment). The
         # heartbeat stays open either way: a probe cannot present a key and learns nothing.
@@ -237,6 +244,22 @@ class AgentHost:
             await connection.write_response(
                 HTTPStatus.UNAUTHORIZED,
                 body=b"missing or invalid X-Api-Key",
+                keep_alive=request.keep_alive)
+
+            return request.keep_alive
+
+        # The second lock: with authentication configured, an agent route wants an
+        # authenticated user, established by the scheme and handed to the agent as the
+        # principal.
+        identity_allowed = identity_gate.allows(
+            self._authentication_configured,
+            user_is_authenticated=user.identity is not None and user.identity.is_authenticated,
+            path=request.path)
+
+        if not identity_allowed:
+            await connection.write_response(
+                HTTPStatus.UNAUTHORIZED,
+                body=b"an authenticated user is required",
                 keep_alive=request.keep_alive)
 
             return request.keep_alive
