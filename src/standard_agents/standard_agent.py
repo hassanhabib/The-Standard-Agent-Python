@@ -257,7 +257,7 @@ class StandardAgent(Agent):
         self._skill_sources: list[SkillBroker] = []
         self._mcp_sources: list[Callable[[], McpBroker]] = []
         self._agent_sources: list[AgentRegistryBroker] = []
-        self._mcp_brokers: list[McpBroker] = []
+        self._owned_mcp_brokers: list[StdioMcpBroker] = []
 
         self._name = ""
         self._description = ""
@@ -582,12 +582,12 @@ class StandardAgent(Agent):
             timeout_seconds: int = 30) -> StandardAgent:
         """An MCP server the agent starts itself and speaks to over standard input and output."""
         with self._configuring():
-            self._mcp_sources.append(lambda: StdioMcpBroker(
+            self._mcp_sources.append(lambda: self._own(StdioMcpBroker(
                 command=command,
                 arguments=arguments if arguments is not None else [],
                 environment_variables=environment_variables,
                 working_directory=working_directory,
-                timeout_seconds=timeout_seconds))
+                timeout_seconds=timeout_seconds)))
 
         return self
 
@@ -1303,11 +1303,10 @@ class StandardAgent(Agent):
 
     async def aclose(self) -> None:
         with self._composition_lock:
-            mcp_brokers = list(self._mcp_brokers)
+            owned_mcp_brokers = list(self._owned_mcp_brokers)
 
-        for mcp_broker in mcp_brokers:
-            if isinstance(mcp_broker, StdioMcpBroker):
-                await mcp_broker.aclose()
+        for owned_mcp_broker in owned_mcp_brokers:
+            await owned_mcp_broker.aclose()
 
     @contextmanager
     def _configuring(self) -> Iterator[None]:
@@ -1359,6 +1358,13 @@ class StandardAgent(Agent):
         opener.addheaders = []
 
         return opener
+
+    def _own(self, mcp_broker: StdioMcpBroker) -> StdioMcpBroker:
+        # Called by composition, under the composition lock: a broker the agent created is the
+        # agent's to close, while one the host handed to use_mcp stays the host's.
+        self._owned_mcp_brokers.append(mcp_broker)
+
+        return mcp_broker
 
     def _current_principal_id(self) -> str | None:
         if self._identity_resolver is None:
@@ -1523,7 +1529,6 @@ class StandardAgent(Agent):
         # One source composes as itself; several compose behind the same seam the service already
         # speaks, so the tier above never learns how many integrations answered.
         mcp_brokers = [source() for source in self._mcp_sources]
-        self._mcp_brokers.extend(mcp_brokers)
 
         if not mcp_brokers:
             mcp: McpBroker = NotConfiguredMcpBroker()
