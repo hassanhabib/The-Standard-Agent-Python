@@ -3,6 +3,8 @@
 # Licensed under the The Standard Software License (TSSL)
 # ---------------------------------------------------------------
 
+from http import HTTPStatus
+
 from standard_agents.host.controllers.action_results import ObjectResult
 
 
@@ -14,4 +16,4 @@ class HomeController:
     """
 
     def get(self) -> ObjectResult:
-        raise NotImplementedError
+        return ObjectResult(HTTPStatus.OK, "The Standard Agent is alive.")
