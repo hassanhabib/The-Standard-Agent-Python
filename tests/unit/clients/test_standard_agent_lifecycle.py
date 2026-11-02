@@ -142,3 +142,22 @@ async def test_should_close_an_agent_that_never_ran(
 
     # then: closing it is harmless, and nothing ran
     assert system_prompts == []
+
+
+async def test_should_stop_the_mcp_server_processes_of_an_earlier_composition_when_closed(
+        empty_memory_broker,
+        empty_knowledge_broker):
+
+    # given: an agent that started an MCP server, was configured again after it ran, and so
+    # composed afresh and started a second one, leaving the first running
+    system_prompts = []
+    agent = create_agent(empty_memory_broker, empty_knowledge_broker, system_prompts)
+    earlier_process_ids = await process_ids_of(agent, system_prompts)
+    agent.max_turns(5)
+    later_process_ids = await process_ids_of(agent, system_prompts)
+
+    # when
+    await agent.aclose()
+
+    # then: every server the agent started is gone, not only the latest composition's
+    assert await have_stopped(earlier_process_ids + later_process_ids)
