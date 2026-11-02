@@ -12,6 +12,8 @@ import re
 import sys
 from pathlib import Path
 
+import pytest
+
 from standard_agents.models.foundations.skills.skill import Skill
 from standard_agents.standard_agent import StandardAgent
 from tests.wire.processes import have_stopped
@@ -84,4 +86,27 @@ async def test_should_stop_every_mcp_server_process_it_started_when_its_block_en
         process_ids = await process_ids_of(agent, system_prompts)
 
     # then: the whole tree is gone
+    assert await have_stopped(process_ids)
+
+
+async def test_should_stop_every_mcp_server_process_it_started_when_its_block_raises(
+        empty_memory_broker,
+        empty_knowledge_broker):
+
+    # given: an agent that started an MCP server, used inside an async with block that raises
+    system_prompts = []
+    process_ids = []
+
+    # when
+    with pytest.raises(LookupError):
+        async with create_agent(
+                empty_memory_broker,
+                empty_knowledge_broker,
+                system_prompts) as agent:
+
+            process_ids.extend(await process_ids_of(agent, system_prompts))
+
+            raise LookupError("the host failed with the agent in hand")
+
+    # then: the whole tree is gone, and the host's error is the one that surfaced
     assert await have_stopped(process_ids)
