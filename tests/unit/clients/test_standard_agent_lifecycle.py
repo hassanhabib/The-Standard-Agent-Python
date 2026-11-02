@@ -14,9 +14,10 @@ from pathlib import Path
 
 import pytest
 
+from standard_agents.brokers.mcps.stdio_mcp_broker import StdioMcpBroker
 from standard_agents.models.foundations.skills.skill import Skill
 from standard_agents.standard_agent import StandardAgent
-from tests.wire.processes import have_stopped
+from tests.wire.processes import have_stopped, is_running
 
 PROCESS_SERVER_PATH = str(Path(__file__).parents[2] / "wire" / "stdio_process_server.py")
 
@@ -161,3 +162,33 @@ async def test_should_stop_the_mcp_server_processes_of_an_earlier_composition_wh
 
     # then: every server the agent started is gone, not only the latest composition's
     assert await have_stopped(earlier_process_ids + later_process_ids)
+
+
+async def test_should_not_stop_an_mcp_server_the_host_supplied_when_closed(
+        empty_memory_broker,
+        empty_knowledge_broker):
+
+    # given: an MCP server the host started and handed to the agent, which ran with it
+    async def brain(system_prompt, user_prompt):
+        return "FINAL: done"
+
+    async with StdioMcpBroker(
+            command=sys.executable,
+            arguments=[PROCESS_SERVER_PATH],
+            timeout_seconds=30) as host_broker:
+
+        process_ids = [int(tool.name.split("-")[1]) for tool in await host_broker.list_tools()]
+
+        agent = (StandardAgent()
+            .use_memory(empty_memory_broker)
+            .use_knowledge(empty_knowledge_broker)
+            .use_mcp(host_broker)
+            .on_brain(brain))
+
+        await agent.process_prompt("hello")
+
+        # when
+        await agent.aclose()
+
+        # then: the host's server is the host's to stop, and is still running
+        assert all(is_running(process_id) for process_id in process_ids)
