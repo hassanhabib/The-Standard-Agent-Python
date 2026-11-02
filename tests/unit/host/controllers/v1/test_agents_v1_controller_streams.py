@@ -44,3 +44,20 @@ async def test_should_post_stream_as_server_sent_events(
     assert streamed == (
         "event: Thinking\ndata: considering\n\n"
         "event: Response\ndata: line one\ndata: line two\n\n")
+
+
+async def test_should_return_bad_request_on_post_stream_if_prompt_is_empty(
+        agent,
+        agents_v1_controller):
+
+    # given
+    request = AgentRunRequestV1(prompt="", session_id="trip-3")
+
+    # when
+    actual_result = await agents_v1_controller.post_stream(request)
+    streamed = await _read(actual_result.body)
+
+    # then
+    assert actual_result.status_code == HTTPStatus.BAD_REQUEST
+    assert streamed == ""
+    assert agent.mock_calls == []
