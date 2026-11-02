@@ -87,7 +87,8 @@ def _to_prompt_request(request: AgentRunRequestV1) -> PromptRequest:
             ToolDefinition(tool.name, tool.description, tool.parameters_json)
             for tool in request.caller_tools),
 
-        provider_options_json=request.provider_options_json)
+        provider_options_json=request.provider_options_json,
+        cite_knowledge=request.cite_knowledge)
 
 
 def _to_tool_exchange(exchange: ToolExchangeV1) -> ToolExchange:
