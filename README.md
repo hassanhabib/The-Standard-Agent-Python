@@ -45,8 +45,11 @@ change; the same command with `--profile Critical` reproduces it.
 ## Install
 
 ```bash
-pip install -e ".[test]"
+pip install the-standard-agent
 ```
+
+The distribution is `the-standard-agent`; the import is `standard_agents`. From a clone,
+`pip install -e ".[test]"`.
 
 Python 3.10 or later. The package is typed (`py.typed`).
 
