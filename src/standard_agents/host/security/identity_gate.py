@@ -12,4 +12,4 @@ heartbeat stays open either way, and a deployment that configured nothing is as 
 
 
 def allows(authentication_configured: bool, user_is_authenticated: bool, path: str) -> bool:
-    raise NotImplementedError
+    return not authentication_configured or path.upper() == "/API/HOME" or user_is_authenticated
