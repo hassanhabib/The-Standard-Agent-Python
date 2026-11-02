@@ -8,8 +8,12 @@
 # with aclose() or async with, and stops what it owns: the MCP server processes it started.
 # What the host handed it (a broker, an HTTP handler) is the host's, and is left as it is.
 
+import io
 import re
 import sys
+import urllib.request
+import urllib.response
+from email.message import Message
 from pathlib import Path
 
 import pytest
@@ -20,6 +24,36 @@ from standard_agents.standard_agent import StandardAgent
 from tests.wire.processes import have_stopped, is_running
 
 PROCESS_SERVER_PATH = str(Path(__file__).parents[2] / "wire" / "stdio_process_server.py")
+
+EMPTY_TOOL_LIST = '{"jsonrpc":"2.0","id":1,"result":{"tools":[]}}'
+
+
+class HostHandler(urllib.request.HTTPHandler):
+    """The host's handler: answers every request with an empty tool list, and records whether
+    it was used and whether anyone closed it."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.request_count = 0
+        self.is_closed = False
+
+    def http_open(self, request: urllib.request.Request):
+        self.request_count += 1
+        headers = Message()
+        headers["Content-Type"] = "application/json; charset=utf-8"
+
+        response = urllib.response.addinfourl(
+            io.BytesIO(EMPTY_TOOL_LIST.encode("utf-8")),
+            headers,
+            request.full_url,
+            200)
+
+        response.msg = "OK"
+
+        return response
+
+    def close(self) -> None:
+        self.is_closed = True
 
 
 async def select_persona():
@@ -192,3 +226,30 @@ async def test_should_not_stop_an_mcp_server_the_host_supplied_when_closed(
 
         # then: the host's server is the host's to stop, and is still running
         assert all(is_running(process_id) for process_id in process_ids)
+
+
+async def test_should_not_close_an_http_handler_the_host_supplied_when_closed(
+        empty_memory_broker,
+        empty_knowledge_broker):
+
+    # given: an agent whose MCP server over HTTP rides the host's handler, and which ran with it
+    host_handler = HostHandler()
+
+    async def brain(system_prompt, user_prompt):
+        return "FINAL: done"
+
+    agent = (StandardAgent()
+        .use_memory(empty_memory_broker)
+        .use_knowledge(empty_knowledge_broker)
+        .mcp("http://mcp.test/")
+        .http(lambda: host_handler)
+        .on_brain(brain))
+
+    await agent.process_prompt("hello")
+
+    # when
+    await agent.aclose()
+
+    # then: the agent used the host's handler, and left it to the host
+    assert host_handler.request_count > 0
+    assert host_handler.is_closed is False
