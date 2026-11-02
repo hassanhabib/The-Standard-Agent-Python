@@ -31,3 +31,16 @@ async def test_should_post_run(agent, agents_controller):
     # then
     assert actual_result == expected_result
     assert agent.mock_calls == [call.run("what is owed", cancellation=ANY)]
+
+
+async def test_should_return_bad_request_on_post_run_if_prompt_is_empty(agent, agents_controller):
+    # given
+    request = AgentRunRequest(prompt="   ")
+    expected_result = ObjectResult(status_code=HTTPStatus.BAD_REQUEST, value="prompt is required")
+
+    # when
+    actual_result = await agents_controller.post_run(request)
+
+    # then: a prompt of nothing is the caller's mistake, told as 400 before any run starts
+    assert actual_result == expected_result
+    assert agent.mock_calls == []
