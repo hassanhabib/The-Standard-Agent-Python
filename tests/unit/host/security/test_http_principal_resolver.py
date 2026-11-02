@@ -79,3 +79,14 @@ def test_should_resolve_no_principal_when_the_user_is_not_authenticated():
 
     # then: the framework consumes a principal and never mints one
     assert actual_principal is None
+
+
+def test_should_resolve_no_principal_outside_a_request():
+    # given: no HTTP context at all, as when the agent runs from a background job
+    resolver = _resolver_for(user=None)
+
+    # when
+    actual_principal = resolver.resolve()
+
+    # then
+    assert actual_principal is None
