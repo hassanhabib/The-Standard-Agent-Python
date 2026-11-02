@@ -1294,6 +1294,9 @@ class StandardAgent(Agent):
 
         set_outcome(events.outcome)
 
+    async def aclose(self) -> None:
+        raise NotImplementedError
+
     @contextmanager
     def _configuring(self) -> Iterator[None]:
         # Every verb drops the cached composition, so configuration set after a prompt still
