@@ -13,12 +13,14 @@ from standard_agents.agent import Agent
 from standard_agents.host.controllers.action_results import ObjectResult, StreamResult
 from standard_agents.host.models.v1.agent_run_request_v1 import AgentRunRequestV1
 from standard_agents.host.models.v1.agent_run_response_v1 import AgentRunResponseV1
+from standard_agents.host.models.v1.pending_effect_v1 import PendingEffectV1
 from standard_agents.host.models.v1.tool_exchange_v1 import ToolExchangeV1
 from standard_agents.models.brokers.generators.v1.conversation import ToolDefinition
 from standard_agents.models.brokers.sessions.agent_session import AgentTurn
 from standard_agents.models.clients.agents.agent_outcome import AgentOutcome
 from standard_agents.models.clients.agents.prompt_request import PromptRequest
 from standard_agents.models.orchestrations.agents.tool_exchange import ToolExchange
+from standard_agents.models.orchestrations.effects.agent_effect import AgentEffect
 
 
 class AgentsV1Controller:
@@ -98,7 +100,23 @@ def _to_response(outcome: AgentOutcome) -> AgentRunResponseV1:
     return AgentRunResponseV1(
         result=outcome.result,
         status=_enum_name(outcome.status),
-        pending_effect=None)
+        pending_effect=_to_pending_effect(outcome.pending_effect))
+
+
+def _to_pending_effect(effect: AgentEffect | None) -> PendingEffectV1 | None:
+    if effect is None:
+        return None
+
+    return PendingEffectV1(
+        run_id=effect.run_id,
+        call_id=effect.call_id,
+        tool_name=effect.tool_name,
+        arguments=effect.arguments,
+        scope=effect.scope,
+        risk_level=_enum_name(effect.risk_level),
+        approval_required=effect.approval_required,
+        idempotency_key=effect.idempotency_key,
+        principal=effect.principal)
 
 
 def _enum_name(member: Enum) -> str:
