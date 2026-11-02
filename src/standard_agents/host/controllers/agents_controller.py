@@ -11,6 +11,7 @@ from http import HTTPStatus
 
 from standard_agents.agent import Agent
 from standard_agents.host.controllers.action_results import ObjectResult, StreamResult
+from standard_agents.host.controllers.server_sent_events import to_server_sent_events
 from standard_agents.host.models.agent_run_request import AgentRunRequest
 from standard_agents.host.models.agent_run_response import AgentRunResponse
 
@@ -47,7 +48,17 @@ class AgentsController:
             request: AgentRunRequest,
             *,
             cancellation: asyncio.Event | None = None) -> StreamResult:
-        raise NotImplementedError
+        """The streamed door, as server-sent events."""
+
+        if _is_blank(request.prompt):
+            return StreamResult(HTTPStatus.BAD_REQUEST)
+
+        stream_events = self.agent.process_prompt_stream(request.prompt, cancellation=cancellation)
+
+        return StreamResult(
+            HTTPStatus.OK,
+            "text/event-stream",
+            to_server_sent_events(stream_events))
 
 
 def _is_blank(prompt: str | None) -> bool:
