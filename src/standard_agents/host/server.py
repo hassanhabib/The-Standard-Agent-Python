@@ -27,7 +27,9 @@ from typing import Any
 from standard_agents.agent import Agent
 from standard_agents.host import wire
 from standard_agents.host.controllers.action_results import ObjectResult, StreamResult
+from standard_agents.host.controllers.agents_controller import AgentsController
 from standard_agents.host.controllers.v1.agents_v1_controller import AgentsV1Controller
+from standard_agents.host.models.agent_run_request import AgentRunRequest
 from standard_agents.host.models.v1.agent_run_request_v1 import AgentRunRequestV1
 
 _PERCENT_ENCODED_SLASH = re.compile(r"(%2[Ff])")
@@ -76,11 +78,16 @@ class _Route:
         return segments.upper() == self.template.upper()
 
 
+async def _post_run(agent, request, cancellation):
+    return await AgentsController(agent).post_run(request, cancellation=cancellation)
+
+
 async def _post_v1_run(agent, request, cancellation):
     return await AgentsV1Controller(agent).post_run(request, cancellation=cancellation)
 
 
 _ROUTES = (
+    _Route("POST", "api/Agents/runs", AgentRunRequest, _post_run),
     _Route("POST", "api/V1/agents/runs", AgentRunRequestV1, _post_v1_run),
 )
 
