@@ -28,9 +28,11 @@ from standard_agents.agent import Agent
 from standard_agents.host import wire
 from standard_agents.host.controllers.action_results import ObjectResult, StreamResult
 from standard_agents.host.controllers.agents_controller import AgentsController
+from standard_agents.host.controllers.home_controller import HomeController
 from standard_agents.host.controllers.v1.agents_v1_controller import AgentsV1Controller
 from standard_agents.host.models.agent_run_request import AgentRunRequest
 from standard_agents.host.models.v1.agent_run_request_v1 import AgentRunRequestV1
+from standard_agents.host.security import api_key_gate
 
 _PERCENT_ENCODED_SLASH = re.compile(r"(%2[Ff])")
 
@@ -66,7 +68,12 @@ class _Route:
     method: str
     template: str
     request_type: type | None
-    action: Callable[[Agent, Any, asyncio.Event], Awaitable[ObjectResult | StreamResult]]
+    # The controller action, handed the agent as a callable so a route that needs no agent
+    # (the heartbeat) never composes one, the route's bound model, and the request's
+    # cancellation.
+    action: Callable[
+        [Callable[[], Agent], Any, asyncio.Event],
+        Awaitable[ObjectResult | StreamResult]]
 
     def matches(self, path: str) -> bool:
         # Routes match ignoring case, and a trailing slash, as ASP.NET's routing matches them.
@@ -78,15 +85,20 @@ class _Route:
         return segments.upper() == self.template.upper()
 
 
+async def _get_home(agent, request, cancellation):
+    return HomeController().get()
+
+
 async def _post_run(agent, request, cancellation):
-    return await AgentsController(agent).post_run(request, cancellation=cancellation)
+    return await AgentsController(agent()).post_run(request, cancellation=cancellation)
 
 
 async def _post_v1_run(agent, request, cancellation):
-    return await AgentsV1Controller(agent).post_run(request, cancellation=cancellation)
+    return await AgentsV1Controller(agent()).post_run(request, cancellation=cancellation)
 
 
 _ROUTES = (
+    _Route("GET", "api/Home", None, _get_home),
     _Route("POST", "api/Agents/runs", AgentRunRequest, _post_run),
     _Route("POST", "api/V1/agents/runs", AgentRunRequestV1, _post_v1_run),
 )
@@ -104,8 +116,10 @@ class AgentHost:
             self,
             resolve_agent: Callable[[], Agent],
             *,
-            urls: Sequence[str] = ("http://localhost:5000",)) -> None:
+            urls: Sequence[str] = ("http://localhost:5000",),
+            api_key: str | None = None) -> None:
 
+        self._api_key = api_key
         self._resolve_agent = resolve_agent
         self._agent: Agent | None = None
         self._configured_urls = tuple(urls)
@@ -174,6 +188,22 @@ class AgentHost:
                 await writer.wait_closed()
 
     async def _respond(self, connection: _Connection, request: HttpRequest) -> None:
+        # The front door, before the routes: no configured key means open (a laptop), one
+        # configuration line means every agent route wants X-Api-Key (a deployment). The
+        # heartbeat stays open either way: a probe cannot present a key and learns nothing.
+        key_allowed = api_key_gate.allows(
+            configured_key=self._api_key,
+            presented_key=request.headers.get("x-api-key"),
+            path=request.path)
+
+        if not key_allowed:
+            await connection.write_response(
+                HTTPStatus.UNAUTHORIZED,
+                body=b"missing or invalid X-Api-Key",
+                keep_alive=request.keep_alive)
+
+            return
+
         route = next(
             (route for route in _ROUTES
              if route.matches(request.path) and route.method == request.method),
@@ -184,15 +214,18 @@ class AgentHost:
 
             return
 
-        model = wire.read_model(route.request_type, request.body.decode("utf-8"))
-        errors = wire.required_field_errors(model)
+        model = None
 
-        if errors:
-            await _write_validation_problem(connection, request, errors)
+        if route.request_type is not None:
+            model = wire.read_model(route.request_type, request.body.decode("utf-8"))
+            errors = wire.required_field_errors(model)
 
-            return
+            if errors:
+                await _write_validation_problem(connection, request, errors)
 
-        result = await route.action(self._get_agent(), model, asyncio.Event())
+                return
+
+        result = await route.action(self._get_agent, model, asyncio.Event())
 
         await self._write_object_result(connection, request, result)
 

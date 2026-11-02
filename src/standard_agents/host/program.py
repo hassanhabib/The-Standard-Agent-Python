@@ -41,7 +41,8 @@ def create_host(
 
     return AgentHost(
         lambda: agent_factory(principals),
-        urls=_urls(settings))
+        urls=_urls(settings),
+        api_key=settings.get("Host:ApiKey"))
 
 
 class _Settings:
