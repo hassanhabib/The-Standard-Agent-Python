@@ -38,3 +38,15 @@ def test_should_allow_the_agent_routes_only_with_the_configured_key():
     assert matching_decision is True
     assert mismatched_decision is False
     assert absent_decision is False
+
+
+def test_should_keep_the_heartbeat_open_for_probes():
+    # given . when: a load balancer cannot present a key, and the heartbeat tells it nothing an
+    # attacker could use.
+    actual_decision = api_key_gate.allows(
+        configured_key="psk-live-7",
+        presented_key=None,
+        path="/api/home")
+
+    # then
+    assert actual_decision is True
