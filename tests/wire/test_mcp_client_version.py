@@ -74,3 +74,28 @@ async def test_should_introduce_itself_with_the_installed_version_over_http(
     initialize = json.loads(server.bodies[0])
     assert initialize["params"]["clientInfo"]["version"] == INSTALLED_VERSION
 
+
+async def test_should_introduce_itself_with_the_installed_version_over_standard_input(
+        installed_as_the_standard_agent):
+
+    # given
+    def respond(message):
+        method = message["method"]
+
+        if method == "initialize":
+            return answer_initialize(message)
+
+        if method == "notifications/initialized":
+            return []
+
+        return answer(message, '{"jsonrpc":"2.0","id":{id},"result":{"tools":[]}}')
+
+    server = ScriptedStdioServer(respond)
+    broker = create_stdio_broker(server)
+
+    # when
+    await broker.list_tools()
+
+    # then
+    initialize = json.loads(server.lines[0])
+    assert initialize["params"]["clientInfo"]["version"] == INSTALLED_VERSION
