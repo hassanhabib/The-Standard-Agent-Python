@@ -79,3 +79,18 @@ async def test_should_cite_the_sources_when_the_deployment_cites_and_the_request
 
     # then
     assert actual_response["result"] == expected_result
+
+
+async def test_should_not_cite_the_sources_when_the_deployment_declines_and_the_request_asks_through_http(
+        serve_host,
+        v1_document):
+
+    # given: a deployment that never cites cannot be switched on by a caller
+    configure = lambda agent: agent.cite_knowledge(cite=False)  # noqa: E731
+
+    # when
+    actual_response = await _post_citation_run(
+        serve_host, v1_document, configure, cite_knowledge=True)
+
+    # then
+    assert actual_response["result"] == _REFUNDS_ANSWER
