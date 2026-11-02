@@ -93,14 +93,24 @@ async def _post_run(agent, request, cancellation):
     return await AgentsController(agent()).post_run(request, cancellation=cancellation)
 
 
+async def _post_stream(agent, request, cancellation):
+    return await AgentsController(agent()).post_stream(request, cancellation=cancellation)
+
+
 async def _post_v1_run(agent, request, cancellation):
     return await AgentsV1Controller(agent()).post_run(request, cancellation=cancellation)
+
+
+async def _post_v1_stream(agent, request, cancellation):
+    return await AgentsV1Controller(agent()).post_stream(request, cancellation=cancellation)
 
 
 _ROUTES = (
     _Route("GET", "api/Home", None, _get_home),
     _Route("POST", "api/Agents/runs", AgentRunRequest, _post_run),
+    _Route("POST", "api/Agents/streams", AgentRunRequest, _post_stream),
     _Route("POST", "api/V1/agents/runs", AgentRunRequestV1, _post_v1_run),
+    _Route("POST", "api/V1/agents/streams", AgentRunRequestV1, _post_v1_stream),
 )
 
 
@@ -172,9 +182,9 @@ class AgentHost:
                 if request is None:
                     break
 
-                await self._respond(connection, request)
+                keep_alive = await self._respond(connection, request)
 
-                if not request.keep_alive:
+                if not keep_alive:
                     break
 
         except (ConnectionError, asyncio.IncompleteReadError):
@@ -187,7 +197,8 @@ class AgentHost:
             with suppress(Exception):
                 await writer.wait_closed()
 
-    async def _respond(self, connection: _Connection, request: HttpRequest) -> None:
+    async def _respond(self, connection: _Connection, request: HttpRequest) -> bool:
+        """Answer one request; whether the connection can carry another."""
         # The front door, before the routes: no configured key means open (a laptop), one
         # configuration line means every agent route wants X-Api-Key (a deployment). The
         # heartbeat stays open either way: a probe cannot present a key and learns nothing.
@@ -202,7 +213,7 @@ class AgentHost:
                 body=b"missing or invalid X-Api-Key",
                 keep_alive=request.keep_alive)
 
-            return
+            return request.keep_alive
 
         route = next(
             (route for route in _ROUTES
@@ -212,7 +223,7 @@ class AgentHost:
         if route is None:
             await connection.write_response(HTTPStatus.NOT_FOUND, keep_alive=request.keep_alive)
 
-            return
+            return request.keep_alive
 
         model = None
 
@@ -223,11 +234,16 @@ class AgentHost:
             if errors:
                 await _write_validation_problem(connection, request, errors)
 
-                return
+                return request.keep_alive
 
         result = await route.action(self._get_agent, model, asyncio.Event())
 
-        await self._write_object_result(connection, request, result)
+        if isinstance(result, StreamResult):
+            return await _write_stream_result(connection, request, result)
+
+        await _write_object_result(connection, request, result)
+
+        return request.keep_alive
 
     def _get_agent(self) -> Agent:
         if self._agent is None:
@@ -235,24 +251,67 @@ class AgentHost:
 
         return self._agent
 
-    async def _write_object_result(
-            self,
-            connection: _Connection,
-            request: HttpRequest,
-            result: ObjectResult) -> None:
 
-        if isinstance(result.value, str):
-            content_type = "text/plain; charset=utf-8"
-            body = result.value
-        else:
-            content_type = "application/json; charset=utf-8"
-            body = wire.write_json(result.value)
+async def _write_object_result(
+        connection: _Connection,
+        request: HttpRequest,
+        result: ObjectResult) -> None:
 
+    if isinstance(result.value, str):
+        content_type = "text/plain; charset=utf-8"
+        body = result.value
+    else:
+        content_type = "application/json; charset=utf-8"
+        body = wire.write_json(result.value)
+
+    await connection.write_response(
+        result.status_code,
+        headers=(("Content-Type", content_type),),
+        body=body.encode("utf-8"),
+        keep_alive=request.keep_alive)
+
+
+async def _write_stream_result(
+        connection: _Connection,
+        request: HttpRequest,
+        result: StreamResult) -> bool:
+    """Write each piece of the body as it comes, flushed, as Response.WriteAsync and a flush do.
+
+    Chunked on HTTP/1.1, as Kestrel frames a response whose length it cannot know; an HTTP/1.0
+    caller cannot read chunks, so its response ends when the connection closes. A body that
+    produced nothing is an empty response with its length, as Kestrel ends one that never
+    started.
+    """
+    chunked = request.version == "HTTP/1.1"
+    keep_alive = request.keep_alive and chunked
+    headers = (("Content-Type", result.content_type),) if result.content_type else ()
+    started = False
+
+    async for piece in result.body:
+        data = piece.encode("utf-8")
+
+        if not data:
+            continue
+
+        if not started:
+            framing = ("Transfer-Encoding", "chunked") if chunked else None
+            await connection.write_head(result.status_code, headers, framing, keep_alive)
+            started = True
+
+        await connection.write_body_part(data, chunked=chunked)
+
+    if not started:
         await connection.write_response(
             result.status_code,
-            headers=(("Content-Type", content_type),),
-            body=body.encode("utf-8"),
+            headers=headers,
             keep_alive=request.keep_alive)
+
+        return request.keep_alive
+
+    if chunked:
+        await connection.write_body_part(b"", chunked=True)
+
+    return keep_alive
 
 
 async def _write_validation_problem(
@@ -313,15 +372,36 @@ class _Connection:
             body: bytes = b"",
             keep_alive: bool) -> None:
 
+        framing = ("Content-Length", str(len(body)))
+        await self.write_head(status, headers, framing, keep_alive, body)
+
+    async def write_head(
+            self,
+            status: HTTPStatus,
+            headers: Sequence[tuple[str, str]],
+            framing: tuple[str, str] | None,
+            keep_alive: bool,
+            body: bytes = b"") -> None:
+
         head = [f"HTTP/1.1 {status.value} {status.phrase}"]
         head.extend(f"{name}: {value}" for name, value in headers)
         head.append(f"Date: {formatdate(usegmt=True)}")
-        head.append(f"Content-Length: {len(body)}")
+
+        if framing is not None:
+            head.append(f"{framing[0]}: {framing[1]}")
 
         if not keep_alive:
             head.append("Connection: close")
 
         self.writer.write(("\r\n".join(head) + "\r\n\r\n").encode("latin-1") + body)
+        await self.writer.drain()
+
+    async def write_body_part(self, data: bytes, *, chunked: bool) -> None:
+        """One piece of a body, flushed; on a chunked body an empty piece is the last chunk."""
+        if chunked:
+            data = f"{len(data):x}\r\n".encode("latin-1") + data + b"\r\n"
+
+        self.writer.write(data)
         await self.writer.drain()
 
     async def _read_head(self) -> bytes | None:
