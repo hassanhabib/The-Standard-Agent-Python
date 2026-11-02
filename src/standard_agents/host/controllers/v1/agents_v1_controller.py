@@ -11,6 +11,7 @@ from http import HTTPStatus
 
 from standard_agents.agent import Agent
 from standard_agents.host.controllers.action_results import ObjectResult, StreamResult
+from standard_agents.host.controllers.server_sent_events import to_server_sent_events
 from standard_agents.host.models.v1.agent_run_request_v1 import AgentRunRequestV1
 from standard_agents.host.models.v1.agent_run_response_v1 import AgentRunResponseV1
 from standard_agents.host.models.v1.failure_v1 import FailureV1
@@ -58,7 +59,16 @@ class AgentsV1Controller:
             request: AgentRunRequestV1,
             *,
             cancellation: asyncio.Event | None = None) -> StreamResult:
-        raise NotImplementedError
+        """The streamed door, as server-sent events: one data line per line of content."""
+
+        stream_events = self.agent.process_prompt_stream(
+            _to_prompt_request(request),
+            cancellation=cancellation)
+
+        return StreamResult(
+            HTTPStatus.OK,
+            "text/event-stream",
+            to_server_sent_events(stream_events))
 
 
 def _is_blank(prompt: str | None) -> bool:
