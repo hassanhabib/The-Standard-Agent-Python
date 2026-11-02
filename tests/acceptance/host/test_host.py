@@ -71,3 +71,18 @@ async def test_should_bind_a_prompt_only_document_with_empty_lists_through_http(
     # then: an absent list is an empty one, and an absent option is unset
     assert response.status == 200
     assert agent.run.call_args_list == [call(expected_prompt_request, cancellation=ANY)]
+
+
+async def test_should_refuse_a_null_field_naming_it_through_http(agent, serve_host):
+    # given: a list set to null, which the contract does not allow
+    async with serve_host() as client:
+        # when
+        response = await client.post(
+            "api/V1/agents/runs",
+            '{"prompt":"what is owed","history":null}',
+            "application/json; charset=utf-8")
+
+    # then: 400, naming the field, before any run starts
+    assert response.status == 400
+    assert "History" in response.text
+    agent.run.assert_not_called()
