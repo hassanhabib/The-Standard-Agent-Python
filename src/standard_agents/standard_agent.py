@@ -1523,7 +1523,7 @@ class StandardAgent(Agent):
         # One source composes as itself; several compose behind the same seam the service already
         # speaks, so the tier above never learns how many integrations answered.
         mcp_brokers = [source() for source in self._mcp_sources]
-        self._mcp_brokers = mcp_brokers
+        self._mcp_brokers.extend(mcp_brokers)
 
         if not mcp_brokers:
             mcp: McpBroker = NotConfiguredMcpBroker()
