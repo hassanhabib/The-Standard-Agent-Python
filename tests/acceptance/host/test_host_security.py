@@ -27,3 +27,23 @@ async def test_should_refuse_agent_routes_without_the_api_key_through_http(
     assert run_response.status == 401
     assert heartbeat.status == 200
     agent.run.assert_not_called()
+
+
+async def test_should_admit_agent_routes_with_the_api_key_through_http(
+        agent,
+        serve_host,
+        v1_document):
+
+    # given
+    agent.run.return_value = AgentOutcome("the answer", AgentStatus.RESPONDED)
+
+    async with serve_host(_LOCKED) as client:
+        client.headers["X-Api-Key"] = "psk-test"
+
+        # when
+        response = await client.post_json(
+            "api/V1/agents/runs",
+            v1_document(prompt="what is owed"))
+
+    # then
+    assert response.status == 200
