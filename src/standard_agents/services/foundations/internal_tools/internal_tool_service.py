@@ -3,38 +3,125 @@
 # Licensed under the The Standard Software License (TSSL)
 # ---------------------------------------------------------------
 
-from standard_agents.brokers.loggings.ilogging_broker import ILoggingBroker
-from standard_agents.brokers.tools.itool_broker import IToolBroker
-from standard_agents.services.foundations.internal_tools.iinternal_tool_service import (
-    IInternalToolService)
-from standard_agents.services.foundations.internal_tools.internal_tool_service_exceptions import (
-    try_catch_returning_boolean,
-    try_catch_returning_string)
-from standard_agents.services.foundations.internal_tools.internal_tool_service_validations import (
-    validate_name)
+from __future__ import annotations
+
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
+from standard_agents.brokers.loggings.logging_broker import LoggingBroker
+from standard_agents.brokers.tools.tool_broker import ToolBroker
+from standard_agents.models.foundations.internal_tools.exceptions import (
+    FailedInternalToolDependencyException,
+    FailedInternalToolServiceException,
+    InternalToolDependencyException,
+    InternalToolServiceException,
+    InternalToolValidationException,
+    InvalidInternalToolException)
 
 
-class InternalToolService(IInternalToolService):
-    def __init__(
-        self,
-        tool_broker: IToolBroker,
-        logging_broker: ILoggingBroker) -> None:
+class InternalToolService:
+    """The tools the agent carries in process, reached through a tool broker."""
 
+    def __init__(self, *, tool_broker: ToolBroker, logging_broker: LoggingBroker) -> None:
         self.tool_broker = tool_broker
         self.logging_broker = logging_broker
 
     async def handles(self, name: str) -> bool:
-        async def returning_boolean_function() -> bool:
-            validate_name(name)
+        async with _handling_exceptions(self.logging_broker):
+            _validate_name(name)
 
             return await self.tool_broker.has(name)
 
-        return await try_catch_returning_boolean(self.logging_broker, returning_boolean_function)
-
     async def run(self, name: str, input: str) -> str:
-        async def returning_string_function() -> str:
-            validate_name(name)
+        async with _handling_tool_exceptions(self.logging_broker):
+            _validate_name(name)
 
             return await self.tool_broker.run(name, input)
 
-        return await try_catch_returning_string(self.logging_broker, returning_string_function)
+    async def compensate(self, name: str, input: str, outcome: str) -> str:
+        """Undoes what a tool did, where the tool knows how (SPEC.md 4.9).
+
+        Returns what was done, or an empty string when the tool declared no way back.
+        """
+        async with _handling_tool_exceptions(self.logging_broker):
+            _validate_name(name)
+
+            return await self.tool_broker.compensate(name, input, outcome)
+
+
+def _validate_name(name: str | None) -> None:
+    if not name or name.isspace():
+        raise InvalidInternalToolException(
+            message="Invalid internal tool. Please correct the error and try again.")
+
+
+@asynccontextmanager
+async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[None]:
+    try:
+        yield
+    except InvalidInternalToolException as invalid_internal_tool_exception:
+        raise await _create_and_log_validation_exception(
+            logging_broker, invalid_internal_tool_exception)
+    except Exception as exception:
+        failed_internal_tool_service_exception = FailedInternalToolServiceException(
+            message="Failed internal tool service error occurred, contact support.",
+            inner_exception=exception)
+
+        raise await _create_and_log_service_exception(
+            logging_broker, failed_internal_tool_service_exception)
+
+
+@asynccontextmanager
+async def _handling_tool_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[None]:
+    """Maps the failures of running a tool: whatever the tool raises is a dependency failure."""
+    try:
+        yield
+    except InvalidInternalToolException as invalid_internal_tool_exception:
+        raise await _create_and_log_validation_exception(
+            logging_broker, invalid_internal_tool_exception)
+    except Exception as exception:
+        failed_internal_tool_dependency_exception = FailedInternalToolDependencyException(
+            message="Failed internal tool dependency error occurred, contact support.",
+            inner_exception=exception)
+
+        raise await _create_and_log_dependency_exception(
+            logging_broker, failed_internal_tool_dependency_exception)
+
+
+async def _create_and_log_validation_exception(
+        logging_broker: LoggingBroker,
+        exception: Exception) -> InternalToolValidationException:
+
+    internal_tool_validation_exception = InternalToolValidationException(
+        message="Internal tool validation error occurred, fix the error and try again.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(internal_tool_validation_exception)
+
+    return internal_tool_validation_exception
+
+
+async def _create_and_log_dependency_exception(
+        logging_broker: LoggingBroker,
+        exception: Exception) -> InternalToolDependencyException:
+
+    internal_tool_dependency_exception = InternalToolDependencyException(
+        message="Internal tool dependency error occurred, contact support.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(internal_tool_dependency_exception)
+
+    return internal_tool_dependency_exception
+
+
+async def _create_and_log_service_exception(
+        logging_broker: LoggingBroker,
+        exception: Exception) -> InternalToolServiceException:
+
+    internal_tool_service_exception = InternalToolServiceException(
+        message="Internal tool service error occurred, contact support.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(internal_tool_service_exception)
+
+    return internal_tool_service_exception

@@ -6,31 +6,39 @@
 from xeptions import Xeption
 
 
-class InvalidBrainException(Xeption):
-    def __init__(self, message: str) -> None:
-        super().__init__(message)
-
-
-class BrainValidationException(Xeption):
-    def __init__(self, message: str, inner_exception: Xeption | None) -> None:
-        super().__init__(message, inner_exception)
-
-
-class FailedBrainDependencyException(Xeption):
-    def __init__(self, message: str, inner_exception: BaseException | None) -> None:
-        super().__init__(message, inner_exception)
-
-
 class BrainDependencyException(Xeption):
-    def __init__(self, message: str, inner_exception: Xeption | None) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
-class FailedBrainServiceException(Xeption):
-    def __init__(self, message: str, inner_exception: BaseException | None) -> None:
-        super().__init__(message, inner_exception)
+class BrainDependencyValidationException(Xeption):
+    pass
 
 
 class BrainServiceException(Xeption):
-    def __init__(self, message: str, inner_exception: Xeption | None) -> None:
-        super().__init__(message, inner_exception)
+    pass
+
+
+class BrainValidationException(Xeption):
+    pass
+
+
+class FailedBrainDependencyException(Xeption):
+    pass
+
+
+class FailedBrainServiceException(Xeption):
+    pass
+
+
+class InvalidBrainException(Xeption):
+    pass
+
+
+class UnreachableBrainException(Xeption):
+    """Nothing answered at all (SPEC.md §4.10, v1.14).
+
+    A refused connection, a name that resolves to nothing, a request that never left the
+    machine. The person's next step is the address and whatever should be listening at it, not
+    support, so this is the sentence they are shown. The native fault is kept as the inner
+    exception for whoever investigates.
+    """

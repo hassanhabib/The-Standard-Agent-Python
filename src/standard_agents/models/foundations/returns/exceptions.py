@@ -6,11 +6,17 @@
 from xeptions import Xeption
 
 
+class FailedReturnServiceException(Xeption):
+    pass
+
+
 class InvalidReturnException(Xeption):
-    def __init__(self, message: str) -> None:
-        super().__init__(message)
+    pass
+
+
+class ReturnServiceException(Xeption):
+    pass
 
 
 class ReturnValidationException(Xeption):
-    def __init__(self, message: str, inner_exception: Xeption | None) -> None:
-        super().__init__(message, inner_exception)
+    pass

@@ -6,41 +6,33 @@
 from xeptions import Xeption
 
 
-class InvalidJudgeException(Xeption):
-    def __init__(self, message: str) -> None:
-        super().__init__(message)
-
-
-class JudgeValidationException(Xeption):
-    def __init__(self, message: str, inner_exception: Xeption | None) -> None:
-        super().__init__(message, inner_exception)
-
-
-class InvalidJudgementException(Xeption):
-    def __init__(self, message: str) -> None:
-        super().__init__(message)
-
-
-class JudgeDependencyValidationException(Xeption):
-    def __init__(self, message: str, inner_exception: Xeption | None) -> None:
-        super().__init__(message, inner_exception)
-
-
 class FailedJudgeDependencyException(Xeption):
-    def __init__(self, message: str, inner_exception: BaseException | None) -> None:
-        super().__init__(message, inner_exception)
-
-
-class JudgeDependencyException(Xeption):
-    def __init__(self, message: str, inner_exception: Xeption | None) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class FailedJudgeServiceException(Xeption):
-    def __init__(self, message: str, inner_exception: BaseException | None) -> None:
-        super().__init__(message, inner_exception)
+    pass
+
+
+class InvalidJudgeException(Xeption):
+    pass
+
+
+class InvalidJudgeScoreException(Xeption):
+    pass
+
+
+class JudgeDependencyException(Xeption):
+    pass
+
+
+class JudgeDependencyValidationException(Xeption):
+    pass
 
 
 class JudgeServiceException(Xeption):
-    def __init__(self, message: str, inner_exception: Xeption | None) -> None:
-        super().__init__(message, inner_exception)
+    pass
+
+
+class JudgeValidationException(Xeption):
+    pass

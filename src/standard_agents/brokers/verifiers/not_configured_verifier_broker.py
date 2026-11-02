@@ -3,10 +3,14 @@
 # Licensed under the The Standard Software License (TSSL)
 # ---------------------------------------------------------------
 
-from standard_agents.brokers.verifiers.iverifier_broker import IVerifierBroker
+from __future__ import annotations
+
+from standard_agents.brokers.verifiers.verifier_broker import VerifierBroker
+
+# (1.0).ToString(CultureInfo.InvariantCulture) writes the shortest round-trip form: "1".
+_PASSING_SCORE = "1"
 
 
-# No Judge configured: every answer is accepted, exactly as if the Judge were absent.
-class NotConfiguredVerifierBroker(IVerifierBroker):
-    async def verify(self, system_prompt: str, task: str, candidate: str) -> str:
-        return "1.0"
+class NotConfiguredVerifierBroker(VerifierBroker):
+    async def verify(self, task: str, candidate: str) -> str:
+        return _PASSING_SCORE

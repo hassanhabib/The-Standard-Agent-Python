@@ -6,31 +6,29 @@
 from xeptions import Xeption
 
 
-class InvalidGateException(Xeption):
-    def __init__(self, message: str) -> None:
-        super().__init__(message)
-
-
-class GateValidationException(Xeption):
-    def __init__(self, message: str, inner_exception: Xeption | None) -> None:
-        super().__init__(message, inner_exception)
-
-
 class FailedGateDependencyException(Xeption):
-    def __init__(self, message: str, inner_exception: BaseException | None) -> None:
-        super().__init__(message, inner_exception)
-
-
-class GateDependencyException(Xeption):
-    def __init__(self, message: str, inner_exception: Xeption | None) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class FailedGateServiceException(Xeption):
-    def __init__(self, message: str, inner_exception: BaseException | None) -> None:
-        super().__init__(message, inner_exception)
+    pass
+
+
+class GateDependencyException(Xeption):
+    pass
+
+
+class GateDependencyValidationException(Xeption):
+    pass
 
 
 class GateServiceException(Xeption):
-    def __init__(self, message: str, inner_exception: Xeption | None) -> None:
-        super().__init__(message, inner_exception)
+    pass
+
+
+class GateValidationException(Xeption):
+    pass
+
+
+class InvalidGateException(Xeption):
+    pass

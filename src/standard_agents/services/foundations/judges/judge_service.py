@@ -3,58 +3,235 @@
 # Licensed under the The Standard Software License (TSSL)
 # ---------------------------------------------------------------
 
-from standard_agents.brokers.loggings.ilogging_broker import ILoggingBroker
-from standard_agents.brokers.verifiers.iverifier_broker import IVerifierBroker
+from __future__ import annotations
+
+import re
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
+from restfulsense.exceptions import (
+    HttpRequestException,
+    HttpResponseBadRequestException,
+    HttpResponseForbiddenException,
+    HttpResponseInternalServerErrorException,
+    HttpResponseNotFoundException,
+    HttpResponseServiceUnavailableException,
+    HttpResponseUnauthorizedException,
+    HttpResponseUrlNotFoundException)
+from standard_agents.brokers.loggings.logging_broker import LoggingBroker
+from standard_agents.brokers.verifiers.verifier_broker import VerifierBroker
+from standard_agents.models.foundations.judges.exceptions import (
+    FailedJudgeDependencyException,
+    FailedJudgeServiceException,
+    InvalidJudgeException,
+    InvalidJudgeScoreException,
+    JudgeDependencyException,
+    JudgeDependencyValidationException,
+    JudgeServiceException,
+    JudgeValidationException)
 from standard_agents.models.foundations.judges.judgement import Judgement
-from standard_agents.services.foundations.judges.ijudge_service import IJudgeService
-from standard_agents.services.foundations.judges.judge_service_exceptions import try_catch
-from standard_agents.services.foundations.judges.judge_service_validations import (
-    validate_evaluate,
-    validate_score)
+
+_MINIMUM_SCORE = 0.0
+_MAXIMUM_SCORE = 1.0
+_SCORE_LABEL = "SCORE:"
+_REASON_LABEL = "REASON:"
+
+# NumberStyles.Float under the invariant culture: ASCII white space around an optional sign, digits
+# with an optional decimal point and exponent, or NaN and Infinity in any case. .NET also ignores
+# trailing NUL characters.
+_INVARIANT_NUMBER = re.compile(
+    r"[\t\n\v\f\r ]*([+-]?(?:(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?|nan|infinity))[\t\n\v\f\r ]*\x00*",
+    re.ASCII | re.IGNORECASE)
 
 
-SCORE_FIELD = "SCORE"
-REASON_FIELD = "REASON"
-SCORE_PREFIX = SCORE_FIELD + ":"
+class JudgeService:
+    """Scores a candidate answer as an answer to its task, from the verifier's verdict."""
 
-
-class JudgeService(IJudgeService):
     def __init__(
-        self,
-        verifier_broker: IVerifierBroker,
-        logging_broker: ILoggingBroker) -> None:
+            self,
+            *,
+            verifier_broker: VerifierBroker,
+            logging_broker: LoggingBroker) -> None:
 
         self.verifier_broker = verifier_broker
         self.logging_broker = logging_broker
 
-    # The task travels with the candidate: an answer is good or bad for a question.
-    async def evaluate(self, judge_prompt: str, task: str, candidate: str) -> Judgement:
-        async def returning_judgement_function() -> Judgement:
-            validate_evaluate(task, candidate)
-            verdict = await self.verifier_broker.verify(judge_prompt, task, candidate)
+    async def evaluate(self, task: str, candidate: str) -> Judgement:
+        """Score the candidate as an answer to the task.
 
-            judgement = parse_judgement(verdict)
-            validate_score(judgement.score)
+        The task travels with the candidate: an answer is good or bad FOR a question, and a
+        verdict on a fit the verifier cannot see is noise dressed as a number (SPEC.md 4.2).
+
+        Redaction across the pair (one vault, so the same value tokenizes identically in the task
+        and in the answer) is a decoration on the verifier, applied at composition. This service
+        holds one broker and does not know redaction exists.
+        """
+        async with _handling_exceptions(self.logging_broker):
+            _validate_evaluate(candidate)
+            verdict = await self.verifier_broker.verify(task, candidate)
+            judgement = _parse_judgement(verdict)
+            _validate_score(judgement.score)
 
             return judgement
 
-        return await try_catch(self.logging_broker, returning_judgement_function)
+
+def _validate_evaluate(candidate: str | None) -> None:
+    if not candidate or candidate.isspace():
+        raise InvalidJudgeException(
+            message="Invalid judge input. Please correct the error and try again.")
 
 
-# A verdict written to the Judge's contract carries SCORE: and REASON: lines; a bare verdict is a
-# score optionally followed by a reason, which is what a deterministic Judge most often returns.
-def parse_judgement(verdict: str) -> Judgement:
-    lines = verdict.strip().split("\n")
+def _parse_judgement(verdict: str | None) -> Judgement:
+    text = (verdict or "").strip()
+    labeled_score = _extract_labeled(text, _SCORE_LABEL)
 
-    if lines[0].strip().upper().startswith(SCORE_PREFIX):
-        fields = {}
+    if labeled_score is None:
+        score_text = text
+    else:
+        score_text = next((part for part in labeled_score.split(" ") if part), labeled_score)
 
-        for line in lines:
-            key, _, value = line.partition(":")
-            fields[key.strip().upper()] = value.strip()
+    score = _parse_number(score_text)
 
-        return Judgement(score=float(fields[SCORE_FIELD]), reason=fields.get(REASON_FIELD, ""))
+    if score is None:
+        raise InvalidJudgeScoreException(
+            message="Invalid judge score. Score must be a number between 0.0 and 1.0.")
 
-    score, _, reason = verdict.strip().partition(" ")
+    reason = _extract_labeled(text, _REASON_LABEL) or ""
 
-    return Judgement(score=float(score), reason=reason.strip())
+    return Judgement(score=score, reason=reason)
+
+
+def _parse_number(text: str) -> float | None:
+    """Reads a number the way .NET's invariant double.TryParse does, or returns None.
+
+    float() alone is looser: it takes underscores ("0_5"), "inf", and non-ASCII digits, all of
+    which the C# Judge rejects as not a number.
+    """
+    number_match = _INVARIANT_NUMBER.fullmatch(text)
+
+    return float(number_match.group(1)) if number_match else None
+
+
+def _extract_labeled(text: str, label: str) -> str | None:
+    for line in text.split("\n"):
+        trimmed_line = line.strip()
+
+        if trimmed_line.lower().startswith(label.lower()):
+            return trimmed_line[len(label):].strip()
+
+    return None
+
+
+def _validate_score(score: float) -> None:
+    # Written as a range check rather than its negation so that NaN, which compares false to
+    # everything, is out of range.
+    if not _MINIMUM_SCORE <= score <= _MAXIMUM_SCORE:
+        raise InvalidJudgeScoreException(
+            message="Invalid judge score. Score must be between 0.0 and 1.0.")
+
+
+@asynccontextmanager
+async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[None]:
+    try:
+        yield
+    except (InvalidJudgeException, InvalidJudgeScoreException) as invalid_judge_exception:
+        raise await _create_and_log_validation_exception(
+            logging_broker, invalid_judge_exception)
+    except HttpResponseBadRequestException as http_response_bad_request_exception:
+        invalid_judge_exception = InvalidJudgeException(
+            message="Invalid judge request. Please correct the error and try again.")
+
+        invalid_judge_exception.add_data(http_response_bad_request_exception.data)
+
+        raise await _create_and_log_dependency_validation_exception(
+            logging_broker, invalid_judge_exception)
+    except (
+            HttpResponseUnauthorizedException,
+            HttpResponseForbiddenException,
+            HttpResponseNotFoundException,
+            HttpResponseUrlNotFoundException,
+            HttpRequestException) as critical_exception:
+
+        raise await _create_and_log_critical_dependency_exception(
+            logging_broker, critical_exception)
+    except (
+            HttpResponseInternalServerErrorException,
+            HttpResponseServiceUnavailableException) as dependency_exception:
+
+        raise await _create_and_log_dependency_exception(logging_broker, dependency_exception)
+    except Exception as exception:
+        failed_judge_service_exception = FailedJudgeServiceException(
+            message="Failed judge service error occurred, contact support.",
+            inner_exception=exception)
+
+        raise await _create_and_log_service_exception(
+            logging_broker, failed_judge_service_exception)
+
+
+async def _create_and_log_validation_exception(
+        logging_broker: LoggingBroker,
+        exception: Exception) -> JudgeValidationException:
+
+    judge_validation_exception = JudgeValidationException(
+        message="Judge validation error occurred, fix the error and try again.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(judge_validation_exception)
+
+    return judge_validation_exception
+
+
+async def _create_and_log_dependency_validation_exception(
+        logging_broker: LoggingBroker,
+        exception: Exception) -> JudgeDependencyValidationException:
+
+    judge_dependency_validation_exception = JudgeDependencyValidationException(
+        message="Judge dependency validation error occurred, fix the error and try again.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(judge_dependency_validation_exception)
+
+    return judge_dependency_validation_exception
+
+
+async def _create_and_log_critical_dependency_exception(
+        logging_broker: LoggingBroker,
+        exception: Exception) -> JudgeDependencyException:
+
+    judge_dependency_exception = _create_dependency_exception(exception)
+    await logging_broker.log_critical(judge_dependency_exception)
+
+    return judge_dependency_exception
+
+
+async def _create_and_log_dependency_exception(
+        logging_broker: LoggingBroker,
+        exception: Exception) -> JudgeDependencyException:
+
+    judge_dependency_exception = _create_dependency_exception(exception)
+    await logging_broker.log_error(judge_dependency_exception)
+
+    return judge_dependency_exception
+
+
+def _create_dependency_exception(exception: Exception) -> JudgeDependencyException:
+    failed_judge_dependency_exception = FailedJudgeDependencyException(
+        message="Failed judge dependency error occurred, contact support.",
+        inner_exception=exception)
+
+    return JudgeDependencyException(
+        message="Judge dependency error occurred, contact support.",
+        inner_exception=failed_judge_dependency_exception)
+
+
+async def _create_and_log_service_exception(
+        logging_broker: LoggingBroker,
+        exception: Exception) -> JudgeServiceException:
+
+    judge_service_exception = JudgeServiceException(
+        message="Judge service error occurred, contact support.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(judge_service_exception)
+
+    return judge_service_exception

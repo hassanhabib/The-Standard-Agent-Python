@@ -3,83 +3,148 @@
 # Licensed under the The Standard Software License (TSSL)
 # ---------------------------------------------------------------
 
-from standard_agents.brokers.loggings.ilogging_broker import ILoggingBroker
-from standard_agents.brokers.skills.iskill_broker import ISkillBroker
+from __future__ import annotations
+
+import os
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
+from standard_agents.brokers.loggings.logging_broker import LoggingBroker
+from standard_agents.brokers.skills.skill_broker import SkillBroker
+from standard_agents.models.foundations.skills.exceptions import (
+    FailedSkillDependencyException,
+    FailedSkillServiceException,
+    SkillDependencyException,
+    SkillServiceException)
 from standard_agents.models.foundations.skills.skill import Skill
-from standard_agents.services.foundations.skills.iskill_service import ISkillService
-from standard_agents.services.foundations.skills.skill_service_exceptions import try_catch
 
-SKILL_SEPARATOR = "\n\n"
-FRONTMATTER_FENCE = "---"
+_SKILL_SEPARATOR = "\n\n"
 
 
-# A route selects the skills whose name it names. A route nothing matches selects every skill,
-# so a mislabelled route costs specificity, never the agent's instructions.
-def routed(skills: list[Skill], route: str) -> list[Skill]:
-    matching_skills = [skill for skill in skills if route.lower() in skill.name.lower()]
+class SkillService:
+    """The skills the agent reads, composed into one text in name order."""
 
-    return matching_skills or skills
-
-
-# A skill MAY declare its name and description between two fences at the top of its body. They
-# are read, and stripped from what the brain is shown. A skill without a closing fence has no
-# frontmatter; its body is kept whole.
-def read_frontmatter(skill: Skill) -> Skill:
-    lines = skill.content.replace("\r\n", "\n").split("\n")
-
-    if lines[0].strip() != FRONTMATTER_FENCE:
-        return skill
-
-    closing_fences = [
-        index for index in range(1, len(lines)) if lines[index].strip() == FRONTMATTER_FENCE
-    ]
-
-    if not closing_fences:
-        return skill
-
-    fields = {}
-
-    for line in lines[1:closing_fences[0]]:
-        key, separator, value = line.partition(":")
-
-        if separator:
-            fields[key.strip().lower()] = value.strip()
-
-    return Skill(
-        name=fields.get("name") or skill.name,
-        description=fields.get("description", skill.description),
-        content="\n".join(lines[closing_fences[0] + 1:]).lstrip("\n"))
-
-
-class SkillService(ISkillService):
-    def __init__(
-        self,
-        skill_broker: ISkillBroker,
-        logging_broker: ILoggingBroker) -> None:
-
+    def __init__(self, *, skill_broker: SkillBroker, logging_broker: LoggingBroker) -> None:
         self.skill_broker = skill_broker
         self.logging_broker = logging_broker
 
-    # Skills compose into the system prompt in name order, so a deployment decides precedence by
-    # naming its files (00-assistant.md before 10-calculator.md).
     async def retrieve_skills(self, route: str = "") -> str:
-        async def returning_string_function() -> str:
-            skills = [read_frontmatter(skill) for skill in await self.skill_broker.select_skills()]
-            ordered_skills = sorted(routed(skills, route), key=lambda skill: skill.name)
+        async with _handling_exceptions(self.logging_broker):
+            skills = await self.skill_broker.select_skills()
+            selected_skills = sorted(skills, key=_ordinal_name)
 
-            return SKILL_SEPARATOR.join(skill.content for skill in ordered_skills)
+            if route and not route.isspace():
+                routed_skills = [
+                    skill for skill in selected_skills
+                    if _contains_ordinal_ignore_case(skill.name, route)]
 
-        return await try_catch(self.logging_broker, returning_string_function)
+                if routed_skills:
+                    selected_skills = routed_skills
 
-    # The index a skills marker in Data expands into (SPEC.md 4.2), advertised the way tools are:
-    # only what carries a description.
+            return _SKILL_SEPARATOR.join(skill.content for skill in selected_skills)
+
     async def retrieve_skill_catalog(self) -> str:
-        async def returning_string_function() -> str:
-            skills = [read_frontmatter(skill) for skill in await self.skill_broker.select_skills()]
-            described_skills = [skill for skill in skills if skill.description.strip() != ""]
+        """One line per described skill, in name order: its name and what it is for."""
+        async with _handling_exceptions(self.logging_broker):
+            skills = await self.skill_broker.select_skills()
 
-            return "\n".join(
-                f"- {skill.name}: {skill.description}"
-                for skill in sorted(described_skills, key=lambda skill: skill.name))
+            described_skills = sorted(
+                (skill for skill in skills
+                    if skill.description and not skill.description.isspace()),
+                key=_ordinal_name)
 
-        return await try_catch(self.logging_broker, returning_string_function)
+            catalog_entries = (
+                f"- {skill.name} \u2014 {skill.description}" for skill in described_skills)
+
+            return os.linesep.join(catalog_entries)
+
+
+def _ordinal_name(skill: Skill) -> bytes:
+    """The skill's name as StringComparer.Ordinal compares it: by UTF-16 code units."""
+    return skill.name.encode("utf-16-be", errors="surrogatepass")
+
+
+def _contains_ordinal_ignore_case(text: str, value: str) -> bool:
+    """string.Contains(value, StringComparison.OrdinalIgnoreCase).
+
+    Each character is compared by its simple (one character) upper-case mapping, never a
+    culture's.
+    """
+    return _to_upper_ordinal(value) in _to_upper_ordinal(text)
+
+
+def _to_upper_ordinal(text: str) -> str:
+    """Uppercases each character on its own, keeping it as it is when its mapping expands."""
+    folded: list[str] = []
+
+    for character in text:
+        upper = character.upper()
+        folded.append(upper if len(upper) == 1 else character)
+
+    return "".join(folded)
+
+
+@asynccontextmanager
+async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[None]:
+    try:
+        yield
+    except (FileNotFoundError, NotADirectoryError, PermissionError) as critical_error:
+        failed_skill_dependency_exception = FailedSkillDependencyException(
+            message="Failed skill dependency error occurred, contact support.",
+            inner_exception=critical_error)
+
+        raise await _create_and_log_critical_dependency_exception(
+            logging_broker, failed_skill_dependency_exception)
+    except OSError as os_error:
+        failed_skill_dependency_exception = FailedSkillDependencyException(
+            message="Failed skill dependency error occurred, contact support.",
+            inner_exception=os_error)
+
+        raise await _create_and_log_dependency_exception(
+            logging_broker, failed_skill_dependency_exception)
+    except Exception as exception:
+        failed_skill_service_exception = FailedSkillServiceException(
+            message="Failed skill service error occurred, contact support.",
+            inner_exception=exception)
+
+        raise await _create_and_log_service_exception(
+            logging_broker, failed_skill_service_exception)
+
+
+async def _create_and_log_critical_dependency_exception(
+        logging_broker: LoggingBroker,
+        exception: Exception) -> SkillDependencyException:
+
+    skill_dependency_exception = SkillDependencyException(
+        message="Skill dependency error occurred, contact support.",
+        inner_exception=exception)
+
+    await logging_broker.log_critical(skill_dependency_exception)
+
+    return skill_dependency_exception
+
+
+async def _create_and_log_dependency_exception(
+        logging_broker: LoggingBroker,
+        exception: Exception) -> SkillDependencyException:
+
+    skill_dependency_exception = SkillDependencyException(
+        message="Skill dependency error occurred, contact support.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(skill_dependency_exception)
+
+    return skill_dependency_exception
+
+
+async def _create_and_log_service_exception(
+        logging_broker: LoggingBroker,
+        exception: Exception) -> SkillServiceException:
+
+    skill_service_exception = SkillServiceException(
+        message="Skill service error occurred, contact support.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(skill_service_exception)
+
+    return skill_service_exception

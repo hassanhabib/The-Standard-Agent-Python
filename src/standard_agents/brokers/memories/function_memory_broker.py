@@ -3,14 +3,26 @@
 # Licensed under the The Standard Software License (TSSL)
 # ---------------------------------------------------------------
 
-from collections.abc import Awaitable, Callable
+from __future__ import annotations
 
-from standard_agents.brokers.memories.imemory_broker import IMemoryBroker
+from collections.abc import Awaitable, Callable, Sequence
+
+from standard_agents.brokers.memories.memory_broker import MemoryBroker
 
 
-class FunctionMemoryBroker(IMemoryBroker):
-    def __init__(self, select_all_memories: Callable[[], Awaitable[list[str]]]) -> None:
-        self.select_all_memories_function = select_all_memories
+class FunctionMemoryBroker(MemoryBroker):
+    """The Custom mode's substrate for memory (SPEC.md 4.8)."""
 
-    async def select_all_memories(self) -> list[str]:
-        return await self.select_all_memories_function()
+    def __init__(
+            self,
+            recall: Callable[[], Awaitable[Sequence[str]]],
+            remember: Callable[[str], Awaitable[None]]) -> None:
+
+        self._recall = recall
+        self._remember = remember
+
+    async def select_memories(self) -> Sequence[str]:
+        return await self._recall()
+
+    async def insert_memory(self, memory: str) -> None:
+        await self._remember(memory)

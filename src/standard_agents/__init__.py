@@ -3,9 +3,10 @@
 # Licensed under the The Standard Software License (TSSL)
 # ---------------------------------------------------------------
 
-from standard_agents.models.clients.agents.agent_outcome import AgentOutcome
-from standard_agents.models.orchestrations.agents.agent_status import AgentStatus
-from standard_agents.standard_agent import StandardAgent
-from standard_agents.tools.itool import ITool
+"""The Standard AI Agent Framework: Agent = Orchestration(Data, Decision, Direction)."""
 
-__all__ = ["AgentOutcome", "AgentStatus", "ITool", "StandardAgent"]
+from standard_agents.agent import Agent
+from standard_agents.models.clients.agents.agent_outcome import AgentOutcome
+from standard_agents.standard_agent import StandardAgent
+
+__all__ = ["Agent", "AgentOutcome", "StandardAgent"]

@@ -3,15 +3,15 @@
 # Licensed under the The Standard Software License (TSSL)
 # ---------------------------------------------------------------
 
-from standard_agents.brokers.mcps.imcp_broker import IMcpBroker
-from standard_agents.models.brokers.mcps.remote_tool import RemoteTool
+from __future__ import annotations
+
+from standard_agents.brokers.mcps.mcp_broker import McpBroker
+from standard_agents.models.brokers.mcps.mcp_tool import McpTool
 
 
-# No remote tool server configured. An act routed outward is answered with that fact, so it
-# becomes an observation the brain can recover from rather than a failure of the run.
-class NotConfiguredMcpBroker(IMcpBroker):
-    async def call(self, name: str, input: str) -> str:
+class NotConfiguredMcpBroker(McpBroker):
+    async def call(self, name: str, arguments_json: str) -> str:
         return f"[external '{name}' not configured]"
 
-    async def list_tools(self) -> list[RemoteTool]:
+    async def list_tools(self) -> list[McpTool]:
         return []

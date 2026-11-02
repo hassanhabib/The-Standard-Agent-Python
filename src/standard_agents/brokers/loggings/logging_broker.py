@@ -3,29 +3,64 @@
 # Licensed under the The Standard Software License (TSSL)
 # ---------------------------------------------------------------
 
-import logging
+from __future__ import annotations
 
-from standard_agents.brokers.loggings.ilogging_broker import ILoggingBroker
+from abc import ABC, abstractmethod
+
+from standard_agents.models.loggings.agent_step import AgentStep
 
 
-class LoggingBroker(ILoggingBroker):
-    def __init__(self, logger: logging.Logger) -> None:
-        self.logger = logger
-
+class LoggingBroker(ABC):
+    @abstractmethod
     async def log_information(self, message: str) -> None:
-        self.logger.info(message)
+        ...
 
+    @abstractmethod
+    async def log_trace(self, message: str) -> None:
+        ...
+
+    @abstractmethod
+    async def log_debug(self, message: str) -> None:
+        ...
+
+    @abstractmethod
     async def log_warning(self, message: str) -> None:
-        self.logger.warning(message)
+        ...
 
+    @abstractmethod
     async def log_error(self, exception: BaseException) -> None:
-        self.logger.error(str(exception), exc_info=exception)
+        ...
 
+    @abstractmethod
     async def log_critical(self, exception: BaseException) -> None:
-        self.logger.critical(str(exception), exc_info=exception)
+        ...
 
-    async def log_turn(self, run_id: str, turn: int) -> None:
-        self.logger.info("Turn %d (run %s)", turn, run_id)
+    @abstractmethod
+    async def log_reset(self) -> None:
+        ...
 
-    async def log_process(self, actor: str, message: str) -> None:
-        self.logger.info("[%s] %s", actor, message)
+    @abstractmethod
+    async def log_turn(self, turn: int) -> None:
+        ...
+
+    @abstractmethod
+    async def log_outcome(self, message: str) -> None:
+        ...
+
+    @abstractmethod
+    async def log_step(self, step: AgentStep) -> None:
+        ...
+
+    @abstractmethod
+    async def log_process(self, actor: str, message: str, detail: bool = False) -> None:
+        ...
+
+    async def log_payload(self, actor: str, summary: str, payload: str, detail: bool) -> None:
+        """Logs a process event that carries a payload.
+
+        The payload is the prompt, the system prompt, the Brain's reply, a tool's input or
+        output. The summary says what happened; the payload is the content, kept apart so a sink
+        can decide what it keeps (principal review 2026-09-04, F-14). A broker that does not
+        distinguish the two logs them as one message.
+        """
+        await self.log_process(actor, f"{summary} → {payload}", detail)

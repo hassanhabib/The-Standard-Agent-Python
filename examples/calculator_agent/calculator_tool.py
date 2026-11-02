@@ -6,7 +6,7 @@
 import ast
 import operator
 
-from standard_agents import ITool
+from standard_agents.tools.tool import Tool
 
 OPERATORS = {
     ast.Add: operator.add,
@@ -20,7 +20,7 @@ OPERATORS = {
 
 # Arithmetic only: the expression is parsed and walked, never handed to eval, so a brain that
 # writes something other than arithmetic gets an error back instead of running code.
-class CalculatorTool(ITool):
+class CalculatorTool(Tool):
     @property
     def name(self) -> str:
         return "calculator"

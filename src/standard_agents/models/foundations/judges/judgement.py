@@ -8,5 +8,5 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class Judgement:
-    score: float
+    score: float = 0.0
     reason: str = ""

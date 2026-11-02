@@ -3,15 +3,19 @@
 # Licensed under the The Standard Software License (TSSL)
 # ---------------------------------------------------------------
 
-from collections.abc import Awaitable, Callable
+from __future__ import annotations
 
-from standard_agents.brokers.skills.iskill_broker import ISkillBroker
+from collections.abc import Awaitable, Callable, Sequence
+
+from standard_agents.brokers.skills.skill_broker import SkillBroker
 from standard_agents.models.foundations.skills.skill import Skill
 
 
-class FunctionSkillBroker(ISkillBroker):
-    def __init__(self, select_skills: Callable[[], Awaitable[list[Skill]]]) -> None:
-        self.select_skills_function = select_skills
+class FunctionSkillBroker(SkillBroker):
+    """The Custom mode's substrate for skills (SPEC.md 4.8)."""
 
-    async def select_skills(self) -> list[Skill]:
-        return await self.select_skills_function()
+    def __init__(self, select: Callable[[], Awaitable[Sequence[Skill]]]) -> None:
+        self._select = select
+
+    async def select_skills(self) -> Sequence[Skill]:
+        return await self._select()

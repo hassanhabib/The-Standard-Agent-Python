@@ -1,14 +1,14 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "the-standard-agent"
-version = "1.0.0.0"
+version = "6.0.0.0"
 description = "The Standard AI Agent Framework for Python: Agent = Orchestration(Data, Decision, Direction)."
 readme = "README.md"
 requires-python = ">=3.10"
-license = { file = "LICENSE.txt" }
+license-files = ["LICENSE.txt"]
 authors = [{ name = "Hassan Habib", email = "hassanhabib@live.com" }]
 keywords = ["agents", "llm", "the-standard", "tri-nature"]
 classifiers = [
@@ -23,7 +23,7 @@ classifiers = [
 dependencies = []
 
 [project.optional-dependencies]
-test = ["pytest>=8"]
+test = ["pytest>=8", "pytest-asyncio>=0.23"]
 
 [project.urls]
 Homepage = "https://github.com/hassanhabib/The-Standard-Agent-Python"
@@ -35,7 +35,9 @@ where = ["src"]
 [tool.setuptools.package-data]
 standard_agents = ["py.typed", "prompts/guardians/*.md"]
 xeptions = ["py.typed"]
+restfulsense = ["py.typed"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src", "."]
+asyncio_mode = "auto"

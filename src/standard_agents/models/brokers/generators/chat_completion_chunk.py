@@ -1,0 +1,66 @@
+# ---------------------------------------------------------------
+# Copyright (c) Hassan Habib All rights reserved.
+# Licensed under the The Standard Software License (TSSL)
+# ---------------------------------------------------------------
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any
+
+from standard_agents.models.brokers.generators.chat_choice_delta import ChatChoiceDelta
+
+_MISSING = object()
+
+
+@dataclass(frozen=True)
+class ChatCompletionChunk:
+    """One streamed chunk of a chat completion.
+
+    Wire names follow JsonNamingPolicy.SnakeCaseLower; reads are case-insensitive and nulls
+    are written, as the broker's serializer options leave them.
+    """
+
+    choices: tuple[ChatChoiceDelta, ...]
+
+    def to_json_dict(self) -> dict:
+        return {
+            "choices": (
+                None if self.choices is None
+                else [
+                    None if choice is None else choice.to_json_dict()
+                    for choice in self.choices]),
+        }
+
+    @classmethod
+    def from_json_dict(cls, data: dict) -> ChatCompletionChunk:
+        if not isinstance(data, dict):
+            raise ValueError("The JSON value could not be converted to ChatCompletionChunk.")
+
+        choices = _read_ignoring_case(data, "choices")
+
+        if choices is _MISSING or choices is None:
+            return cls(choices=None)
+
+        if not isinstance(choices, list):
+            raise ValueError(
+                "The JSON value could not be converted to IReadOnlyList<ChatChoiceDelta>.")
+
+        return cls(
+            choices=tuple(
+                None if choice is None else ChatChoiceDelta.from_json_dict(choice)
+                for choice in choices))
+
+
+def _read_ignoring_case(data: dict, name: str) -> Any:
+    """Read a property the way PropertyNameCaseInsensitive does.
+
+    Every key that matches the name ignoring case is read, and the last one wins.
+    """
+    found = _MISSING
+
+    for key, value in data.items():
+        if key.lower() == name.lower():
+            found = value
+
+    return found

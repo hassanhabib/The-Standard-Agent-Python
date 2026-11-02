@@ -20,7 +20,7 @@ CSHARP_TEST = re.compile(
     r"\[(?:Fact|Theory)[^\]]*\](?:\s*\[[^\]]*\])*\s*public\s+(?:async\s+)?[\w<>]+\s+(\w+)\s*\(",
     re.MULTILINE)
 
-PYTHON_TEST = re.compile(r"^\s*def (test_\w+)\s*\(", re.MULTILINE)
+PYTHON_TEST = re.compile(r"^\s*(?:async\s+)?def (test_\w+)\s*\(", re.MULTILINE)
 
 
 def python_name(csharp_name: str) -> str:

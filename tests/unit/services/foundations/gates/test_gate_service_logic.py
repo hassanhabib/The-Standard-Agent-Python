@@ -1,0 +1,62 @@
+# ---------------------------------------------------------------
+# Copyright (c) Hassan Habib All rights reserved.
+# Licensed under the The Standard Software License (TSSL)
+# ---------------------------------------------------------------
+
+from unittest.mock import ANY, call
+
+import pytest
+
+
+async def test_should_screen(
+        gate_service, classifier_broker, logging_broker, create_random_string):
+
+    # given
+    random_input = create_random_string()
+    random_verdict = create_random_string()
+    input_input = random_input
+    expected_verdict = random_verdict
+    classifier_broker.classify.return_value = random_verdict
+
+    # when
+    actual_verdict = await gate_service.screen(input_input)
+
+    # then
+    assert actual_verdict == expected_verdict
+    assert classifier_broker.mock_calls == [call.classify(input_input)]
+    assert logging_broker.mock_calls == []
+
+
+@pytest.mark.parametrize("verdict", ["allow", "refuse", "refuse: asks for credentials"])
+async def test_should_return_verdict_verbatim_on_screen(
+        verdict, gate_service, classifier_broker, logging_broker, create_random_string):
+
+    # given
+    random_input = create_random_string()
+    expected_verdict = verdict
+    classifier_broker.classify.return_value = verdict
+
+    # when
+    actual_verdict = await gate_service.screen(random_input)
+
+    # then
+    assert actual_verdict == expected_verdict
+    assert classifier_broker.mock_calls == [call.classify(random_input)]
+    assert logging_broker.mock_calls == []
+
+
+async def test_should_detect_conflict(
+        gate_service, classifier_broker, logging_broker, create_random_string):
+
+    # given
+    random_instructions = create_random_string()
+    random_verdict = create_random_string()
+    classifier_broker.assess.return_value = random_verdict
+
+    # when
+    actual_verdict = await gate_service.detect_conflict(random_instructions)
+
+    # then
+    assert actual_verdict == random_verdict
+    assert classifier_broker.mock_calls == [call.assess(ANY, random_instructions)]
+    assert logging_broker.mock_calls == []

@@ -3,23 +3,75 @@
 # Licensed under the The Standard Software License (TSSL)
 # ---------------------------------------------------------------
 
-from standard_agents.brokers.loggings.ilogging_broker import ILoggingBroker
-from standard_agents.services.foundations.returns.ireturn_service import IReturnService
-from standard_agents.services.foundations.returns.return_service_exceptions import try_catch
-from standard_agents.services.foundations.returns.return_service_validations import (
-    validate_payload)
+from __future__ import annotations
+
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
+from standard_agents.brokers.loggings.logging_broker import LoggingBroker
+from standard_agents.models.foundations.returns.exceptions import (
+    FailedReturnServiceException,
+    InvalidReturnException,
+    ReturnServiceException,
+    ReturnValidationException)
 
 
-# The third way Direction can act: not inside the agent, not outside it, but back to whoever
-# asked. Returning has no resource to reach, so this foundation holds only its logging broker.
-class ReturnService(IReturnService):
-    def __init__(self, logging_broker: ILoggingBroker) -> None:
+class ReturnService:
+    """Hands the agent's final payload back to the caller."""
+
+    def __init__(self, *, logging_broker: LoggingBroker) -> None:
         self.logging_broker = logging_broker
 
     async def return_payload(self, payload: str) -> str:
-        async def returning_string_function() -> str:
-            validate_payload(payload)
+        async with _handling_exceptions(self.logging_broker):
+            _validate_payload(payload)
 
             return payload
 
-        return await try_catch(self.logging_broker, returning_string_function)
+
+def _validate_payload(payload: str | None) -> None:
+    if not payload or payload.isspace():
+        raise InvalidReturnException(
+            message="Invalid return payload. Please correct the error and try again.")
+
+
+@asynccontextmanager
+async def _handling_exceptions(logging_broker: LoggingBroker) -> AsyncIterator[None]:
+    try:
+        yield
+    except InvalidReturnException as invalid_return_exception:
+        raise await _create_and_log_validation_exception(
+            logging_broker, invalid_return_exception)
+    except Exception as exception:
+        failed_return_service_exception = FailedReturnServiceException(
+            message="Failed return service error occurred, contact support.",
+            inner_exception=exception)
+
+        raise await _create_and_log_service_exception(
+            logging_broker, failed_return_service_exception)
+
+
+async def _create_and_log_validation_exception(
+        logging_broker: LoggingBroker,
+        exception: Exception) -> ReturnValidationException:
+
+    return_validation_exception = ReturnValidationException(
+        message="Return validation error occurred, fix the error and try again.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(return_validation_exception)
+
+    return return_validation_exception
+
+
+async def _create_and_log_service_exception(
+        logging_broker: LoggingBroker,
+        exception: Exception) -> ReturnServiceException:
+
+    return_service_exception = ReturnServiceException(
+        message="Return service error occurred, contact support.",
+        inner_exception=exception)
+
+    await logging_broker.log_error(return_service_exception)
+
+    return return_service_exception

@@ -6,31 +6,25 @@
 from xeptions import Xeption
 
 
-class InvalidInternalToolException(Xeption):
-    def __init__(self, message: str) -> None:
-        super().__init__(message)
-
-
-class InternalToolValidationException(Xeption):
-    def __init__(self, message: str, inner_exception: Xeption | None) -> None:
-        super().__init__(message, inner_exception)
-
-
 class FailedInternalToolDependencyException(Xeption):
-    def __init__(self, message: str, inner_exception: BaseException | None) -> None:
-        super().__init__(message, inner_exception)
-
-
-class InternalToolDependencyException(Xeption):
-    def __init__(self, message: str, inner_exception: Xeption | None) -> None:
-        super().__init__(message, inner_exception)
+    pass
 
 
 class FailedInternalToolServiceException(Xeption):
-    def __init__(self, message: str, inner_exception: BaseException | None) -> None:
-        super().__init__(message, inner_exception)
+    pass
+
+
+class InternalToolDependencyException(Xeption):
+    pass
 
 
 class InternalToolServiceException(Xeption):
-    def __init__(self, message: str, inner_exception: Xeption | None) -> None:
-        super().__init__(message, inner_exception)
+    pass
+
+
+class InternalToolValidationException(Xeption):
+    pass
+
+
+class InvalidInternalToolException(Xeption):
+    pass

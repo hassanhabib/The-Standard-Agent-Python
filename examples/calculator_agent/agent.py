@@ -11,7 +11,7 @@ from examples.calculator_agent.calculator_tool import CalculatorTool
 
 SKILLS_PATH = Path(__file__).parent / "skills"
 ARITHMETIC = re.compile(r"[-+]?\d[\d\s.+\-*/()^]*[\d)]")
-CALCULATOR_RESULT = re.compile(r"- calculator returned: (.+)")
+CALCULATOR_RESULT = re.compile(r"- calculator: (.+)")
 SECRETS = ("password", "secret", "api key", "token")
 
 
