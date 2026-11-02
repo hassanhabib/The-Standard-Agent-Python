@@ -97,6 +97,22 @@ Places where Python cannot or should not reproduce .NET, kept on purpose:
   run at once, where C# lets it reach its next write. A set `cancellation` event is seen at the
   next turn boundary, never inside a brain stream.
 
+## Python additions
+
+What Python has that C# does not, for the README at parity. Each is optional: leaving it unused
+behaves exactly as the C# does.
+
+- Closing an agent (owner's decision, 2026-11-02). `await agent.aclose()`, or
+  `async with StandardAgent(...) as agent:`, stops every MCP server process the agent started
+  with `mcp_process`, and every process each server started. C#'s `StandardAgent` never stops
+  them and relies on the host exiting; without a close, Python does the same, stopping them at
+  interpreter exit. Closing stops only what the agent owns: a broker handed to `use_mcp` (or any
+  `use_` verb) and a handler handed to `http` are the host's, as C#'s `Http(...)` remarks say of
+  handlers, and are left running. A closed agent still works: closing is not configuration, so
+  the composition stays, its next run starts its servers again, and a later close stops them
+  again. Nothing HTTP needs closing: urllib closes each connection once its response arrives, so
+  no HTTP broker holds one between requests. The one-liner is unchanged.
+
 ## Version
 
 The library is unpublished at 1.0.0.0. When it reaches parity it takes the C# version it matches
