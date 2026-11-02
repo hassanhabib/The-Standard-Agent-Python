@@ -61,6 +61,9 @@ class AgentsV1Controller:
             cancellation: asyncio.Event | None = None) -> StreamResult:
         """The streamed door, as server-sent events: one data line per line of content."""
 
+        if _is_blank(request.prompt):
+            return StreamResult(HTTPStatus.BAD_REQUEST)
+
         stream_events = self.agent.process_prompt_stream(
             _to_prompt_request(request),
             cancellation=cancellation)
