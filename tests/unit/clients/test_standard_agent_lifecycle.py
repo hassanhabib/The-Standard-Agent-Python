@@ -127,3 +127,18 @@ async def test_should_close_an_agent_already_closed(
 
     # then: closing again is harmless
     assert await have_stopped(process_ids)
+
+
+async def test_should_close_an_agent_that_never_ran(
+        empty_memory_broker,
+        empty_knowledge_broker):
+
+    # given: an agent configured with an MCP server, never run, so nothing is composed or started
+    system_prompts = []
+    agent = create_agent(empty_memory_broker, empty_knowledge_broker, system_prompts)
+
+    # when
+    await agent.aclose()
+
+    # then: closing it is harmless, and nothing ran
+    assert system_prompts == []
