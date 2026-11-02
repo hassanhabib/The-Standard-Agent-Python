@@ -146,3 +146,19 @@ async def test_should_post_run_and_carry_the_citation_request(agent, agents_v1_c
 
     # then: the caller's opinion reached the contract; the agent decides whether it counts
     assert agent.mock_calls == [call.run(expected_prompt_request, cancellation=ANY)]
+
+
+async def test_should_return_bad_request_on_post_run_if_prompt_is_empty(
+        agent,
+        agents_v1_controller):
+
+    # given
+    request = AgentRunRequestV1(prompt="   ", session_id="trip-3")
+    expected_result = ObjectResult(HTTPStatus.BAD_REQUEST, "prompt is required")
+
+    # when
+    actual_result = await agents_v1_controller.post_run(request)
+
+    # then: a prompt of nothing is the caller's mistake, told as 400 before any run starts
+    assert actual_result == expected_result
+    assert agent.mock_calls == []
