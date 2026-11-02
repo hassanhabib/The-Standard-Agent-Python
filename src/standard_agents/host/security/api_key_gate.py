@@ -10,6 +10,16 @@ about, but it is optional to lock: no configured key means open, which is what a
 and one configuration line locks every agent route for what a deployment wants.
 """
 
+import hmac
+
 
 def allows(configured_key: str | None, presented_key: str | None, path: str) -> bool:
-    return not configured_key
+    return not configured_key or _keys_match(configured_key, presented_key)
+
+
+def _keys_match(configured_key: str, presented_key: str | None) -> bool:
+    # Fixed-time on the bytes, because a comparison that returns at the first wrong character
+    # hands an attacker the key one character at a time.
+    return (
+        presented_key is not None
+        and hmac.compare_digest(configured_key.encode("utf-8"), presented_key.encode("utf-8")))
