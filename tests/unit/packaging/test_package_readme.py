@@ -38,3 +38,17 @@ def test_should_carry_no_raw_html_so_the_nu_get_page_does_not_print_the_tags():
         "README.md is the PyPI page, which does not render raw HTML as GitHub does: "
         f"{tags} would not show as written. State it in markdown instead.")
 
+
+def test_should_link_absolutely_so_every_target_resolves_off_the_repository():
+    # given
+    prose = _prose()
+
+    # when
+    relative_targets = [
+        target for target in re.findall(r"\]\(([^)]+)\)", prose)
+        if not re.match(r"^(https?://|#)", target)]
+
+    # then
+    assert relative_targets == [], (
+        "A relative target resolves against the repository, and the PyPI page has none: "
+        f"{relative_targets} would be dead links for every reader who arrives at the package.")
