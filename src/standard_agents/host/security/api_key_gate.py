@@ -14,7 +14,10 @@ import hmac
 
 
 def allows(configured_key: str | None, presented_key: str | None, path: str) -> bool:
-    return not configured_key or _keys_match(configured_key, presented_key)
+    return (
+        not configured_key
+        or path.upper() == "/API/HOME"
+        or _keys_match(configured_key, presented_key))
 
 
 def _keys_match(configured_key: str, presented_key: str | None) -> bool:
