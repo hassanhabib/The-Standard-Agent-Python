@@ -23,6 +23,7 @@ from standard_agents.models.clients.agents.agent_failure import AgentFailure
 from standard_agents.models.clients.agents.agent_failure_category import AgentFailureCategory
 from standard_agents.models.clients.agents.agent_failure_codes import AgentFailureCodes
 from standard_agents.models.clients.agents.agent_outcome import AgentOutcome
+from standard_agents.models.clients.agents.prompt_request import PromptRequest
 from standard_agents.models.orchestrations.agents.agent_status import AgentStatus
 from standard_agents.models.orchestrations.effects.agent_effect import AgentEffect
 from standard_agents.models.orchestrations.effects.agent_principal import AgentPrincipal
@@ -124,3 +125,24 @@ async def test_should_post_run_and_carry_the_failure(agent, agents_v1_controller
 
     # then: the code crossed the wire, so a caller across HTTP decides on it, not the sentence
     assert actual_result == expected_result
+
+
+async def test_should_post_run_and_carry_the_citation_request(agent, agents_v1_controller):
+    # given: a caller asking for the sources of what grounded the answer
+    request = AgentRunRequestV1(
+        prompt="what is the refund window",
+        session_id="trip-3",
+        cite_knowledge=True)
+
+    expected_prompt_request = PromptRequest(
+        prompt="what is the refund window",
+        session_id="trip-3",
+        cite_knowledge=True)
+
+    agent.run.return_value = AgentOutcome("the answer", AgentStatus.RESPONDED)
+
+    # when
+    await agents_v1_controller.post_run(request)
+
+    # then: the caller's opinion reached the contract; the agent decides whether it counts
+    assert agent.mock_calls == [call.run(expected_prompt_request, cancellation=ANY)]
