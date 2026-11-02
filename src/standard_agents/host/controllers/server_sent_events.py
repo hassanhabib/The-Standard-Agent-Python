@@ -12,9 +12,13 @@ guarantees, carried out to the protocol.
 
 from __future__ import annotations
 
+import re
 from collections.abc import AsyncIterator
 
 from standard_agents.models.clients.agents.agent_stream_event import AgentStreamEvent
+
+# CR, LF and CRLF all end a line in server-sent events; CRLF first so it splits as one.
+_LINE_TERMINATORS = re.compile(r"\r\n|\n|\r")
 
 
 async def to_server_sent_events(
@@ -25,6 +29,19 @@ async def to_server_sent_events(
 
 
 def to_server_sent_event(stream_event: AgentStreamEvent) -> str:
-    event_name = "".join(word.capitalize() for word in stream_event.type.name.split("_"))
+    """One frame, in the shape the SSE specification reads.
 
-    return f"event: {event_name}\ndata: {stream_event.content}\n\n"
+    The kind as the event name, one "data:" line per line of content, then the blank line that
+    ends the event. A content line left unprefixed is read as a field, and a blank line inside
+    the content ends the event early, which is what a multi-line answer, the normal case, used
+    to do (principal review 2026-09-04, F-11). The consumer joins the data lines back with a
+    newline.
+    """
+    event_name = "".join(word.capitalize() for word in stream_event.type.name.split("_"))
+    content_lines = _LINE_TERMINATORS.split(stream_event.content)
+
+    frame = [f"event: {event_name}\n"]
+    frame.extend(f"data: {content_line}\n" for content_line in content_lines)
+    frame.append("\n")
+
+    return "".join(frame)
