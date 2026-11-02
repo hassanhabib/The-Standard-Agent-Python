@@ -23,9 +23,10 @@ class HttpPrincipalResolver:
         self.http_context_accessor = http_context_accessor
 
     def resolve(self) -> AgentPrincipal | None:
-        user = self.http_context_accessor.http_context.user
+        http_context = self.http_context_accessor.http_context
+        user = http_context.user if http_context is not None else None
 
-        if user.identity is None or not user.identity.is_authenticated:
+        if user is None or user.identity is None or not user.identity.is_authenticated:
             return None
 
         # "sub" is the token's subject; NameIdentifier is the same thing in .NET's vocabulary
