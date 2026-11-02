@@ -10,13 +10,19 @@
 # so these are mapping tests: the wire in, the contract out; the outcome in, the wire out; invalid
 # in, 400 out.
 
+import dataclasses
 from http import HTTPStatus
 from unittest.mock import ANY, call
 
 from standard_agents.host.controllers.action_results import ObjectResult
+from standard_agents.host.models.v1.agent_run_request_v1 import AgentRunRequestV1
 from standard_agents.host.models.v1.agent_run_response_v1 import AgentRunResponseV1
+from standard_agents.host.models.v1.pending_effect_v1 import PendingEffectV1
 from standard_agents.models.clients.agents.agent_outcome import AgentOutcome
 from standard_agents.models.orchestrations.agents.agent_status import AgentStatus
+from standard_agents.models.orchestrations.effects.agent_effect import AgentEffect
+from standard_agents.models.orchestrations.effects.agent_principal import AgentPrincipal
+from standard_agents.models.orchestrations.effects.risk_level import RiskLevel
 
 
 async def test_should_post_run(
@@ -38,3 +44,47 @@ async def test_should_post_run(
     # then: every field of the wire reached the contract, and the outcome reached the wire
     assert actual_result == expected_result
     assert agent.mock_calls == [call.run(expected_prompt_request, cancellation=ANY)]
+
+
+async def test_should_post_run_and_carry_the_pending_effect(agent, agents_v1_controller):
+    # given: a run held on an authority, waiting on the caller's tool call
+    request = AgentRunRequestV1(prompt="wire the money", session_id="trip-3")
+    principal = AgentPrincipal(id="hassan", tenant_id="peerllm")
+
+    held_effect = dataclasses.replace(
+        AgentEffect.create(
+            run_id="run-9",
+            tool_name="wire",
+            arguments='{"amount":100}',
+            risk_level=RiskLevel.IRREVERSIBLE,
+            approval_required=True,
+            principal=principal,
+            scope="account:42"),
+        call_id="call-7")
+
+    agent.run.return_value = AgentOutcome(
+        result="waiting on an authority",
+        status=AgentStatus.AWAITING_APPROVAL,
+        pending_effect=held_effect)
+
+    expected_result = ObjectResult(
+        HTTPStatus.OK,
+        AgentRunResponseV1(
+            result="waiting on an authority",
+            status="AwaitingApproval",
+            pending_effect=PendingEffectV1(
+                run_id="run-9",
+                call_id="call-7",
+                tool_name="wire",
+                arguments='{"amount":100}',
+                scope="account:42",
+                risk_level="Irreversible",
+                approval_required=True,
+                idempotency_key=held_effect.idempotency_key,
+                principal="hassan")))
+
+    # when
+    actual_result = await agents_v1_controller.post_run(request)
+
+    # then: the act the run is waiting on crossed the wire whole, key and call id included
+    assert actual_result == expected_result
