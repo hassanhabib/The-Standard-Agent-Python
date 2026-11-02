@@ -1295,6 +1295,12 @@ class StandardAgent(Agent):
 
         set_outcome(events.outcome)
 
+    async def __aenter__(self) -> StandardAgent:
+        return self
+
+    async def __aexit__(self, *exception_info: object) -> None:
+        await self.aclose()
+
     async def aclose(self) -> None:
         with self._composition_lock:
             mcp_brokers = list(self._mcp_brokers)
