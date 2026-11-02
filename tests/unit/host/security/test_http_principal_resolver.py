@@ -68,3 +68,14 @@ def test_should_resolve_the_name_identifier_when_there_is_no_subject_claim():
 
     # then
     assert actual_principal == expected_principal
+
+
+def test_should_resolve_no_principal_when_the_user_is_not_authenticated():
+    # given: an anonymous request, which is what an open laptop host receives
+    resolver = _resolver_for(ClaimsPrincipal(ClaimsIdentity()))
+
+    # when
+    actual_principal = resolver.resolve()
+
+    # then: the framework consumes a principal and never mints one
+    assert actual_principal is None
