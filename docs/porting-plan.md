@@ -37,7 +37,7 @@ when its tests are at parity and the whole suite is green.
 | 3. Capabilities | Acceptance, one capability per PR in the C# order: revision, retrieval and citation, memory opt-out, rules, sessions and resumption, perimeter, permissions, approvals, the effect ledger, compensation, identity, redaction, budgets, resilience, failure codes, the decision log, traces, telemetry, per-request inference, caller tools, contracts, selection, narration, streamed outcome, native tool calls | Acceptance: 179 |
 | 4. Wire | Standard-library clients and their wire contracts: OpenAI-compatible text and native, Anthropic native, provider options, MCP over HTTP (JSON and event-stream replies, sessions, pagination), MCP over standard input and output | Wire: 40 |
 | 5. Certification | The conformance runner driving every vector field; Core, Reliable, Enterprise and Critical certified in CI | 88 vectors |
-| 6. Host (not yet chosen) | `Standard.Agents.Host`: the OpenAI-compatible HTTP exposer, its gates and principal resolution | Controllers, Acceptance/Host: 36 |
+| 6. Host | `Standard.Agents.Host` as `standard_agents.host`, standard library only (owner decision, 2026-11-02): the HTTP exposer on an asyncio server, its gates and principal resolution, `python -m standard_agents.host` | Controllers, Acceptance/Host: 36 |
 
 After Phase 1 the capability work is independent enough to run in parallel, one session per
 capability group, each in its own worktree.
@@ -97,6 +97,32 @@ Places where Python cannot or should not reproduce .NET, kept on purpose:
   run at once, where C# lets it reach its next write. A set `cancellation` event is seen at the
   next turn boundary, never inside a brain stream.
 
+- The host (`python -m standard_agents.host`) is an asyncio HTTP/1.1 server written for it,
+  not Kestrel. It answers with the routes, statuses, gates, JSON names and bodies, problem
+  details and server-sent events of the C# host, and differs where Kestrel and ASP.NET do
+  things the standard library does not:
+  - Bearer tokens are not validated. Setting `Host:Authentication:Authority` locks every agent
+    route as C# does, but nothing can unlock it: the standard library has no RS256 or ES256
+    verification and no OIDC metadata client, so every agent route answers 401 (and the host
+    logs why) unless `create_host(..., authenticate=...)` is handed a scheme.
+    `Host:Authentication:Audience` is read by nothing.
+  - No HTTPS (an https URL is refused; put TLS in front), no HTTP/2, no OpenTelemetry export
+    (`OTEL_EXPORTER_OTLP_ENDPOINT` is ignored), no pooled `IHttpClientFactory` handler under the
+    agent's HTTP brokers (each broker builds its own), and no appsettings.json or user secrets:
+    configuration is environment variables and the command line, in ASP.NET's order.
+  - A whole response carries `Content-Length`; Kestrel chunks a JSON body and the middleware's
+    401 text. No `Server` header is sent. A streamed response is chunked on HTTP/1.1, as
+    Kestrel's is, and closed at its end on HTTP/1.0.
+  - A JSON error names the path and the C# type as System.Text.Json does, without the line and
+    byte position, and a malformed document is described in Python's words.
+  - An unhandled exception is a 500 with no body, as ASP.NET answers outside Development;
+    WebApplicationFactory runs the C# host in Development, where it would be the developer
+    exception page.
+  - Expect: 100-continue is answered before the gates run, where Kestrel answers only when a
+    controller reads the body, so a refused request may have sent its body for nothing.
+  - agent.json is looked for in the working directory, the analog of the C# host's
+    AppContext.BaseDirectory.
+
 ## Python additions
 
 What Python has that C# does not, for the README at parity. Each is optional: leaving it unused
@@ -112,6 +138,9 @@ behaves exactly as the C# does.
   the composition stays, its next run starts its servers again, and a later close stops them
   again. Nothing HTTP needs closing: urllib closes each connection once its response arrives, so
   no HTTP broker holds one between requests. The one-liner is unchanged.
+- The host closes the agent it composed when it stops (Ctrl+C, SIGTERM, or
+  `await host.aclose()`), as the C# container disposes the singletons it created, so a
+  `StandardAgent` behind it stops the MCP server processes it started.
 
 ## Version
 
