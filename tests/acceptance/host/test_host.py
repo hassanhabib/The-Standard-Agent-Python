@@ -86,3 +86,13 @@ async def test_should_refuse_a_null_field_naming_it_through_http(agent, serve_ho
     assert response.status == 400
     assert "History" in response.text
     agent.run.assert_not_called()
+
+
+async def test_should_refuse_an_empty_prompt_through_http(agent, serve_host, v1_document):
+    async with serve_host() as client:
+        # when
+        response = await client.post_json("api/V1/agents/runs", v1_document(prompt="   "))
+
+    # then
+    assert response.status == 400
+    agent.run.assert_not_called()
