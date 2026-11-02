@@ -31,6 +31,9 @@ class AgentsController:
             *,
             cancellation: asyncio.Event | None = None) -> ObjectResult:
 
+        if _is_blank(request.prompt):
+            return ObjectResult(HTTPStatus.BAD_REQUEST, "prompt is required")
+
         # The caller closing the connection cancels the run at its next turn boundary, and,
         # through the nesting seam, any sub-agents the run started.
         outcome = await self.agent.run(request.prompt, cancellation=cancellation)
@@ -47,6 +50,10 @@ class AgentsController:
         raise NotImplementedError
 
 
+def _is_blank(prompt: str | None) -> bool:
+    return not prompt or prompt.isspace()
+
+
 def _enum_name(member: Enum) -> str:
-    """The member's C# name, as Enum.ToString() writes it: AWAITING_APPROVAL is AwaitingApproval."""
+    """The member's C# name, as Enum.ToString() writes it: AwaitingApproval."""
     return "".join(word.capitalize() for word in member.name.split("_"))
