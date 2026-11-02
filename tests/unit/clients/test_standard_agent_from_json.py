@@ -335,7 +335,8 @@ async def test_should_start_an_mcp_server_process_from_json(tmp_path, monkeypatc
     agent = StandardAgent.from_json(document).on_brain(brain)
 
     # when
-    await agent.process_prompt("who is student 1?")
+    async with agent:
+        await agent.process_prompt("who is student 1?")
 
     # then: the first-registered process owns the name, started as the document said
     assert "student 1 is Hassan, at Redmond High, for the fall term" in observed_prompts[-1]

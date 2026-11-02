@@ -79,7 +79,8 @@ async def test_should_start_an_mcp_server_process_and_call_its_tool(
         .on_brain(brain))
 
     # when
-    await agent.process_prompt("who is student 1?")
+    async with agent:
+        await agent.process_prompt("who is student 1?")
 
     # then: the tool was found in the process's catalog, called, and its answer came back
     assert "student 1 is Hassan, at Redmond High, for the fall term" in observed_prompts[-1]
