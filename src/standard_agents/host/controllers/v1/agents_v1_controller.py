@@ -44,6 +44,9 @@ class AgentsV1Controller:
             *,
             cancellation: asyncio.Event | None = None) -> ObjectResult:
 
+        if _is_blank(request.prompt):
+            return ObjectResult(HTTPStatus.BAD_REQUEST, "prompt is required")
+
         # The caller closing the connection cancels the run at its next turn boundary, and,
         # through the nesting seam, any sub-agents the run started.
         outcome = await self.agent.run(_to_prompt_request(request), cancellation=cancellation)
@@ -56,6 +59,10 @@ class AgentsV1Controller:
             *,
             cancellation: asyncio.Event | None = None) -> StreamResult:
         raise NotImplementedError
+
+
+def _is_blank(prompt: str | None) -> bool:
+    return not prompt or prompt.isspace()
 
 
 def _to_prompt_request(request: AgentRunRequestV1) -> PromptRequest:
