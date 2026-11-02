@@ -38,3 +38,17 @@ async def test_should_stream_server_sent_events_through_http(
 
     assert agent.process_prompt_stream.call_args_list == [
         call(expected_prompt_request, cancellation=ANY)]
+
+
+async def test_should_refuse_an_empty_prompt_on_the_streamed_door_through_http(
+        agent,
+        serve_host,
+        v1_document):
+
+    async with serve_host() as client:
+        # when
+        response = await client.post_json("api/V1/agents/streams", v1_document(prompt=""))
+
+    # then
+    assert response.status == 400
+    agent.process_prompt_stream.assert_not_called()
