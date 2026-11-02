@@ -2,10 +2,15 @@
 
 **`Agent = Orchestration(Data, Decision, Direction)`**
 
-A Python implementation of [The Standard for Agents](https://github.com/hassanhabib/The-Standard-Agent-Specs/blob/main/SPEC.md),
-built to [The Standard](https://github.com/hassanhabib/The-Standard). The specification is the
-source of truth; the C# reference implementation,
-[Standard.Agents](https://github.com/hassanhabib/The-Standard-Agent), is one realization of it.
+The Python twin of [Standard.Agents](https://github.com/hassanhabib/The-Standard-Agent), the C#
+reference implementation of [The Standard for Agents](https://github.com/hassanhabib/The-Standard-Agent-Specs/blob/main/SPEC.md),
+built to [The Standard](https://github.com/hassanhabib/The-Standard).
+
+The C# framework decides the behaviour; Python decides how the code reads. Every model, broker,
+service, message, wire format and run outcome matches Standard.Agents, and every C# unit,
+acceptance, wire, client and host test has a Python twin under the same name. The code itself is
+Python: abstract base classes named for their role, keyword-only options instead of overloads,
+coroutines without an `Async` suffix, dataclasses, docstrings.
 
 - **Data**: what the agent *has* (skills, memory, knowledge). Verb: **Recall**
 - **Decision**: what the agent *thinks* (one brain, wrapped in a Gate and a Judge). Verb: **Think**
@@ -13,34 +18,33 @@ source of truth; the C# reference implementation,
 
 Orchestration is not a fourth nature. It is the loop that turns the three.
 
-The library has no runtime dependencies and makes no network calls of its own. The brain is
-whatever you compose: a local open-weight model behind `use_generator`, or your own function
-behind `on_brain`.
+The library has no runtime dependencies and makes no network call a host did not compose. The
+brain is whatever you point it at: an OpenAI-compatible endpoint (a local open-weight model
+served by Ollama, vLLM or llama.cpp works as is), the Anthropic Messages API, or your own
+function.
 
 ## Conformance
 
 | | |
 |---|---|
-| Specification | SPEC.md **v1.18** |
-| Profile claimed | **Core** (SPEC.md 8.1) |
-| At version | **1.0.0.0** |
-| Evidence | `python -m conformance <vectors> --profile Core`, run in CI on every change |
+| Matches | Standard.Agents **6.0.0.0** (C#) |
+| Profiles certified | **Core, Reliable, Enterprise, Critical** (SPEC.md 8) |
+| Vectors | **88 of 88** pass |
+| C# tests with a Python twin | **577 of 577** |
+| Evidence | `python -m conformance <vectors> --profile Critical`, run in CI on every change |
 
-The evidence is reproducible by anyone (SPEC.md 1.1): the vectors are public, in the reference
-implementation's repository.
+The evidence is reproducible by anyone (SPEC.md 1.1). The vectors are public, in the C#
+repository; a sparse checkout takes only them (a full clone of that repository fails on Windows,
+where some of its test file paths exceed the default path length):
 
 ```bash
 git clone --depth 1 --filter=blob:none --sparse https://github.com/hassanhabib/The-Standard-Agent.git reference
 git -C reference sparse-checkout set conformance
-python -m conformance reference/conformance/vectors --profile Core
+python -m conformance reference/conformance/vectors --profile Critical
 ```
 
-The sparse checkout takes only the vectors; a full clone of the reference repository fails on
-Windows, where some of its test file paths exceed the default path length.
-
-The runner is a port of the reference runner (Standard.Agents.Conformance) and drives every field
-of all 88 vectors. All 88 pass, and CI certifies Core, Reliable, Enterprise and Critical on every
-change; the same command with `--profile Critical` reproduces it.
+The runner is a port of the C# runner (Standard.Agents.Conformance) and drives every field of
+every vector.
 
 ## Install
 
@@ -48,83 +52,164 @@ change; the same command with `--profile Critical` reproduces it.
 pip install the-standard-agent
 ```
 
-The distribution is `the-standard-agent`; the import is `standard_agents`. From a clone,
-`pip install -e ".[test]"`.
+The distribution is `the-standard-agent`; the import is `standard_agents`. Python 3.10 or later.
+The package is typed (`py.typed`).
 
-Python 3.10 or later. The package is typed (`py.typed`).
-
-## One line, then one capability at a time
+## One line
 
 ```python
 import asyncio
+
 from standard_agents import StandardAgent
 
-async def brain(system_prompt: str, user_prompt: str) -> str:
-    ...  # call your local model; reply "ACTION: <tool>: <input>" or "FINAL: <answer>"
 
-agent = StandardAgent().on_brain(brain)
+async def main() -> None:
+    agent = StandardAgent(api_url="http://localhost:11434/v1/", api_key="", model="llama3.1")
 
-answer = asyncio.run(agent.process_prompt("What is 47 * 89?"))
+    print(await agent.process_prompt("What is 47 * 89?"))
+
+
+asyncio.run(main())
 ```
 
-Everything else is opt-in, with a default that behaves as if the capability were absent:
+That is a working agent: a brain behind an OpenAI-compatible endpoint, skills from `./Skills`, a
+memory in `./memory.txt`, knowledge from `./Knowledge`, and the reply protocol (`ACTION`, `TOOL`,
+`TRANSFER`, `FINAL`, `SAY`) driving the loop.
+
+## Then one capability at a time
+
+Every capability is a method that returns the agent, so they chain, and every one is optional:
+a capability you do not name behaves as if it did not exist.
 
 ```python
-agent = (StandardAgent()
-    .skills("skills")                  # who it is: Markdown, found recursively (Data)
-    .memory("memory.txt")              # one memory per line (Data)
-    .on_knowledge(search_documents)    # grounding for this prompt (Data)
-    .on_gate(screen)                   # screen the request before the brain sees it (Decision)
-    .on_judge(review)                  # review the answer before the user sees it (Decision)
-    .constitution("constitution.md")   # one law above both guardians (Decision)
-    .tool(CalculatorTool())            # what it can do (Direction)
-    .on_mcp(call_remote_tool)          # where an act it does not own is sent (Direction)
-    .max_turns(7)
-    .log_to("log.txt")                 # turn-by-turn trace, every line naming its run
-    .on_brain(brain))
+from datetime import timedelta
+from decimal import Decimal
 
-outcome = asyncio.run(agent.run("What is 47 * 89?"))
-outcome.status   # AgentStatus.RESPONDED, REFUSED, AWAITING_INPUT, AWAITING_APPROVAL or FAILED
-outcome.result   # the answer, or what the run says instead of one
+agent = (
+    StandardAgent(api_url="http://localhost:11434/v1/", api_key="", model="llama3.1")
+    .skills("skills")
+    .memory("memory.txt")
+    .knowledge("knowledge", max_results=3)
+    .tool(CalculatorTool())
+    .mcp_process("python", arguments=["weather_server.py"])
+    .rule_gate("password", "api key")
+    .require_approval("send_email")
+    .redact()
+    .sessions("sessions")
+    .budget(max_tokens=20_000, max_wall_clock=timedelta(seconds=30))
+    .max_turns(8)
+    .log_to("trace.txt"))
 ```
 
-Use `run` when how the run ended matters: a refusal and an answer read alike as text.
+A tool is a class:
 
-### The three ways to reach a capability (SPEC.md 4.8)
+```python
+from standard_agents.tools.tool import Tool
 
-| Capability | Local | External (a broker) | Custom (a function) |
-|---|---|---|---|
-| Skills | `skills(path)` | `use_skills` | `on_skills` |
-| Memory | `memory(path)` | `use_memory` | `on_memory` |
-| Trace | `log_to(path)` | `use_logging` | `on_log` |
-| Brain | not offered: running a model needs a runtime (a dependency) or an endpoint (a network), and Local may require neither | `use_generator` | `on_brain` |
-| Knowledge | not built: a folder needs ranked retrieval (4.2) | `use_knowledge` | `on_knowledge` |
-| Gate, Judge | not offered: a rule that branches is logic, which The Standard keeps out of brokers; a rule guardian is one line of `on_gate` / `on_judge` | `use_gate`, `use_judge` | `on_gate`, `on_judge` |
-| Remote tools | not built: a built-in client must speak the protocol's real transports (4.8) | `use_mcp` | `on_mcp` |
 
-A test keeps this table honest: a capability missing a mode with no recorded reason fails the
-build.
+class CalculatorTool(Tool):
+    @property
+    def name(self) -> str:
+        return "calculator"
 
-### The reply protocol (SPEC.md 6.0)
+    @property
+    def description(self) -> str:
+        return "Evaluates arithmetic, such as 2 + 2."
 
-`ACTION: <tool>: <input>` to act, read from the first line only; `FINAL: <answer>` to answer, and an
-answer may span lines; a reply with neither is the answer itself. This library does not voice
-narration, so a `SAY:` line is not peeled: it is read as the reply's first line, as 6.0 requires of
-an implementation without narration.
+    async def execute(self, input: str) -> str:
+        return str(evaluate(input))
+```
 
-Skills write the tool catalog in where they put `{{tools}}`, and the index of described skills
-where they put `{{skills}}`. Only a tool or skill with a description is advertised; an undescribed
-tool is still callable.
+### The three ways to reach anything
 
-### The guardians (SPEC.md 4.5)
+Each capability can be named three ways (SPEC.md 4.8):
 
-Each guardian's rubric is assembled from up to three layers, in order: an optional constitution, a
-policy (built in, or replaced in both guardians by `consumption(path)`), and the framework-owned
-contract, which is always present. The built-in policies and contracts ship as package Data in
-`standard_agents/prompts/guardians`. The Gate answers `accept`, `route: <label>` or
-`refuse: <reason>`; the Judge answers `SCORE:` and `REASON:`, and a score outside 0.0 to 1.0 is
-rejected. A draft the Judge rejects is never delivered: that turn decides nothing, the reason goes
-into the observations, and the next turn revises.
+- **Configured**: the framework's own broker from a path or an endpoint: `.memory("memory.txt")`,
+  `.gate(api_url=..., api_key=..., model=...)`, `.mcp("https://tools.example/mcp")`.
+- **Custom**: your function, in place of the broker: `.on_brain(fn)`, `.on_memory(recall, remember)`,
+  `.on_approval(fn)`. An async function for anything the C# framework awaits.
+- **External**: your own implementation of the broker's abstract base class: `.use_memory(broker)`,
+  `.use_generator(broker)`, `.use_mcp(broker)`.
+
+### The agent as data
+
+The whole agent can be a JSON document, which is what a low-code platform writes:
+
+```python
+agent = StandardAgent.from_json_file("agent.json")
+```
+
+```json
+{
+  "brain": { "apiUrl": "http://localhost:11434/v1/", "apiKey": "", "model": "llama3.1" },
+  "skills": "skills",
+  "maxTurns": 8,
+  "requireApproval": ["send_email"]
+}
+```
+
+`StandardAgent.document_schema_json()` returns the JSON Schema of the document.
+
+## How a run ends
+
+`process_prompt` returns the answer's text. `run` returns how the run ended as well as what it
+produced, because a run can end answered, refused, held on an authority, waiting on the caller,
+or out of turns, and only the first makes the result an answer:
+
+```python
+from standard_agents.models.orchestrations.agents.agent_status import AgentStatus
+
+outcome = await agent.run("Send the report to Sam")
+
+if outcome.status is AgentStatus.AWAITING_APPROVAL:
+    print("Waiting on:", outcome.pending_effect)
+```
+
+Streaming carries the same run as events, and the same outcome once the stream ends:
+
+```python
+stream = agent.run_stream("What is 47 * 89?")
+
+async for event in stream:
+    print(event.type, event.content)
+
+print(stream.outcome.status)
+```
+
+A run stops at its next turn boundary when its `cancellation` event is set, so no effect is left
+half-recorded, and it ends with the `cancelled` failure code, as a C# run does when its token is
+cancelled:
+
+```python
+stop = asyncio.Event()
+outcome = await agent.run("Summarize the folder", cancellation=stop)
+```
+
+Cancelling the task itself (`task.cancel()`) keeps its ordinary Python meaning.
+
+## Closing an agent
+
+An agent that starts MCP server processes (`mcp_process`) can stop them:
+
+```python
+async with StandardAgent(api_url="http://localhost:11434/v1/", api_key="", model="llama3.1") as agent:
+    print(await agent.process_prompt("What's the weather?"))
+```
+
+or `await agent.aclose()`. This is a Python addition: the C# framework never stops them and
+relies on the host exiting, and an agent you never close behaves exactly that way. Closing stops
+only what the agent started; a broker or handler you handed it stays yours.
+
+## Hosting
+
+```bash
+python -m standard_agents.host --urls http://0.0.0.0:5000
+```
+
+The host exposes an agent over HTTP with the routes, gates, JSON and server-sent events of the C#
+host (`POST api/V1/agents/runs`, `POST api/V1/agents/streams`, and the V0 routes beside them),
+built on the standard library. Configuration, the API key gate and the identity gate are in
+[the hosting guide](https://github.com/hassanhabib/The-Standard-Agent-Python/blob/main/docs/hosting.md).
 
 ## The example agent
 
@@ -138,99 +223,98 @@ Status : RESPONDED
 Answer : 47 * 89 = 4183
 ```
 
-[examples/calculator_agent](examples/calculator_agent): skills from a folder, a calculator tool
-that parses arithmetic and never calls `eval`, a Gate that refuses requests for credentials, and a
-small local brain that speaks the ACTION / FINAL protocol, so it runs with no model and no network.
+[The example](https://github.com/hassanhabib/The-Standard-Agent-Python/tree/main/examples/calculator_agent)
+composes skills from a folder, a calculator tool that parses arithmetic and never calls `eval`, a
+Gate that refuses requests for credentials, and a small local brain that speaks the reply
+protocol, so it runs with no model and no network.
 
 ## The architecture
 
 ```
-StandardAgent                                    exposer: composition, run, process_prompt
-  RunCoordinationService                         the loop: Recall, Think, Act, until the run ends
-    DataOrchestrationService      (Data)         skills, memories, knowledge
-    DecisionOrchestrationService  (Decision)     gate, brain, judge
-    DirectionOrchestrationService (Direction)    internal tools, external tools, return
-      SkillService, MemoryService, KnowledgeService,
-      GateService, BrainService, JudgeService,
-      InternalToolService, ExternalToolService,
-      ReturnService                              foundations: validate, localize, categorize
-        ISkillBroker, IMemoryBroker, IKnowledgeBroker,
-        IClassifierBroker, IGeneratorBroker, IVerifierBroker,
-        IToolBroker, IMcpBroker, ILoggingBroker  brokers: one resource each
+StandardAgent                                 exposer: composition and the run doors
+  RunManagementService                        the loop: Recall, Think, Act, until the run ends
+    DataCoordinationService                   Data: skills, memory, knowledge, sessions
+      RetrievalOrchestrationService, RecollectionOrchestrationService
+    DecisionCoordinationService               Decision: gate, brain, judge, contract
+      InferenceOrchestrationService, GuardianOrchestrationService
+    DirectionCoordinationService              Direction: tools, transfers, the perimeter
+      ExecutionOrchestrationService, PerimeterOrchestrationService
+        SkillService, MemoryService, KnowledgeService, SessionService, BrainService,
+        GateService, JudgeService, ContractService, UsageService, InternalToolService,
+        ExternalToolService, ReturnService, PolicyService, ApprovalService,
+        EffectLedgerService                   foundations: validate, localize, categorize
+          GeneratorBroker, ClassifierBroker, VerifierBroker, McpBroker, MemoryBroker,
+          SessionBroker, LoggingBroker, ...   brokers: one resource each
 ```
 
-Every service validates its own inputs, maps every exception into four categories (validation,
+Every service validates its inputs, maps every failure into four categories (validation,
 dependency validation, dependency, service), keeps the local exception as the inner exception all
-the way up, and logs the categorized exception once, before raising it. Each run has its own
-identity, a local of the call, so one instance serves concurrent prompts.
-
-## Where the C# reference implementation and the specification differ
-
-This library follows the specification at each of these points.
-
-| Point | SPEC.md | C# Standard.Agents | This library |
-|---|---|---|---|
-| Status | 3.1: a closed set of six | adds a seventh, `Revising` | the six; a rejected draft leaves the turn with no decision |
-| Who writes status | 3.2: Direction | Decision writes `Revising` | only Direction |
-| Gate broker | 4.1: `classify(systemPrompt, input)` | `ClassifyAsync(input)`, the rubric bound at construction (`AssessAsync(systemPrompt, input)` also exists) | `classify(system_prompt, input)` |
-| Judge broker | 4.1: `verify(systemPrompt, task, candidate)` | `VerifyAsync(task, candidate)`, the rubric bound at construction | `verify(system_prompt, task, candidate)` |
-| Custom Judge | 4.8: no more than the capability's own contract | `OnJudge(rubric, candidate)`, the task folded into the candidate text | `on_judge(rubric, task, candidate)` |
-| Recall into observations | 4.3: recall MAY seed observations | appends recalled memories and passages on every turn | adds each recalled item once |
-
-Where both fall short of the specification:
-
-- **Invariant 2** (prompts live in Data, never hardcoded): both write the user-message framing
-  (`Task:`, `Observations so far:`) and the revision feedback sentence in code, in Decision.
-- **The loop's trace reset** (5): the reference loop resets its trace at the start of each run;
-  this library writes a run identity on every turn instead and never resets, because truncating a
-  shared trace under concurrent runs (4.4) would erase another run's lines.
-
-## What is not built
-
-Everything below is a Full or optional capability (SPEC.md 8.2), and none is claimed:
-structured `TOOL:` calls (6.1), provider-native tool calls (6.2), transfer and the fleet (6.3,
-4.8), narration and the streamed outcome (6.0, 4.14), the perimeter (effects, policy, approval,
-run-once, compensation, untrusted inbound, 4.9), redaction and allow-lists (4.6), the decision log
-(4.7), resilience, budgets, cancellation and failure codes (4.10, 3.6), sessions and memory writes
-(4.11), telemetry (4.12), per-request inference (4.13), selection (4.15), sourced knowledge and
-citation (3.7, 4.2), ranked local knowledge (4.2), guardian overreach neutralization (Invariant 6),
-the Gate's `route:` verdict steering skill selection (`retrieve_skills(route)` exists; nothing
-feeds it a route yet), and composition from a data document (4.8).
+the way up, and logs the categorized exception once, before raising it.
 
 ## C# to Python
 
 | C# (Standard.Agents) | Python (standard_agents) |
 |---|---|
-| `interface IStorageBroker` | `class IStorageBroker(ABC)` with `@abstractmethod` |
-| `ValueTask<T> SelectAsync()` | `async def select(self) -> T`; coroutines carry no `Async` suffix |
-| `PascalCase` members | `snake_case` members, `PascalCase` classes (PEP 8) |
-| `partial class XService` across three files | `x_service.py`, `x_service_validations.py`, `x_service_exceptions.py`: plain functions the service imports, so there is no inheritance to chase |
-| `TryCatch(async () => { ... })` | `await try_catch(logging_broker, returning_function)` over a nested `async def` |
-| `throw await CreateAndLog...Async(e)` | `raise await create_and_log_...(logging_broker, e)` |
-| `Xeption` (NuGet) | `xeptions.Xeption`, a library beside the package |
-| One file per exception class | one `exceptions.py` per entity, on the same folder path |
+| `new StandardAgent(url, key, model)` | `StandardAgent(api_url=url, api_key=key, model=model)` |
+| `.Memory(path)`, `.OnBrain(fn)`, `.UseGate(broker)` | `.memory(path)`, `.on_brain(fn)`, `.use_gate(broker)` |
+| `StandardAgent.FromJson(json)` | `StandardAgent.from_json(json)` |
+| `ProcessPromptAsync`, `RunAsync`, `RunStreamAsync` | `process_prompt`, `run`, `run_stream` |
+| `CancellationToken` | `cancellation: asyncio.Event` |
+| `interface IMemoryBroker` | `class MemoryBroker(ABC)` |
+| `GeneratorBroker` (the OpenAI-compatible brain) | `OpenAiGeneratorBroker` |
+| `ITool` | `Tool` |
+| Overloads (`GenerateAsync(s, u)`, `GenerateAsync(s, u, inference)`) | one method with a keyword-only option: `generate(s, u, *, inference=None)` |
+| `ValueTask<T> SelectMemoriesAsync()` | `async def select_memories(self) -> Sequence[str]` |
+| `IAsyncEnumerable<T>` | an async generator |
 | `record AgentContext` with `with { }` | `@dataclass(frozen=True)` with `dataclasses.replace` |
-| `enum AgentStatus { Working, ... }` | `class AgentStatus(Enum): WORKING = 0 ...` |
-| A coordination over two orchestrations per nature, under a management service | one orchestration per nature, under one coordination: with the core set of foundations the Florance pattern puts each one level lower |
-| `AgentOrchestration*Exception` shared by the natures | `DataOrchestration*`, `DecisionOrchestration*`, `DirectionOrchestration*`, `RunCoordination*` |
-| xUnit, Moq, FluentAssertions | pytest, `unittest.mock.create_autospec`; `mock_calls == [...]` is Verify plus VerifyNoOtherCalls |
+| `AgentUsage.None`, `AgentEffect.For(...)`, `TryGetVerdict` | `AgentUsage.EMPTY`, `AgentEffect.create(...)`, `get_verdict` |
+| Partial classes and `TryCatch` | one module per service, and `async with _handling_exceptions(...)` |
+| `Xeption`, RESTFulSense | `xeptions`, `restfulsense` |
+| xUnit, Moq, FluentAssertions | pytest, `unittest.mock.create_autospec`, `mock_calls == [...]` |
 
-## Stability and versioning
+## Where Python differs, on purpose
 
-Releases follow The Standard's four-part version, `v<model>.<service>.<fix>.<build>`. The public
-contracts are the `StandardAgent` composition surface, `AgentOutcome`, `AgentStatus`, `ITool`, and
-the broker interfaces under `standard_agents.brokers`; a change to any of them is a model change
-and increments the first segment. Nothing has been published to a package index yet.
+The behaviour matches C# except where Python cannot or should not reproduce .NET:
 
-## Tests
+- **Text rules.** Validations read blank text with `str.isspace`, which also counts U+001C to
+  U+001F. Lowercasing is per character, so U+0130 stays as it is. Brokers that reproduce a wire or
+  file format keep the .NET rules.
+- **Culture.** Conflict keys sort by code point, and the judge score is formatted with `.`, where
+  C# uses the current culture.
+- **Case-insensitive mappings** (tool risk, tool scope) fold their keys when the agent is built.
+- **Failure detail.** The effect ledger records a tool failure as `str(exception)`, which is empty
+  for a bare `Exception()`.
+- **Cancellation.** `task.cancel()` raises `asyncio.CancelledError` from every door and is never
+  mapped into a categorized exception. A streamed run cancelled by its reader stops at once.
+- **Commands.** On Windows a bare MCP command is resolved with `shutil.which`.
+- **The host** is a standard-library HTTP/1.1 server, not Kestrel: no HTTPS (put TLS in front),
+  no HTTP/2, no bearer-token validation (with an authority configured, every agent route answers
+  401 unless the host is given an authentication scheme), and configuration from environment
+  variables and the command line. The hosting guide lists the rest.
+
+## Python additions
+
+Optional, and leaving them unused behaves exactly as C# does:
+
+- `await agent.aclose()` and `async with StandardAgent(...)`, which stop the MCP server
+  processes the agent started.
+- The host closes the agent it composed when it stops.
+
+## Versioning
+
+Releases follow The Standard's four-part version, `<model>.<service>.<fix>.<build>`, and take the
+C# version they match, so one number means one behaviour in both languages.
+
+## Contributing
+
+How to contribute, and the rules every change follows:
+[CONTRIBUTING.md](https://github.com/hassanhabib/The-Standard-Agent-Python/blob/main/CONTRIBUTING.md).
 
 ```bash
 python -m pip install -e ".[test]"
 python -m pytest -q
 ```
 
-How to contribute, and the rules every change follows: [CONTRIBUTING.md](CONTRIBUTING.md).
-
 ## License
 
-[The Standard Software License (TSSL)](LICENSE.txt).
+[The Standard Software License (TSSL)](https://github.com/hassanhabib/The-Standard-Agent-Python/blob/main/LICENSE.txt).
