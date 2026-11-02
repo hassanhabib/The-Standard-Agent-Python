@@ -71,3 +71,25 @@ async def test_should_frame_every_line_of_content_as_data_on_post_stream(
 
     # then: one event, every content line carried as its own data line
     assert streamed == "event: Response\ndata: line one\ndata: line two\n\n"
+
+
+# Content that happens to look like a field must stay data. Without the per-line prefix a model
+# answer beginning "event: " or "data: " on its own line rewrites the frame the consumer is
+# reading.
+async def test_should_keep_field_shaped_content_as_data_on_post_stream(agent, agents_controller):
+    # given
+    agent.process_prompt_stream.return_value = _one_response(
+        "event: Forged\ndata: injected\n\nevent: Forged")
+
+    # when
+    actual_result = await agents_controller.post_stream(AgentRunRequest(prompt="what is owed"))
+    streamed = await _read(actual_result.body)
+
+    # then: every line is data, the blank line inside the content does not end the event
+    assert streamed == (
+        "event: Response\n"
+        "data: event: Forged\n"
+        "data: data: injected\n"
+        "data: \n"
+        "data: event: Forged\n"
+        "\n")
