@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from standard_agents.host.http_context import HttpContextAccessor
-from standard_agents.host.security.claims import ClaimsPrincipal
+from standard_agents.host.security.claims import ClaimsPrincipal, ClaimTypes
 from standard_agents.models.orchestrations.effects.agent_principal import AgentPrincipal
 
 
@@ -25,8 +25,15 @@ class HttpPrincipalResolver:
     def resolve(self) -> AgentPrincipal | None:
         user = self.http_context_accessor.http_context.user
 
+        # "sub" is the token's subject; NameIdentifier is the same thing in .NET's vocabulary
+        # after the default inbound mapping; the identity's name is the last resort.
+        principal_id = _first_value(user, "sub", ClaimTypes.NAME_IDENTIFIER)
+
+        if principal_id is None:
+            principal_id = user.identity.name
+
         return AgentPrincipal(
-            id=_first_value(user, "sub"),
+            id=principal_id,
             tenant_id=_first_value(user, "tid", "tenant"),
             jurisdiction=_first_value(user, "jurisdiction"),
             delegated_by=_first_value(user, "act"))
