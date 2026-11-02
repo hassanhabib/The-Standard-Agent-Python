@@ -101,3 +101,23 @@ async def test_should_hand_no_principal_to_the_agent_for_an_anonymous_request_th
     # then: nobody was invented
     assert response.status == 200
     assert actual_response["pendingEffect"]["principal"] is None
+
+
+async def test_should_require_an_authenticated_user_on_agent_routes_when_authentication_is_configured(
+        agent,
+        serve_host,
+        v1_document):
+
+    # given: a deployment that configured bearer authentication against an issuer
+    async with serve_host({"Host:Authentication:Authority": "https://issuer.test/"}) as client:
+        # when: no token at all
+        run_response = await client.post_json(
+            "api/V1/agents/runs",
+            v1_document(prompt="what is owed"))
+
+        heartbeat = await client.get("api/home")
+
+    # then: the agent route is 401 before any run starts; the heartbeat stays open
+    assert run_response.status == 401
+    assert heartbeat.status == 200
+    agent.run.assert_not_called()
