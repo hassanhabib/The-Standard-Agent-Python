@@ -110,3 +110,20 @@ async def test_should_stop_every_mcp_server_process_it_started_when_its_block_ra
 
     # then: the whole tree is gone, and the host's error is the one that surfaced
     assert await have_stopped(process_ids)
+
+
+async def test_should_close_an_agent_already_closed(
+        empty_memory_broker,
+        empty_knowledge_broker):
+
+    # given: an agent that started an MCP server, and was closed
+    system_prompts = []
+    agent = create_agent(empty_memory_broker, empty_knowledge_broker, system_prompts)
+    process_ids = await process_ids_of(agent, system_prompts)
+    await agent.aclose()
+
+    # when
+    await agent.aclose()
+
+    # then: closing again is harmless
+    assert await have_stopped(process_ids)
