@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,7 +8,7 @@ version = "6.0.0.0"
 description = "The Standard AI Agent Framework for Python: Agent = Orchestration(Data, Decision, Direction)."
 readme = "README.md"
 requires-python = ">=3.10"
-license = { file = "LICENSE.txt" }
+license-files = ["LICENSE.txt"]
 authors = [{ name = "Hassan Habib", email = "hassanhabib@live.com" }]
 keywords = ["agents", "llm", "the-standard", "tri-nature"]
 classifiers = [
