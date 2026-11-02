@@ -575,6 +575,6 @@ def _has_extension(path: str) -> bool:
 def _client_version() -> str:
     """The installed distribution's version (the assembly version in C#), empty when none."""
     try:
-        return importlib.metadata.version("standard-agents")
+        return importlib.metadata.version("the-standard-agent")
     except importlib.metadata.PackageNotFoundError:
         return ""
