@@ -13,10 +13,12 @@ from standard_agents.agent import Agent
 from standard_agents.host.controllers.action_results import ObjectResult, StreamResult
 from standard_agents.host.models.v1.agent_run_request_v1 import AgentRunRequestV1
 from standard_agents.host.models.v1.agent_run_response_v1 import AgentRunResponseV1
+from standard_agents.host.models.v1.failure_v1 import FailureV1
 from standard_agents.host.models.v1.pending_effect_v1 import PendingEffectV1
 from standard_agents.host.models.v1.tool_exchange_v1 import ToolExchangeV1
 from standard_agents.models.brokers.generators.v1.conversation import ToolDefinition
 from standard_agents.models.brokers.sessions.agent_session import AgentTurn
+from standard_agents.models.clients.agents.agent_failure import AgentFailure
 from standard_agents.models.clients.agents.agent_outcome import AgentOutcome
 from standard_agents.models.clients.agents.prompt_request import PromptRequest
 from standard_agents.models.orchestrations.agents.tool_exchange import ToolExchange
@@ -100,7 +102,18 @@ def _to_response(outcome: AgentOutcome) -> AgentRunResponseV1:
     return AgentRunResponseV1(
         result=outcome.result,
         status=_enum_name(outcome.status),
-        pending_effect=_to_pending_effect(outcome.pending_effect))
+        pending_effect=_to_pending_effect(outcome.pending_effect),
+        failure=_to_failure(outcome.failure))
+
+
+def _to_failure(failure: AgentFailure | None) -> FailureV1 | None:
+    if failure is None:
+        return None
+
+    return FailureV1(
+        category=_enum_name(failure.category),
+        code=failure.code,
+        message=failure.message)
 
 
 def _to_pending_effect(effect: AgentEffect | None) -> PendingEffectV1 | None:
