@@ -11,6 +11,7 @@
 from unittest.mock import ANY, call
 
 from standard_agents.models.clients.agents.agent_outcome import AgentOutcome
+from standard_agents.models.clients.agents.prompt_request import PromptRequest
 from standard_agents.models.orchestrations.agents.agent_status import AgentStatus
 
 
@@ -52,4 +53,21 @@ async def test_should_round_trip_a_held_run_through_http(
     assert response.status == 200
     assert response.media_type == "application/json"
     assert response.json() == expected_response
+    assert agent.run.call_args_list == [call(expected_prompt_request, cancellation=ANY)]
+
+
+async def test_should_bind_a_prompt_only_document_with_empty_lists_through_http(agent, serve_host):
+    # given: the smallest V1 document a caller can post
+    agent.run.return_value = AgentOutcome("the answer", AgentStatus.RESPONDED)
+    expected_prompt_request = PromptRequest(prompt="what is owed")
+
+    async with serve_host() as client:
+        # when
+        response = await client.post(
+            "api/V1/agents/runs",
+            '{"prompt":"what is owed"}',
+            "application/json; charset=utf-8")
+
+    # then: an absent list is an empty one, and an absent option is unset
+    assert response.status == 200
     assert agent.run.call_args_list == [call(expected_prompt_request, cancellation=ANY)]
