@@ -314,3 +314,21 @@ async def test_should_answer_when_used_again_after_closing(
     finally:
         await agent.aclose()
 
+
+async def test_should_stop_an_mcp_server_process_started_again_after_closing_when_closed_again(
+        empty_memory_broker,
+        empty_knowledge_broker):
+
+    # given: an agent that ran, was closed, and ran again, starting its MCP server again
+    tool_answers = []
+    agent = create_calling_agent(empty_memory_broker, empty_knowledge_broker, tool_answers)
+    await agent.process_prompt("hello")
+    await agent.aclose()
+    await agent.process_prompt("hello again")
+    restarted_process_ids = process_ids_answered(tool_answers)
+
+    # when
+    await agent.aclose()
+
+    # then: the server started again is gone too
+    assert await have_stopped(restarted_process_ids)
