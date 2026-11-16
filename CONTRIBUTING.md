@@ -42,13 +42,20 @@ Code that has no behaviour of its own (brokers, data models, configuration) land
 
 Each service is three modules: `x_service.py` (the routines), `x_service_validations.py` and
 `x_service_exceptions.py`, imported explicitly. Exceptions for an entity live in
-`models/<layer>/<entity>/exceptions.py`, and every one of them derives from `xeptions.Xeption`.
+`models/<layer>/<entity>/exceptions.py`, and every one of them derives from `xeption.Xeption`.
 
 ## Tests
 
 ```bash
 python -m pip install -e ".[test]"
 python -m pytest -q
+```
+
+The package depends on `xeption` and `restfulsense`. Until both are on PyPI, install them from their
+repositories first:
+
+```bash
+python -m pip install "xeption @ git+https://github.com/hassanhabib/Xeption-Python@main" "restfulsense @ git+https://github.com/hassanhabib/RESTFulSense-Python@main"
 ```
 
 - Unit tests mock every dependency with `create_autospec` and assert the exact calls with

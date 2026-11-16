@@ -269,7 +269,7 @@ the way up, and logs the categorized exception once, before raising it.
 | `record AgentContext` with `with { }` | `@dataclass(frozen=True)` with `dataclasses.replace` |
 | `AgentUsage.None`, `AgentEffect.For(...)`, `TryGetVerdict` | `AgentUsage.EMPTY`, `AgentEffect.create(...)`, `get_verdict` |
 | Partial classes and `TryCatch` | one module per service, and `async with _handling_exceptions(...)` |
-| `Xeption`, RESTFulSense | `xeptions`, `restfulsense` |
+| `Xeption`, RESTFulSense | `xeption`, `restfulsense` (their own packages on PyPI) |
 | xUnit, Moq, FluentAssertions | pytest, `unittest.mock.create_autospec`, `mock_calls == [...]` |
 
 ## Where Python differs, on purpose
