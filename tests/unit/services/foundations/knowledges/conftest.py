@@ -15,7 +15,7 @@ from standard_agents.brokers.knowledges.sourced_knowledge_broker import SourcedK
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.models.foundations.knowledges.knowledge_result import KnowledgeResult
 from standard_agents.services.foundations.knowledges.knowledge_service import KnowledgeService
-from xeptions import Xeption
+from xeption import Xeption
 
 
 class SameExceptionAs:

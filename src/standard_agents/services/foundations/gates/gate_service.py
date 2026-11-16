@@ -27,7 +27,7 @@ from standard_agents.models.foundations.gates.exceptions import (
     GateServiceException,
     GateValidationException,
     InvalidGateException)
-from xeptions import Xeption
+from xeption import Xeption
 
 # Sent to the model byte for byte as the C# framework sends it, so the dash in it is the same
 # U+2014 the C# rubric carries, written as an escape.

@@ -33,7 +33,7 @@ from standard_agents.services.orchestrations.direction.executions.execution_orch
     import ExecutionOrchestrationService
 from standard_agents.services.orchestrations.direction.perimeters.perimeter_orchestration_service \
     import PerimeterOrchestrationService
-from xeptions import Xeption
+from xeption import Xeption
 
 
 class SameExceptionAs:

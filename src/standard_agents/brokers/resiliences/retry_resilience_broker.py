@@ -13,7 +13,7 @@ from typing import TypeVar
 
 from restfulsense.exceptions import HttpRequestException
 from standard_agents.brokers.resiliences.resilience_broker import ResilienceBroker
-from xeptions import Xeption
+from xeption import Xeption
 
 T = TypeVar("T")
 

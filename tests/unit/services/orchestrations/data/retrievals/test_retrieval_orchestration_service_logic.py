@@ -13,7 +13,7 @@ from standard_agents.models.foundations.external_tools.exceptions import (
     ExternalToolDependencyValidationException,
     ExternalToolServiceException,
     InvalidExternalToolException)
-from xeptions import Xeption
+from xeption import Xeption
 
 
 def _remote_discovery_exceptions() -> list[Xeption]:

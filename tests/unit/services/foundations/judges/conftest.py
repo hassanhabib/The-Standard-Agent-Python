@@ -11,7 +11,7 @@ import pytest
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.brokers.verifiers.verifier_broker import VerifierBroker
 from standard_agents.services.foundations.judges.judge_service import JudgeService
-from xeptions import Xeption
+from xeption import Xeption
 
 
 class SameExceptionAs:

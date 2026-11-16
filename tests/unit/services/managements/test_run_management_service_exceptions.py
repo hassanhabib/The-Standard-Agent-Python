@@ -16,7 +16,7 @@ from standard_agents.models.coordinations.agents.exceptions import (
 from standard_agents.models.orchestrations.agents.exceptions import (
     AgentOrchestrationDependencyException,
     AgentOrchestrationServiceException)
-from xeptions import Xeption
+from xeption import Xeption
 
 DEPENDENCY_EXCEPTIONS = [
     AgentOrchestrationDependencyException(

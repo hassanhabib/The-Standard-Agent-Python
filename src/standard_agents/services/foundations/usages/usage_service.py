@@ -19,7 +19,7 @@ from standard_agents.models.foundations.usages.exceptions import (
     UsageDependencyException,
     UsageServiceException,
     UsageValidationException)
-from xeptions import Xeption
+from xeption import Xeption
 
 
 class UsageService:

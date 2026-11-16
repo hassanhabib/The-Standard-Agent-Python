@@ -3,7 +3,7 @@
 # Licensed under the The Standard Software License (TSSL)
 # ---------------------------------------------------------------
 
-from xeptions import Xeption
+from xeption import Xeption
 
 
 class AgentCoordinationDependencyException(Xeption):

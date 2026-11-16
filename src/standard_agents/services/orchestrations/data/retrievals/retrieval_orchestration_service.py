@@ -40,7 +40,7 @@ from standard_agents.services.foundations.external_tools.external_tool_service i
     ExternalToolService)
 from standard_agents.services.foundations.knowledges.knowledge_service import KnowledgeService
 from standard_agents.services.foundations.skills.skill_service import SkillService
-from xeptions import Xeption
+from xeption import Xeption
 
 _TOOLS_MARKER = "{{tools}}"
 _SKILLS_MARKER = "{{skills}}"

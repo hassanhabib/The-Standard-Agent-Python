@@ -33,7 +33,7 @@ from standard_agents.models.orchestrations.agents.exceptions import (
     FailedAgentOrchestrationServiceException)
 from standard_agents.services.foundations.memories.memory_service import MemoryService
 from standard_agents.services.foundations.sessions.session_service import SessionService
-from xeptions import Xeption
+from xeption import Xeption
 
 
 class RecollectionOrchestrationService:

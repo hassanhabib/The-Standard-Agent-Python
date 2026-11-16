@@ -36,7 +36,7 @@ from standard_agents.services.orchestrations.data.recollections.recollection_orc
     import RecollectionOrchestrationService
 from standard_agents.services.orchestrations.data.retrievals.retrieval_orchestration_service \
     import RetrievalOrchestrationService
-from xeptions import Xeption
+from xeption import Xeption
 
 
 class DataCoordinationService:

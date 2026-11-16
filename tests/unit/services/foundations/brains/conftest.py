@@ -12,7 +12,7 @@ import pytest
 from standard_agents.brokers.generators.generator_broker import GeneratorBroker
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.services.foundations.brains.brain_service import BrainService
-from xeptions import Xeption
+from xeption import Xeption
 
 
 class SameExceptionAs:

@@ -42,7 +42,7 @@ from standard_agents.services.foundations.brains.brain_service import BrainServi
 from standard_agents.services.foundations.usages.usage_service import UsageService
 from standard_agents.services.orchestrations.decision.inferences.reply_stream_classifier import (
     ReplyStreamClassifier)
-from xeptions import Xeption
+from xeption import Xeption
 
 _ACTION_PREFIX = "ACTION:"
 _TOOL_PREFIX = "TOOL:"

@@ -8,6 +8,7 @@ version = "6.0.0.0"
 description = "The Standard AI Agent Framework for Python: Agent = Orchestration(Data, Decision, Direction)."
 readme = "README.md"
 requires-python = ">=3.10"
+license = "LicenseRef-TSSL-1.1"
 license-files = ["LICENSE.txt"]
 authors = [{ name = "Hassan Habib", email = "hassanhabib@live.com" }]
 keywords = ["agents", "llm", "the-standard", "tri-nature"]
@@ -20,7 +21,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Typing :: Typed",
 ]
-dependencies = []
+dependencies = ["xeption>=1.0.0.0", "restfulsense>=1.0.0.0"]
 
 [project.optional-dependencies]
 test = ["pytest>=8", "pytest-asyncio>=0.23"]
@@ -28,14 +29,15 @@ test = ["pytest>=8", "pytest-asyncio>=0.23"]
 [project.urls]
 Homepage = "https://github.com/hassanhabib/The-Standard-Agent-Python"
 Specification = "https://github.com/hassanhabib/The-Standard-Agent-Specs"
+Source = "https://github.com/hassanhabib/The-Standard-Agent-Python"
+Issues = "https://github.com/hassanhabib/The-Standard-Agent-Python/issues"
+"C# Framework" = "https://github.com/hassanhabib/The-Standard-Agent"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
 standard_agents = ["py.typed", "prompts/guardians/*.md"]
-xeptions = ["py.typed"]
-restfulsense = ["py.typed"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
