@@ -13,7 +13,7 @@ from standard_agents.brokers.mcps import mcp_json
 from standard_agents.brokers.mcps.mcp_broker import McpBroker
 from standard_agents.services.foundations.external_tools.external_tool_service import (
     ExternalToolService)
-from xeptions import Xeption
+from xeption import Xeption
 
 
 class SameExceptionAs:

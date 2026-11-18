@@ -269,7 +269,7 @@ the way up, and logs the categorized exception once, before raising it.
 | `record AgentContext` with `with { }` | `@dataclass(frozen=True)` with `dataclasses.replace` |
 | `AgentUsage.None`, `AgentEffect.For(...)`, `TryGetVerdict` | `AgentUsage.EMPTY`, `AgentEffect.create(...)`, `get_verdict` |
 | Partial classes and `TryCatch` | one module per service, and `async with _handling_exceptions(...)` |
-| `Xeption`, RESTFulSense | `xeptions`, `restfulsense` |
+| `Xeption`, RESTFulSense | `xeption`, `restfulsense` (their own packages on PyPI) |
 | xUnit, Moq, FluentAssertions | pytest, `unittest.mock.create_autospec`, `mock_calls == [...]` |
 
 ## Where Python differs, on purpose
@@ -304,6 +304,27 @@ Optional, and leaving them unused behaves exactly as C# does:
 
 Releases follow The Standard's four-part version, `<model>.<service>.<fix>.<build>`, and take the
 C# version they match, so one number means one behaviour in both languages.
+
+## The Standard
+
+This framework is part of [The Standard](https://github.com/hassanhabib/The-Standard)
+family and is built to its rules for naming, layering and testing.
+
+Questions, ideas and contributions are welcome in
+[The Standard Community](https://discord.gg/vdPZ7hS52X) on Discord.
+
+## In other languages
+
+| Language | Repository | Package |
+|---|---|---|
+| C# | [The-Standard-Agent](https://github.com/hassanhabib/The-Standard-Agent) | [Standard.Agents on NuGet](https://www.nuget.org/packages/Standard.Agents) |
+| Python | [The-Standard-Agent-Python](https://github.com/hassanhabib/The-Standard-Agent-Python) | [the-standard-agent on PyPI](https://pypi.org/project/the-standard-agent/) |
+
+The specification both follow is [The Standard for Agents](https://github.com/hassanhabib/The-Standard-Agent-Specs/blob/main/SPEC.md).
+The libraries this package depends on have their own versions in each language:
+[Xeption](https://github.com/The-Standard-Organization/Xeption) and
+[RESTFulSense](https://github.com/hassanhabib/RESTFulSense) in C#,
+[xeption](https://pypi.org/project/xeption/) and [restfulsense](https://pypi.org/project/restfulsense/) in Python.
 
 ## Contributing
 

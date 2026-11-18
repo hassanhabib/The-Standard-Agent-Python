@@ -28,7 +28,7 @@ from standard_agents.services.orchestrations.decision.guardians.guardian_orchest
     import GuardianOrchestrationService
 from standard_agents.services.orchestrations.decision.inferences.inference_orchestration_service \
     import InferenceOrchestrationService
-from xeptions import Xeption
+from xeption import Xeption
 
 
 class SameExceptionAs:

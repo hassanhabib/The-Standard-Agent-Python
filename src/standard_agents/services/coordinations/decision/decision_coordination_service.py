@@ -47,7 +47,7 @@ from standard_agents.services.orchestrations.decision.guardians.guardian_orchest
     import GuardianOrchestrationService
 from standard_agents.services.orchestrations.decision.inferences.inference_orchestration_service \
     import InferenceOrchestrationService
-from xeptions import Xeption
+from xeption import Xeption
 
 # A guardian that emits one of these is trying to answer rather than classify. Invariant 6 holds
 # structurally either way (a verdict is only ever read as a classification), but the attempt is

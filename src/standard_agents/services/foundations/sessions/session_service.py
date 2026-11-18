@@ -21,7 +21,7 @@ from standard_agents.models.foundations.sessions.exceptions import (
     SessionServiceException,
     SessionValidationException,
     StaleSessionException)
-from xeptions import Xeption
+from xeption import Xeption
 
 
 class SessionService:

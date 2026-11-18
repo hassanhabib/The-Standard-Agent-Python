@@ -81,7 +81,7 @@ from standard_agents.services.managements._text import (
     is_blank,
     replace_line_endings,
     trim)
-from xeptions import Xeption
+from xeption import Xeption
 
 _DEFAULT_MAX_TURNS = 7
 

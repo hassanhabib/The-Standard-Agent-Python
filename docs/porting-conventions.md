@@ -106,11 +106,15 @@ A .NET exception a foundation catches maps to the Python one that the same failu
 | `HttpRequestException` | `restfulsense.HttpRequestException` |
 | RESTFulSense `HttpResponse*Exception` | the same names in `restfulsense` |
 
-## Libraries beside the package
+## Libraries the package depends on
 
-- `xeptions`: `Xeption`, with `upsert_data_list`, `add_data`, `throw_if_contains_errors` and
+Both are their own distributions on PyPI, as Xeption and RESTFulSense are their own NuGet packages
+in C#.
+
+- `xeption` ([Xeption-Python](https://github.com/hassanhabib/Xeption-Python)): `Xeption`, with `upsert_data_list`, `add_data`, `throw_if_contains_errors` and
   `same_exception_as`.
-- `restfulsense`: `RESTFulApiFactoryClient` over `urllib` and one exception type per status code,
+- `restfulsense` ([RESTFulSense-Python](https://github.com/hassanhabib/RESTFulSense-Python)):
+  `RESTFulApiFactoryClient` over `urllib` and one exception type per status code,
   so a broker stays a single call and the status-code mapping lives in the library, as in C#.
 
 ## Text

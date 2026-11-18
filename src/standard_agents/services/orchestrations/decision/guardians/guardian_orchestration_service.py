@@ -35,7 +35,7 @@ from standard_agents.models.orchestrations.agents.exceptions import (
 from standard_agents.services.foundations.contracts.contract_service import ContractService
 from standard_agents.services.foundations.gates.gate_service import GateService
 from standard_agents.services.foundations.judges.judge_service import JudgeService
-from xeptions import Xeption
+from xeption import Xeption
 
 
 class GuardianOrchestrationService:

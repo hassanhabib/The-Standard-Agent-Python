@@ -12,7 +12,7 @@ from standard_agents.brokers.files.file_broker import FileBroker
 from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.brokers.memories.memory_broker import MemoryBroker
 from standard_agents.services.foundations.memories.memory_service import MemoryService
-from xeptions import Xeption
+from xeption import Xeption
 
 
 class SameExceptionAs:

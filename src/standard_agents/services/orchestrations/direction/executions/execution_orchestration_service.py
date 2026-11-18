@@ -43,7 +43,7 @@ from standard_agents.services.foundations.external_tools.external_tool_service i
 from standard_agents.services.foundations.internal_tools.internal_tool_service import (
     InternalToolService)
 from standard_agents.services.foundations.returns.return_service import ReturnService
-from xeptions import Xeption
+from xeption import Xeption
 
 
 class ExecutionOrchestrationService:

@@ -25,7 +25,7 @@ from standard_agents.models.orchestrations.agents.exceptions import (
     AgentOrchestrationValidationException,
     FailedAgentOrchestrationServiceException,
     NullAgentContextException)
-from xeptions import Xeption
+from xeption import Xeption
 
 DEPENDENCY_VALIDATION_EXCEPTIONS = [
     GateValidationException(

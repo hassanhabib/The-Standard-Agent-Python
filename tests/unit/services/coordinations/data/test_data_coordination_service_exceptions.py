@@ -23,7 +23,7 @@ from standard_agents.models.orchestrations.agents.exceptions import (
     AgentOrchestrationValidationException,
     FailedAgentOrchestrationServiceException,
     NullAgentContextException)
-from xeptions import Xeption
+from xeption import Xeption
 
 
 def _dependency_validation_exceptions() -> list[Xeption]:

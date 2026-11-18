@@ -32,6 +32,13 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: "3.12"
+    # Until xeption and restfulsense are on PyPI, take them from their repositories, in dependency
+    # order. Remove this step once both are published.
+    - name: Installing Xeption And RESTFulSense
+      run: >-
+        python -m pip install
+        "xeption @ git+https://github.com/hassanhabib/Xeption-Python@main"
+        "restfulsense @ git+https://github.com/hassanhabib/RESTFulSense-Python@main"
     - name: Installing Build Tools
       run: python -m pip install -e ".[test]" build twine
     - name: Running Tests

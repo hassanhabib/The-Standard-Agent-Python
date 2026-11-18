@@ -27,7 +27,7 @@ from standard_agents.services.foundations.approvals.approval_service import Appr
 from standard_agents.services.foundations.effect_ledgers.effect_ledger_service import (
     EffectLedgerService)
 from standard_agents.services.foundations.policies.policy_service import PolicyService
-from xeptions import Xeption
+from xeption import Xeption
 
 LEASE = timedelta(minutes=5)
 

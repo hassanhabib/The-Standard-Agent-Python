@@ -48,8 +48,11 @@ capability group, each in its own worktree.
 
 In C# they are NuGet packages of their own. In Python they will be too (owner decision,
 2026-11-01): `xeption` and `restfulsense` on PyPI, each with its own repository, tests and
-Trusted Publishing, and `the-standard-agent` depending on them. Until they are published they
-live in `src/xeptions` and `src/restfulsense`, and the wheel must not ship them before then.
+Trusted Publishing, and `the-standard-agent` depending on them. The copies that lived in
+`src/xeptions` and `src/restfulsense` are gone: the package now imports `xeption` and
+`restfulsense` and declares both as dependencies, and the wheel ships `standard_agents` alone.
+Until both are on PyPI, CI installs them from their repositories. The release order is in
+[publishing.md](publishing.md).
 
 ## Known mismatches, each fixed test-first in its phase
 

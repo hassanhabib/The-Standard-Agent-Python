@@ -12,7 +12,7 @@ from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.brokers.sessions.session_broker import SessionBroker
 from standard_agents.models.brokers.sessions.agent_session import AgentSession, AgentTurn
 from standard_agents.services.foundations.sessions.session_service import SessionService
-from xeptions import Xeption
+from xeption import Xeption
 
 
 class SameExceptionAs:

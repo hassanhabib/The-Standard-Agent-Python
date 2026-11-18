@@ -19,7 +19,7 @@ from standard_agents.services.coordinations.decision.decision_coordination_servi
 from standard_agents.services.coordinations.direction.direction_coordination_service import (
     DirectionCoordinationService)
 from standard_agents.services.managements.run_management_service import RunManagementService
-from xeptions import Xeption
+from xeption import Xeption
 
 
 class SameExceptionAs:

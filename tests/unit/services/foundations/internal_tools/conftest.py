@@ -12,7 +12,7 @@ from standard_agents.brokers.loggings.logging_broker import LoggingBroker
 from standard_agents.brokers.tools.tool_broker import ToolBroker
 from standard_agents.services.foundations.internal_tools.internal_tool_service import (
     InternalToolService)
-from xeptions import Xeption
+from xeption import Xeption
 
 
 class SameExceptionAs:
